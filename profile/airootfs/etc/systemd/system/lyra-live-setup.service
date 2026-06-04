@@ -1,0 +1,14 @@
+[Unit]
+Description=Lyra OS live session bootstrap
+ConditionPathExists=/usr/local/bin/lyra-live-setup
+# Must finish before the display manager so the autologin user exists.
+Before=sddm.service
+After=systemd-tmpfiles-setup.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/lyra-live-setup
+
+[Install]
+WantedBy=multi-user.target

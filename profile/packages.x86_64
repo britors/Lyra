@@ -1,0 +1,136 @@
+# Lyra OS — package manifest for the live/install image.
+# One package per line. Comments group by spec section. Names without a repo
+# prefix resolve in order: lyra-local > core/extra/multilib.
+
+### --- Base system & boot (§2) ---
+base
+base-devel
+linux-zen
+linux-zen-headers
+linux-firmware
+intel-ucode
+amd-ucode
+mkinitcpio
+mkinitcpio-archiso
+btrfs-progs            # root fs is Btrfs (§4)
+dosfstools
+e2fsprogs
+exfatprogs
+ntfs-3g                # read Windows partitions out of the box
+grub                   # bootloader on the installed system (§4/§11)
+efibootmgr
+os-prober              # dual-boot detection (Windows)
+plymouth               # boot splash, themed below (§10)
+sudo
+systemd-resolvconf
+networkmanager
+bluez
+bluez-utils
+pipewire
+pipewire-alsa
+pipewire-pulse
+pipewire-jack
+wireplumber
+power-profiles-daemon
+
+### --- Live environment tooling (only needed on the ISO) ---
+archinstall
+arch-install-scripts
+calamares              # graphical installer (§11); pulled from extra
+git
+rsync
+gptfdisk
+parted
+mtools
+zsh
+
+### --- KDE Plasma 6, curated "super clean" (§3) ---
+plasma-desktop
+plasma-pa
+plasma-nm
+powerdevil
+kscreen
+bluedevil
+plasma-systemmonitor
+plasma-workspace-wallpapers
+sddm                   # display manager
+breeze
+breeze-gtk
+kde-gtk-config
+xdg-desktop-portal-kde
+xdg-desktop-portal
+# NOTE: deliberately NOT installing the kde-applications group.
+
+### --- Minimal KDE apps (§3) ---
+dolphin
+konsole
+ark
+gwenview
+okular
+kate
+spectacle
+kcalc
+
+### --- Fonts & common runtime ---
+noto-fonts
+noto-fonts-emoji
+noto-fonts-cjk
+ttf-dejavu
+ttf-liberation
+gst-plugins-good
+gst-plugins-bad
+gst-libav
+
+### --- Package management & app delivery (§5) ---
+flatpak                # Flathub configured by airootfs (§5)
+pamac-aur              # graphical store, from lyra-local (built via AUR, §5)
+
+### --- Stability: Btrfs snapshots (§4) ---
+snapper
+snap-pac
+grub-btrfs
+inotify-tools          # grub-btrfs watcher
+
+### --- Gaming stack (§8) — requires multilib ---
+steam
+lutris
+gamemode
+lib32-gamemode
+mangohud
+lib32-mangohud
+gamescope
+vulkan-icd-loader
+lib32-vulkan-icd-loader
+
+### --- GPU drivers: open by default; live boots nouveau (§6) ---
+# Open Mesa stack for AMD/Intel works out of the box.
+mesa
+lib32-mesa
+vulkan-radeon
+lib32-vulkan-radeon
+vulkan-intel
+lib32-vulkan-intel
+xf86-video-amdgpu
+xf86-video-nouveau     # safe DEFAULT on the live image (§6)
+# NVIDIA open DKMS is shipped on the live media so the "Proprietary drivers"
+# boot entry (§6) actually works. linux-zen => DKMS variant is mandatory; the
+# module is built into the live initramfs during mkarchiso. It is blacklisted
+# by default cmdline (nouveau loads) and enabled by the alternate boot entry.
+# The Calamares lyra-gpu module re-decides the right driver for the INSTALLED
+# system per detected architecture (Turing+ open vs Maxwell/Pascal legacy).
+nvidia-open-dkms
+nvidia-utils
+lib32-nvidia-utils
+
+### --- Kernel manager (§7) — own utility, from lyra-local ---
+lyra-kernel-manager
+
+### --- Pre-installed apps (§9) ---
+firefox
+prosa                  # W3TI text editor — AUR-curated, from lyra-local
+fina                   # W3TI personal app — AUR-curated, from lyra-local
+# Calco / Pulso: pending AUR publication (§9/§13) — add here when available.
+# Discord: explicitly NOT included (§9).
+
+### --- Lyra branding metapackage (themes, wallpapers, defaults) ---
+lyra-branding          # built locally, see branding/ (§10)

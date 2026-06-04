@@ -1,0 +1,17 @@
+# Build output
+/out/
+
+# Generated assets (reproduced by branding/generate-*.sh)
+/branding/assets/*.png
+/branding/wallpapers/src/
+/branding/wallpapers/generated/
+
+# makepkg leftovers
+**/pkg/
+**/src/
+*.pkg.tar.zst
+*.log
+
+# python
+__pycache__/
+*.pyc

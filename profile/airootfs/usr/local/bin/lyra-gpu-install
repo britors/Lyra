@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+# Lyra OS — install the correct GPU driver for the detected hardware (§6).
+# Run by Calamares inside the target chroot (shellprocess-gpu.conf). Idempotent
+# and safe to re-run on the installed system.
+#
+# Decision table (spec §6):
+#   AMD / Intel ........................ open Mesa stack (already installed) — nothing to do
+#   NVIDIA Turing+ (RTX 20xx, GTX 16xx+) nvidia-open-dkms + utils + lib32
+#   NVIDIA Maxwell/Pascal/Volta (9xx/10xx) nvidia-580xx-dkms (legacy, from lyra-local/AUR)
+#   NVIDIA older / detection fails ..... nouveau (open, already installed)
+#
+# Rule (§6): linux-zen => DKMS variant is mandatory, and EVERY installed kernel
+# must get its matching *-headers so DKMS can build. This script installs the
+# headers for all present linux-* kernels.
+set -euo pipefail
+
+log() { printf '[lyra-gpu] %s\n' "$*"; }
+
+pac() { pacman -S --needed --noconfirm "$@"; }
+
+install_kernel_headers() {
+    # For every installed kernel, ensure its -headers package is present (§6/§7).
+    local installed
+    mapfile -t installed < <(pacman -Qq | grep -E '^linux(-[a-z]+)?$' || true)
+    for k in "${installed[@]}"; do
+        log "Ensuring headers for ${k}"
+        pac "${k}-headers" || log "WARN: could not install ${k}-headers"
+    done
+}
+
+# --- Detect GPU vendor(s) ---------------------------------------------------
+gpu_lines="$(lspci -nn | grep -Ei 'vga|3d|display' || true)"
+log "Detected display controllers:"
+printf '%s\n' "${gpu_lines}" | sed 's/^/    /'
+
+has_nvidia=false
+grep -qiE '\[10de:' <<<"${gpu_lines}" && has_nvidia=true
+
+if ! ${has_nvidia}; then
+    log "No NVIDIA GPU — open Mesa stack (AMD/Intel) is sufficient. Done."
+    exit 0
+fi
+
+# --- Classify NVIDIA architecture by marketing name -------------------------
+# Read the human-readable model (e.g. "GeForce RTX 3060", "GeForce GTX 1060").
+nv_name="$(grep -iE '\[10de:' <<<"${gpu_lines}" | head -n1)"
+log "NVIDIA GPU: ${nv_name}"
+
+driver="nouveau"   # safe fallback (§6)
+
+# Turing and newer: any RTX card, or GTX 16xx (Turing). Also AXxxx / Ada / Ampere
+# marketing strings. -> open kernel modules (official).
+if grep -qiE 'RTX|GTX 16[0-9]{2}|A[0-9]{3,4}|Ada|Ampere|Hopper|Blackwell' <<<"${nv_name}"; then
+    driver="open"
+# Maxwell (GTX 9xx) / Pascal (GTX 10xx) / Volta (TITAN V) -> legacy 580xx.
+elif grep -qiE 'GTX 9[0-9]{2}|GTX 10[0-9]{2}|TITAN X|TITAN V|Volta|Pascal|Maxwell' <<<"${nv_name}"; then
+    driver="legacy"
+fi
+
+case "${driver}" in
+  open)
+    log "Architecture Turing or newer -> nvidia-open-dkms (official)."
+    install_kernel_headers
+    pac nvidia-open-dkms nvidia-utils lib32-nvidia-utils
+    ;;
+  legacy)
+    log "Architecture Maxwell/Pascal/Volta -> nvidia-580xx-dkms (legacy)."
+    install_kernel_headers
+    pac nvidia-580xx-dkms nvidia-580xx-utils lib32-nvidia-580xx-utils
+    ;;
+  nouveau)
+    log "Older or unrecognized NVIDIA -> staying on open nouveau driver."
+    pac xf86-video-nouveau mesa
+    exit 0
+    ;;
+esac
+
+# --- Enable DRM KMS + early loading for the proprietary/open module ----------
+install -d /etc/modprobe.d
+echo "options nvidia_drm modeset=1 fbdev=1" > /etc/modprobe.d/lyra-nvidia.conf
+
+# Ensure the nvidia modules go into the initramfs (KMS hook handles ordering).
+if ! grep -q 'nvidia' /etc/mkinitcpio.conf 2>/dev/null; then
+    sed -i 's/^MODULES=(\(.*\))/MODULES=(\1 nvidia nvidia_modeset nvidia_uvm nvidia_drm)/' \
+        /etc/mkinitcpio.conf || true
+fi
+# Drop nouveau when a proprietary/open NVIDIA driver is in charge.
+echo "blacklist nouveau" > /etc/modprobe.d/lyra-blacklist-nouveau.conf
+
+# Rebuild initramfs so the change takes effect on first boot.
+mkinitcpio -P || log "WARN: mkinitcpio -P failed; check DKMS build logs."
+
+log "NVIDIA driver setup complete (${driver})."

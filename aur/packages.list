@@ -1,0 +1,18 @@
+# Lyra OS — curated AUR packages (§5/§9).
+# Format: <pkgname> <aur-git-url>
+# These are cloned and built with makepkg into the lyra-local repo, then consumed
+# by mkarchiso. Curated by the maintainer — NOT "whatever is on the AUR".
+
+# Graphical package store (§5)
+pamac-aur            https://aur.archlinux.org/pamac-aur.git
+
+# NVIDIA legacy driver for Maxwell/Pascal/Volta GPUs (§6). DKMS because linux-zen.
+nvidia-580xx-dkms    https://aur.archlinux.org/nvidia-580xx-dkms.git
+nvidia-580xx-utils   https://aur.archlinux.org/nvidia-580xx-utils.git
+lib32-nvidia-580xx-utils https://aur.archlinux.org/lib32-nvidia-580xx-utils.git
+
+# W3TI applications (§9)
+prosa                https://aur.archlinux.org/prosa.git
+fina                 https://aur.archlinux.org/fina.git
+# calco              <pending AUR publication — §9/§13>
+# pulso              <pending AUR publication — §9/§13>

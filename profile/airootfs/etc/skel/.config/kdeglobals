@@ -1,0 +1,13 @@
+[General]
+AccentColor=110,106,255
+accentColorFromWallpaper=false
+
+[KDE]
+widgetStyle=Breeze
+LookAndFeelPackage=org.kde.breeze.desktop
+
+[Icons]
+Theme=breeze
+
+[KScreen]
+ScaleFactor=1

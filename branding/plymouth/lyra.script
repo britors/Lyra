@@ -1,0 +1,47 @@
+// Lyra OS — Plymouth boot splash (§10)
+// Deep navy background, centered logo with a gently pulsing glow, and a
+// password prompt for encrypted-disk boots. Assets: logo.png, optional
+// throbber-*.png frames (placed by the lyra-branding package).
+
+// --- background: deep navy (sapphire->violet base) ---
+Window.SetBackgroundTopColor(0.039, 0.039, 0.122);     // #0a0a1f
+Window.SetBackgroundBottomColor(0.102, 0.067, 0.251);  // #1a1140
+
+screen_w = Window.GetWidth();
+screen_h = Window.GetHeight();
+
+// --- logo ---
+logo.image = Image("logo.png");
+logo.sprite = Sprite(logo.image);
+logo.w = logo.image.GetWidth();
+logo.h = logo.image.GetHeight();
+logo.sprite.SetX((screen_w - logo.w) / 2);
+logo.sprite.SetY((screen_h - logo.h) / 2 - 40);
+
+// --- pulsing opacity animation ---
+progress = 0;
+fun refresh_cb() {
+    progress++;
+    opacity = 0.65 + 0.35 * Math.Sin(progress / 18);
+    logo.sprite.SetOpacity(opacity);
+}
+Plymouth.SetRefreshFunction(refresh_cb);
+
+// --- message line (boot status / errors) ---
+message.sprite = Sprite();
+message.sprite.SetPosition(0, screen_h - 64, 10000);
+fun message_cb(text) {
+    msg.image = Image.Text(text, 1, 1, 1);
+    message.sprite.SetImage(msg.image);
+    message.sprite.SetX((screen_w - msg.image.GetWidth()) / 2);
+}
+Plymouth.SetMessageFunction(message_cb);
+
+// --- LUKS password prompt (encrypted installs) ---
+fun display_password_cb(prompt, bullets) {
+    p.image = Image.Text(prompt + "  " + "*" * bullets, 0.43, 0.42, 1.0); // #6e6aff
+    p.sprite = Sprite(p.image);
+    p.sprite.SetX((screen_w - p.image.GetWidth()) / 2);
+    p.sprite.SetY(screen_h - 110);
+}
+Plymouth.SetDisplayPasswordFunction(display_password_cb);

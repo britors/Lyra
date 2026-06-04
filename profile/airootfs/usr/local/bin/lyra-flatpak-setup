@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Lyra OS — ensure Flathub is the default system-wide Flatpak remote (§5).
+# 'remote-add' needs no network and is idempotent, so this is safe on every boot
+# and on the live image. Flathub is the recommended path for end users to install
+# extra apps (sandboxed, auto-updating, won't break the base system).
+set -euo pipefail
+flatpak remote-add --if-not-exists flathub \
+    https://dl.flathub.org/repo/flathub.flatpakrepo

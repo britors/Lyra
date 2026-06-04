@@ -1,0 +1,24 @@
+# Maintainer: W3TI <rodrigo@w3ti.com.br>
+pkgname=lyra-kernel-manager
+pkgver=1.0.0
+pkgrel=1
+pkgdesc="Lyra OS — graphical kernel switcher (installs/removes linux-* with matching headers)"
+arch=('any')
+url="https://w3ti.com.br/lyra"
+license=('GPL3')
+depends=('python' 'pyside6' 'polkit' 'pacman')
+# Headers are always installed alongside the kernel by the app itself, so DKMS
+# (NVIDIA on linux-zen, §6/§7) can always rebuild.
+source=('lyra-kernel-manager.py'
+        'lyra-kernel-manager.desktop'
+        'br.com.w3ti.lyra.kernelmanager.policy')
+sha256sums=('SKIP' 'SKIP' 'SKIP')
+
+package() {
+    install -Dm755 "${srcdir}/lyra-kernel-manager.py" \
+        "${pkgdir}/usr/bin/lyra-kernel-manager"
+    install -Dm644 "${srcdir}/lyra-kernel-manager.desktop" \
+        "${pkgdir}/usr/share/applications/lyra-kernel-manager.desktop"
+    install -Dm644 "${srcdir}/br.com.w3ti.lyra.kernelmanager.policy" \
+        "${pkgdir}/usr/share/polkit-1/actions/br.com.w3ti.lyra.kernelmanager.policy"
+}

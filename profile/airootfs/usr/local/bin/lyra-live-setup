@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Lyra OS — one-shot live-session bootstrap (runs before SDDM on the ISO only).
+# Creates the passwordless 'lyra' live user and drops a desktop launcher for the
+# Calamares installer. None of this reaches the installed system: the Calamares
+# lyra-live-cleanup step removes the user, this script and its unit (§11).
+set -euo pipefail
+
+LIVE_USER="lyra"
+
+if ! id -u "${LIVE_USER}" &>/dev/null; then
+    useradd -m -G wheel,video,audio,storage,network,input \
+            -s /bin/bash -c "Lyra Live" "${LIVE_USER}"
+    # Passwordless login for the live session.
+    passwd -d "${LIVE_USER}"
+fi
+
+# Passwordless sudo for the live session (so Calamares/Pamac just work).
+install -d -m 0750 /etc/sudoers.d
+echo "${LIVE_USER} ALL=(ALL:ALL) NOPASSWD: ALL" > /etc/sudoers.d/99-lyra-live
+chmod 0440 /etc/sudoers.d/99-lyra-live
+
+# Put "Install Lyra OS" on the live desktop and in the menu.
+DESKTOP_DIR="/home/${LIVE_USER}/Desktop"
+install -d -o "${LIVE_USER}" -g "${LIVE_USER}" "${DESKTOP_DIR}"
+if [[ -f /usr/share/applications/calamares.desktop ]]; then
+    install -m 0755 -o "${LIVE_USER}" -g "${LIVE_USER}" \
+        /usr/share/applications/calamares.desktop \
+        "${DESKTOP_DIR}/install-lyra.desktop"
+fi

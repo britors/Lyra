@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# Lyra OS — strip live-only bits from the freshly installed target (§11).
+# Run by Calamares in the chroot AFTER the user account is created.
+set -euo pipefail
+
+log() { printf '[lyra-cleanup] %s\n' "$*"; }
+
+# Remove the passwordless live user and its home.
+if id -u lyra &>/dev/null; then
+    log "Removing live user 'lyra'"
+    userdel -r lyra 2>/dev/null || userdel lyra || true
+fi
+
+# Remove live autologin + passwordless sudo + the bootstrap unit/scripts.
+rm -f /etc/sddm.conf.d/10-lyra-live-autologin.conf
+rm -f /etc/sudoers.d/99-lyra-live
+rm -f /etc/systemd/system/multi-user.target.wants/lyra-live-setup.service
+rm -f /etc/systemd/system/lyra-live-setup.service
+rm -f /usr/local/bin/lyra-live-setup
+
+# The installer itself is not needed on the installed system.
+rm -f /usr/share/applications/calamares.desktop
+
+log "Live-only configuration removed."
