@@ -3,12 +3,15 @@
 # These are cloned and built with makepkg into the lyra-local repo, then consumed
 # by mkarchiso. Curated by the maintainer — NOT "whatever is on the AUR".
 
-# Graphical package store (§5)
+# Graphical package store (§5). ORDER MATTERS: pamac-aur depends on
+# libpamac-aur (also AUR), so the library must be built first.
+libpamac-aur         https://aur.archlinux.org/libpamac-aur.git
 pamac-aur            https://aur.archlinux.org/pamac-aur.git
 
 # NVIDIA legacy driver for Maxwell/Pascal/Volta GPUs (§6). DKMS because linux-zen.
-nvidia-580xx-dkms    https://aur.archlinux.org/nvidia-580xx-dkms.git
+# Build deps-first: -utils, then -dkms, then the 32-bit utils (needs -utils).
 nvidia-580xx-utils   https://aur.archlinux.org/nvidia-580xx-utils.git
+nvidia-580xx-dkms    https://aur.archlinux.org/nvidia-580xx-dkms.git
 lib32-nvidia-580xx-utils https://aur.archlinux.org/lib32-nvidia-580xx-utils.git
 
 # W3TI applications (§9)
