@@ -1,6 +1,8 @@
 # Lyra OS — package manifest for the live/install image.
-# One package per line. Comments group by spec section. Names without a repo
-# prefix resolve in order: lyra-local > core/extra/multilib.
+# One package per line. Comments must be on their OWN lines (archiso does NOT
+# support inline comments — it would leave trailing whitespace on the package
+# name and fail with "target not found"). Names without a repo prefix resolve in
+# order: lyra-local > core/extra/multilib.
 
 ### --- Base system & boot (§2) ---
 base
@@ -12,16 +14,22 @@ intel-ucode
 amd-ucode
 mkinitcpio
 mkinitcpio-archiso
-btrfs-progs            # root fs is Btrfs (§4)
+# btrfs-progs: root fs is Btrfs (§4)
+btrfs-progs
 dosfstools
 e2fsprogs
 exfatprogs
-ntfs-3g                # read Windows partitions out of the box
-grub                   # bootloader: installed system (§4/§11) + live UEFI
-syslinux               # live BIOS boot mode (bios.syslinux)
+# ntfs-3g: read Windows partitions out of the box
+ntfs-3g
+# grub: bootloader for installed system (§4/§11) + live UEFI
+grub
+# syslinux: live BIOS boot mode (bios.syslinux)
+syslinux
 efibootmgr
-os-prober              # dual-boot detection (Windows)
-plymouth               # boot splash, themed below (§10)
+# os-prober: dual-boot detection (Windows)
+os-prober
+# plymouth: boot splash, themed by lyra-branding (§10)
+plymouth
 sudo
 systemd-resolvconf
 networkmanager
@@ -37,7 +45,8 @@ power-profiles-daemon
 ### --- Live environment tooling (only needed on the ISO) ---
 archinstall
 arch-install-scripts
-calamares              # graphical installer (§11); pulled from extra
+# calamares: graphical installer (§11), from extra
+calamares
 git
 rsync
 gptfdisk
@@ -54,7 +63,8 @@ kscreen
 bluedevil
 plasma-systemmonitor
 plasma-workspace-wallpapers
-sddm                   # display manager
+# sddm: display manager
+sddm
 breeze
 breeze-gtk
 kde-gtk-config
@@ -83,14 +93,17 @@ gst-plugins-bad
 gst-libav
 
 ### --- Package management & app delivery (§5) ---
-flatpak                # Flathub configured by airootfs (§5)
-pamac-aur              # graphical store, from lyra-local (built via AUR, §5)
+# flatpak: Flathub configured by airootfs (§5)
+flatpak
+# pamac-aur: graphical store, from lyra-local (built via AUR, §5)
+pamac-aur
 
 ### --- Stability: Btrfs snapshots (§4) ---
 snapper
 snap-pac
 grub-btrfs
-inotify-tools          # grub-btrfs watcher
+# inotify-tools: grub-btrfs watcher
+inotify-tools
 
 ### --- Gaming stack (§8) — requires multilib ---
 steam
@@ -112,7 +125,8 @@ lib32-vulkan-radeon
 vulkan-intel
 lib32-vulkan-intel
 xf86-video-amdgpu
-xf86-video-nouveau     # safe DEFAULT on the live image (§6)
+# xf86-video-nouveau: safe DEFAULT on the live image (§6)
+xf86-video-nouveau
 # NVIDIA open DKMS is shipped on the live media so the "Proprietary drivers"
 # boot entry (§6) actually works. linux-zen => DKMS variant is mandatory; the
 # module is built into the live initramfs during mkarchiso. It is blacklisted
@@ -128,10 +142,13 @@ lyra-kernel-manager
 
 ### --- Pre-installed apps (§9) ---
 firefox
-prosa                  # W3TI text editor — AUR-curated, from lyra-local
-fina                   # W3TI personal app — AUR-curated, from lyra-local
+# prosa: W3TI text editor — AUR-curated, from lyra-local
+prosa
+# fina: W3TI personal app — AUR-curated, from lyra-local
+fina
 # Calco / Pulso: pending AUR publication (§9/§13) — add here when available.
 # Discord: explicitly NOT included (§9).
 
 ### --- Lyra branding metapackage (themes, wallpapers, defaults) ---
-lyra-branding          # built locally, see branding/ (§10)
+# lyra-branding: built locally, see branding/ (§10)
+lyra-branding

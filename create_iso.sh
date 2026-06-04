@@ -1,12 +1,16 @@
 #!/usr/bin/env bash
 # Lyra OS — sequência completa para gerar a ISO, do zero (§12).
 #
-#   chmod +x .create_iso.sh
-#   ./.create_iso.sh
+#   chmod +x create_iso.sh
+#   ./create_iso.sh
 #
 # Rode como USUÁRIO NORMAL (não com sudo). O script pede a senha de sudo apenas
-# nas etapas que precisam de root: instalar dependências, registrar o repositório
-# local em /etc/pacman.conf, e rodar o mkarchiso.
+# nas etapas que precisam de root: instalar dependências, criar/usar o chroot de
+# build e rodar o mkarchiso.
+#
+# É re-executável: a etapa 3 pula pacotes AUR já compilados (incremental) e a
+# etapa 5 limpa a work dir do mkarchiso sozinha. Para forçar a recompilação de
+# tudo no AUR: REBUILD=1 ./create_iso.sh
 #
 # Requisitos: host Arch Linux com internet. O mkarchiso baixa vários GB.
 set -euo pipefail
@@ -49,7 +53,8 @@ bold "3/5  Compilando pacotes AUR + locais -> repositório lyra-local"
 # Pacotes AUR são compilados num CHROOT LIMPO (makechrootpkg): não mexe no
 # /etc/pacman.conf e não instala o driver NVIDIA 580xx no seu sistema real.
 # A ordem/dependências internas vêm de aur/packages.list (coluna de deps).
-# Pede senha de sudo para criar/usar o chroot.
+# Inclui o calamares (saiu dos repos oficiais -> AUR). Incremental: o que já
+# está em out/lyra-local é pulado. Pede senha de sudo para criar/usar o chroot.
 ./build.sh aur
 
 # ---------------------------------------------------------------------------
@@ -58,6 +63,7 @@ bold "4/5  Montando o perfil archiso (injeta lyra-local, Calamares, boot art)"
 
 # ---------------------------------------------------------------------------
 bold "5/5  Gerando a ISO com mkarchiso (root; baixa vários GB)"
+# build.sh iso já limpa out/archiso-work antes de rodar (re-execução segura).
 sudo ./build.sh iso
 
 bold "Concluído"

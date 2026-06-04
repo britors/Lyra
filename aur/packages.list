@@ -7,6 +7,10 @@
 #     automatically inside the chroot.
 # Curated by the maintainer — NOT "whatever is on the AUR".
 
+# Installer (§11). Calamares was DROPPED from the official Arch repos and is now
+# AUR-only — so it must be built here. All its deps are official (no AUR chain).
+calamares            https://aur.archlinux.org/calamares.git
+
 # Graphical package store (§5). pamac-aur depends on libpamac-aur (also AUR).
 libpamac-aur         https://aur.archlinux.org/libpamac-aur.git
 pamac-aur            https://aur.archlinux.org/pamac-aur.git                libpamac-aur

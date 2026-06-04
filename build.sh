@@ -91,6 +91,9 @@ stage_iso() {
     [[ $EUID -eq 0 ]] || die "The 'iso' stage must run as root: sudo ./build.sh iso"
     [[ -d "${WORK_PROFILE}" ]] || die "Run './build.sh assemble' first."
     msg "Running mkarchiso (this downloads several GB and takes a while)"
+    # mkarchiso wants a clean work dir; a leftover from a previous/aborted run
+    # makes it fail. Safe to wipe — it is pure build scratch space.
+    rm -rf "${WORKDIR}"
     mkdir -p "${ISO_OUT}" "${WORKDIR}"
     mkarchiso -v -w "${WORKDIR}" -o "${ISO_OUT}" "${WORK_PROFILE}"
     msg "ISO(s) written to ${ISO_OUT}:"

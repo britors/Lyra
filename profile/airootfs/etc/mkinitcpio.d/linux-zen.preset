@@ -1,0 +1,11 @@
+# mkinitcpio preset for the 'linux-zen' package on the Lyra OS live ISO (archiso).
+# Overrides the kernel package's default preset so the live initramfs is built
+# with the archiso hooks (see /etc/mkinitcpio.conf.d/archiso.conf). The preset
+# name MUST match the kernel pkgbase ('linux-zen').
+
+PRESETS=('archiso')
+
+ALL_kver='/boot/vmlinuz-linux-zen'
+archiso_config='/etc/mkinitcpio.conf.d/archiso.conf'
+
+archiso_image="/boot/initramfs-linux-zen.img"

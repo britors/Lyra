@@ -95,6 +95,13 @@ publish() {
 # Build an AUR package in the chroot, installing its already-built local deps.
 build_chroot() {
     local name="$1" dir="$2"; shift 2
+    # Incremental: skip if already in the local repo (set REBUILD=1 to force).
+    # The existing artifact stays available for later -I deps and the final
+    # repo-add pass. Delete out/lyra-local/<pkg>* or set REBUILD=1 to rebuild.
+    if [[ -z "${REBUILD:-}" && -n "$(dep_pkgfile "${name}")" ]]; then
+        msg "${name} already built — skipping (REBUILD=1 to force)"
+        return
+    fi
     local d Iargs=() f
     for d in "$@"; do
         f="$(dep_pkgfile "${d}")"
@@ -115,9 +122,39 @@ build_chroot() {
 # Build a local Lyra package on the host (only official deps; no host risk).
 build_host() {
     local name="$1" dir="$2"
+    if [[ -z "${REBUILD:-}" && -n "$(dep_pkgfile "${name}")" ]]; then
+        msg "${name} already built — skipping (REBUILD=1 to force)"
+        return
+    fi
     msg "Building ${name} on host"
     ( cd "${dir}" && PKGDEST="${REPO_DIR}" makepkg --syncdeps --noconfirm --clean --force --needed )
     publish "${dir}"
+}
+
+# Retry a (network) command a few times — the AUR over TLS occasionally drops
+# connections ("unexpected eof while reading"); a transient blip shouldn't kill
+# a long build run.
+retry() {
+    local n=0 max=4
+    until "$@"; do
+        n=$((n + 1))
+        (( n >= max )) && return 1
+        warn "command failed (transient?), retry ${n}/${max} in $((n * 5))s: $*"
+        sleep $((n * 5))
+    done
+}
+
+# Clone (or update) an AUR package, removing a partial checkout left by a failed
+# clone so the retry starts clean.
+fetch_aur() {
+    local url="$1" dest="$2"
+    if [[ -d "${dest}/.git" ]]; then
+        retry git -C "${dest}" pull --ff-only || warn "pull failed for ${dest}, using cached"
+    else
+        rm -rf "${dest}"
+        retry git clone --depth 1 "${url}" "${dest}" \
+            || die "could not clone ${url} after retries (AUR/network down?)"
+    fi
 }
 
 clean_host_pacman_conf
@@ -128,11 +165,7 @@ if [[ -f "${PKG_LIST}" ]]; then
     while read -r name url deps; do
         [[ -z "${name}" || "${name}" == \#* ]] && continue
         local_clone="${WORK_DIR}/${name}"
-        if [[ -d "${local_clone}/.git" ]]; then
-            git -C "${local_clone}" pull --ff-only || warn "pull failed for ${name}, using cached"
-        else
-            git clone "${url}" "${local_clone}"
-        fi
+        fetch_aur "${url}" "${local_clone}"
         # shellcheck disable=SC2086
         build_chroot "${name}" "${local_clone}" ${deps}
     done < "${PKG_LIST}"
