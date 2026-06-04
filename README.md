@@ -90,8 +90,8 @@ mantido por causa do `grub-btrfs`; systemd-boot avaliado e descartado).
 
 ## Contribuindo
 
-Veja [`CONTRIB.md`](CONTRIB.md) — como adicionar pacotes curados, padrões de
-código e fluxo de PR.
+Veja [`CONTRIBUTING.md`](CONTRIBUTING.md) — como adicionar pacotes curados,
+padrões de código e fluxo de PR.
 
 ## Licença
 
