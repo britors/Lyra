@@ -21,10 +21,24 @@ if [[ $EUID -eq 0 ]]; then
 fi
 
 # ---------------------------------------------------------------------------
+bold "0/5  Limpando entrada [lyra-local] obsoleta do /etc/pacman.conf"
+# Versões antigas registravam um repo file:// sem .db, o que faz QUALQUER
+# operação do pacman abortar com "não foi possível encontrar a base de dados".
+# Precisa sair daqui ANTES de instalar dependências.
+if grep -q '^\[lyra-local\]' /etc/pacman.conf; then
+    sudo sed -i '/^\[lyra-local\]/,/^Server.*lyra-local$/d' /etc/pacman.conf
+    echo "Removido. (lyra-local só é consumido pelo mkarchiso, via o pacman.conf do perfil.)"
+else
+    echo "Nada a remover."
+fi
+
+# ---------------------------------------------------------------------------
 bold "1/5  Instalando dependências de build"
 # archiso  -> mkarchiso (gera a ISO)         | base-devel -> makepkg
+# devtools -> makechrootpkg (compila o AUR em chroot limpo, sem tocar no host)
+# grub + mtools -> mkarchiso usa grub-install/mtools do HOST p/ o boot UEFI (uefi.grub)
 # git      -> clonar pacotes do AUR          | imagemagick + librsvg -> wallpapers/arte
-sudo pacman -S --needed --noconfirm archiso base-devel git imagemagick librsvg
+sudo pacman -S --needed --noconfirm archiso base-devel devtools grub mtools git imagemagick librsvg
 
 # ---------------------------------------------------------------------------
 bold "2/5  Gerando arte e wallpapers (paleta safira->violeta)"
@@ -32,9 +46,10 @@ bold "2/5  Gerando arte e wallpapers (paleta safira->violeta)"
 
 # ---------------------------------------------------------------------------
 bold "3/5  Compilando pacotes AUR + locais -> repositório lyra-local"
-# Constrói na ordem de dependência (libpamac-aur antes de pamac-aur, etc.),
-# registra [lyra-local] em /etc/pacman.conf e dá pacman -Sy entre as builds.
-# Pede senha de sudo para instalar dependências de compilação.
+# Pacotes AUR são compilados num CHROOT LIMPO (makechrootpkg): não mexe no
+# /etc/pacman.conf e não instala o driver NVIDIA 580xx no seu sistema real.
+# A ordem/dependências internas vêm de aur/packages.list (coluna de deps).
+# Pede senha de sudo para criar/usar o chroot.
 ./build.sh aur
 
 # ---------------------------------------------------------------------------

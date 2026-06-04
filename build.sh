@@ -35,10 +35,13 @@ preflight() {
     msg "Preflight checks"
     local missing=()
     command -v makepkg     >/dev/null || missing+=("base-devel (makepkg)")
+    command -v makechrootpkg >/dev/null || missing+=("devtools (makechrootpkg)  ->  sudo pacman -S devtools")
     command -v git         >/dev/null || missing+=("git")
     command -v magick      >/dev/null || missing+=("imagemagick (magick)")
     command -v rsvg-convert>/dev/null || warn "librsvg (rsvg-convert) absent — wallpaper SVG rasterizing will fall back to imagemagick"
     command -v mkarchiso   >/dev/null || missing+=("archiso (mkarchiso)  ->  sudo pacman -S archiso")
+    command -v grub-install>/dev/null || missing+=("grub (grub-install, host-side UEFI boot)  ->  sudo pacman -S grub")
+    command -v mcopy       >/dev/null || missing+=("mtools (host-side UEFI FAT image)  ->  sudo pacman -S mtools")
     if (( ${#missing[@]} )); then
         warn "Missing build dependencies:"
         printf '       - %s\n' "${missing[@]}" >&2

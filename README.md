@@ -12,8 +12,12 @@ do instalador necessários para gerar a ISO da Lyra OS.
 Pré-requisitos (host **Arch Linux**):
 
 ```fish
-sudo pacman -S archiso base-devel git imagemagick librsvg
+sudo pacman -S archiso base-devel devtools grub mtools git imagemagick librsvg
 ```
+
+> `devtools` fornece o `makechrootpkg`: os pacotes AUR são compilados num
+> **chroot limpo**, então o build não altera o seu `/etc/pacman.conf` nem
+> instala o driver NVIDIA 580xx no host.
 
 Pipeline completo:
 

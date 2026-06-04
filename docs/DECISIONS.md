@@ -17,6 +17,17 @@ Snapper + snap-pac (snapshot antes de cada transação pacman/Pamac) + grub-btrf
 - Initramfs: `grub-btrfs-overlayfs` + módulo `btrfs` (`initcpiocfg.conf`).
 - Pacotes: `snapper snap-pac grub-btrfs inotify-tools` (`packages.x86_64`).
 
+### Bootloader: GRUB (systemd-boot considerado e descartado)
+
+O systemd-boot tem superfície de ataque menor (sem shell, sem config
+programável, Secure Boot/UKI mais simples) — foi avaliado. **Descartado** porque
+o §4 depende do `grub-btrfs`, que injeta cada snapshot do Snapper como entrada
+no menu do GRUB (recuperação sem terminal). O systemd-boot não tem equivalente
+nativo; perdê-lo contraria a filosofia "voltar no tempo sem terminal" para o
+usuário leigo. Alternativa viável registrada para o futuro: **Limine +
+limine-snapper-sync** (mais enxuto que o GRUB e mantém o boot-de-snapshot).
+Decisão: **manter GRUB** no sistema instalado e na mídia live UEFI (`uefi.grub`).
+
 ## §7 — Trocador de kernel — **UTILITÁRIO PRÓPRIO**
 
 `packages/lyra-kernel-manager/` — app gráfico PySide6 (Qt6, nativo do Plasma).

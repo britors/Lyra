@@ -1,18 +1,20 @@
 # Lyra OS — curated AUR packages (§5/§9).
-# Format: <pkgname> <aur-git-url>
-# These are cloned and built with makepkg into the lyra-local repo, then consumed
-# by mkarchiso. Curated by the maintainer — NOT "whatever is on the AUR".
+# Format: <pkgname> <aur-git-url> [local-dep ...]
+#   - Built in a clean chroot with makechrootpkg, in the order listed.
+#   - local-dep columns name packages built EARLIER in this list that must be
+#     installed into the chroot (via makechrootpkg -I) before this one builds
+#     (i.e. the AUR-internal dependency chain). Official-repo deps are resolved
+#     automatically inside the chroot.
+# Curated by the maintainer — NOT "whatever is on the AUR".
 
-# Graphical package store (§5). ORDER MATTERS: pamac-aur depends on
-# libpamac-aur (also AUR), so the library must be built first.
+# Graphical package store (§5). pamac-aur depends on libpamac-aur (also AUR).
 libpamac-aur         https://aur.archlinux.org/libpamac-aur.git
-pamac-aur            https://aur.archlinux.org/pamac-aur.git
+pamac-aur            https://aur.archlinux.org/pamac-aur.git                libpamac-aur
 
 # NVIDIA legacy driver for Maxwell/Pascal/Volta GPUs (§6). DKMS because linux-zen.
-# Build deps-first: -utils, then -dkms, then the 32-bit utils (needs -utils).
-nvidia-580xx-utils   https://aur.archlinux.org/nvidia-580xx-utils.git
-nvidia-580xx-dkms    https://aur.archlinux.org/nvidia-580xx-dkms.git
-lib32-nvidia-580xx-utils https://aur.archlinux.org/lib32-nvidia-580xx-utils.git
+nvidia-580xx-utils       https://aur.archlinux.org/nvidia-580xx-utils.git
+nvidia-580xx-dkms        https://aur.archlinux.org/nvidia-580xx-dkms.git        nvidia-580xx-utils
+lib32-nvidia-580xx-utils https://aur.archlinux.org/lib32-nvidia-580xx-utils.git nvidia-580xx-utils
 
 # W3TI applications (§9)
 prosa                https://aur.archlinux.org/prosa.git

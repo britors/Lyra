@@ -17,7 +17,8 @@ dosfstools
 e2fsprogs
 exfatprogs
 ntfs-3g                # read Windows partitions out of the box
-grub                   # bootloader on the installed system (§4/§11)
+grub                   # bootloader: installed system (§4/§11) + live UEFI
+syslinux               # live BIOS boot mode (bios.syslinux)
 efibootmgr
 os-prober              # dual-boot detection (Windows)
 plymouth               # boot splash, themed below (§10)

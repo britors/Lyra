@@ -11,15 +11,12 @@ iso_application="Lyra OS — Simples. Poderoso. Seu."
 iso_version="$(date +%Y.%m.%d)"
 install_dir="lyra"
 buildmodes=('iso')
-# GRUB for both UEFI and BIOS, plus syslinux as BIOS fallback. GRUB on the installed
-# system is required for grub-btrfs snapshot boot entries (see spec §4/§11).
+# Consolidated archiso 88 boot modes: syslinux for BIOS, GRUB for UEFI (x64).
+# GRUB on the installed system is required for grub-btrfs snapshot boot (§4/§11),
+# and we use GRUB on the live UEFI media too for consistency.
 bootmodes=(
-  'bios.syslinux.mbr'
-  'bios.syslinux.eltorito'
-  'uefi-ia32.grub.esp'
-  'uefi-x64.grub.esp'
-  'uefi-ia32.grub.eltorito'
-  'uefi-x64.grub.eltorito'
+  'bios.syslinux'
+  'uefi.grub'
 )
 arch="x86_64"
 pacman_conf="pacman.conf"
