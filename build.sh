@@ -20,7 +20,7 @@
 # build host with the `archiso` package installed.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 OUT="${ROOT}/out"
 WORK_PROFILE="${OUT}/profile-work"
 LOCAL_REPO="${OUT}/lyra-local"
@@ -82,6 +82,12 @@ stage_assemble() {
     # 2.1) Setup Lyra branding & System Backgrounds
     local brand_dir="${WORK_PROFILE}/airootfs/etc/calamares/branding/lyra"
     mkdir -p "${brand_dir}" "${WORK_PROFILE}/airootfs/usr/share/pixmaps" "${WORK_PROFILE}/airootfs/etc/sddm.conf.d" "${WORK_PROFILE}/grub"
+
+    # 2.2) Ensure system directories required by profiledef.sh exist (§4/§11)
+    # Git does not track empty directories; mkarchiso fails if they are missing from the profile.
+    mkdir -p "${WORK_PROFILE}/airootfs/etc/polkit-1/rules.d"
+    mkdir -p "${WORK_PROFILE}/airootfs/.snapshots"
+    mkdir -p "${WORK_PROFILE}/airootfs/etc/snapper/configs"
 
     # Copia o descritor de branding e o arquivo de slideshow
     cp "${ROOT}/calamares/branding/branding.desc" "${brand_dir}/"

@@ -5,7 +5,7 @@
 # lyre logo and re-run to ship the final artwork (the script prefers logo.svg if
 # present).
 set -euo pipefail
-HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 OUT="${HERE}/assets"
 mkdir -p "${OUT}"
 

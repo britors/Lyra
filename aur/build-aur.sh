@@ -15,7 +15,7 @@
 # Run as a NORMAL user (makepkg refuses root); sudo is used only for the chroot.
 set -euo pipefail
 
-LYRA_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+LYRA_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 REPO_DIR="${LYRA_ROOT}/out/lyra-local"
 WORK_DIR="${LYRA_ROOT}/out/aur-build"
 CHROOT="${LYRA_ROOT}/out/chroot"

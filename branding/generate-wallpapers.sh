@@ -11,7 +11,7 @@
 # Sources (SVGs) are kept under branding/wallpapers/src/ for reproducibility.
 set -euo pipefail
 shopt -s globstar nullglob
-HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 SRC_DIR="${HERE}/wallpapers/src"
 OUT_ROOT="${HERE}/wallpapers/generated/usr/share/wallpapers"
 REPO_URL="https://github.com/britors/OpenBase.Wallpapers"
