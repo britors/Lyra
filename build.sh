@@ -68,20 +68,18 @@ stage_assemble() {
     rm -rf "${WORK_PROFILE}"
     cp -a "${ROOT}/profile" "${WORK_PROFILE}"
 
-    # 1) Point the build-time lyra-local repo at its absolute path.
+    # 1) Repositório local
     [[ -f "${LOCAL_REPO}/lyra-local.db" || -L "${LOCAL_REPO}/lyra-local.db" ]] \
         || warn "lyra-local repo not built yet — run './build.sh aur' first."
     sed -i "s|file:///__LYRA_LOCAL_REPO__|file://${LOCAL_REPO}|" \
         "${WORK_PROFILE}/pacman.conf"
 
-    # 2) Ship the Calamares installer config inside the live image.
+    # 2) Calamares Config (limpa e organizada)
     install -d "${WORK_PROFILE}/airootfs/etc/calamares"
-    cp -a "${ROOT}/calamares/." "${WORK_PROFILE}/airootfs/etc/calamares/"
+    cp -r "${ROOT}/calamares/modules" "${WORK_PROFILE}/airootfs/etc/calamares/"
+    cp "${ROOT}/calamares/settings.conf" "${WORK_PROFILE}/airootfs/etc/calamares/" 2>/dev/null || true
 
-    # 2.0) Prepara diretórios de sistema para backgrounds (Live ISO)
-    install -d "${WORK_PROFILE}/airootfs/usr/share/pixmaps"
-
-    # 2.1) Setup Lyra branding specifically (fixes Calamares 'images' key error)
+    # 2.1) Setup Lyra branding
     local brand_dir="${WORK_PROFILE}/airootfs/etc/calamares/branding/lyra"
     install -d "${brand_dir}"
     cp "${ROOT}/calamares/branding/branding.desc" "${brand_dir}/"
@@ -98,6 +96,13 @@ stage_assemble() {
         cp "${ROOT}/branding/assets/background.png" "${brand_dir}/wallpaper.png"
         cp "${ROOT}/branding/assets/background.png" "${WORK_PROFILE}/airootfs/usr/share/pixmaps/lyra-background.png"
         cp "${ROOT}/branding/assets/lyra-boot-bg.png" "${WORK_PROFILE}/grub/lyra-boot-bg.png"
+    fi
+
+    # 2.2) Copia TODOS os wallpapers gerados para o sistema (KDE Plasma)
+    local wall_dir="${ROOT}/branding/wallpapers/generated/usr/share/wallpapers"
+    if [[ -d "${wall_dir}" ]]; then
+        install -d "${WORK_PROFILE}/airootfs/usr/share/wallpapers"
+        cp -a "${wall_dir}/." "${WORK_PROFILE}/airootfs/usr/share/wallpapers/"
     fi
 
     # 3) Boot menu background for syslinux.
