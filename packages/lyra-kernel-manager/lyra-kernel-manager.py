@@ -37,15 +37,27 @@ KERNELS = [
 ]
 
 
-def kernel_installed(pkg: str) -> bool:
-    """Return True only if both kernel and headers are installed."""
-    def is_inst(p):
-        return subprocess.run(
-            ["pacman", "-Q", p],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        ).returncode == 0
-    return is_inst(pkg) and is_inst(f"{pkg}-headers")
+def is_pkg_installed(pkg: str) -> bool:
+    return subprocess.run(
+        ["pacman", "-Q", pkg],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    ).returncode == 0
+
+
+def kernel_status(pkg: str) -> str:
+    """Returns 'full', 'partial' (missing headers), or 'none'."""
+    k = is_pkg_installed(pkg)
+    h = is_pkg_installed(f"{pkg}-headers")
+    if k and h:
+        return "full"
+    if k or h:
+        return "partial"
+    return "none"
+
+
+def is_pacman_locked() -> bool:
+    return os.path.exists("/var/lib/pacman/db.lck")
 
 
 def running_kernel_pkg() -> str | None:
@@ -116,12 +128,19 @@ class KernelRow(QFrame):
             self.action_btn.setEnabled(True)
 
     def toggle(self):
-        installed = kernel_installed(self.pkg)
-        action = "remove" if installed else "install"
-        verb = "Remover" if installed else "Instalar"
+        status = kernel_status(self.pkg)
+        action = "remove" if status == "full" else "install"
+        verb = "Remover" if action == "remove" else "Instalar"
+
+        if is_pacman_locked():
+            QMessageBox.warning(
+                self, "Lyra", "O banco de dados do sistema está ocupado (pacman lock).\n"
+                "Aguarde outras atualizações terminarem."
+            )
+            return
 
         if action == "remove":
-            installed_kernels = [k for k, _, _ in KERNELS if kernel_installed(k)]
+            installed_kernels = [k for k, _, _ in KERNELS if kernel_status(k) == "full"]
             if len(installed_kernels) <= 1:
                 QMessageBox.warning(
                     self, "Lyra", "Este é o único kernel instalado. "

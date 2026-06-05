@@ -32,4 +32,8 @@ file_permissions=(
   ["/usr/local/bin/lyra-flatpak-setup"]="0:0:755"
   ["/usr/local/bin/lyra-gpu-install"]="0:0:755"
   ["/usr/local/bin/lyra-live-cleanup"]="0:0:755"
+  ["/etc/polkit-1/rules.d"]="0:0:750"
+  ["/.snapshots"]="0:0:750"
+  ["/etc/snapper/configs/root"]="0:0:644"
+  ["/usr/bin/lyra-kernel-manager"]="0:0:755"
 )
