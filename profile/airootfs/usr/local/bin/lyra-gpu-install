@@ -16,7 +16,7 @@ set -euo pipefail
 
 log() { printf '[lyra-gpu] %s\n' "$*"; }
 
-pac() { pacman -S --needed --noconfirm "$@"; }
+pac() { pacman -Sy --needed --noconfirm "$@"; }
 
 install_kernel_headers() {
     # For every installed kernel, ensure its -headers package is present (§6/§7).

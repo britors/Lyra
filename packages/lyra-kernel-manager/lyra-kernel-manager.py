@@ -114,7 +114,7 @@ class KernelRow(QFrame):
         self.refresh()
 
     def refresh(self):
-        installed = kernel_installed(self.pkg)
+        installed = is_pkg_installed(self.pkg)
         is_running = self.pkg == running_kernel_pkg()
         if installed:
             label = "Instalado" + (" (em uso)" if is_running else "")

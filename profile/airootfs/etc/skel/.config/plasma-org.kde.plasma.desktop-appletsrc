@@ -13,7 +13,7 @@ plugin=org.kde.plasma.folder
 wallpaperplugin=org.kde.image
 
 [Containments][1][Wallpaper][org.kde.image][General]
-Image=file:///usr/share/wallpapers/Lyra-Nebula/
+Image=file:///usr/share/wallpapers/Lyra-Cosmos/
 SlidePaths=/usr/share/wallpapers
 
 [Containments][2]
