@@ -78,17 +78,9 @@ stage_assemble() {
     install -d "${WORK_PROFILE}/airootfs/etc/calamares"
     cp -a "${ROOT}/calamares/." "${WORK_PROFILE}/airootfs/etc/calamares/"
 
-    # 3) Injetar Branding e Wallpapers no airootfs
-    msg "Injecting branding assets into airootfs"
-    [[ ! -d "${ROOT}/branding/wallpapers/generated" ]] || \
-        cp -a "${ROOT}/branding/wallpapers/generated/." "${WORK_PROFILE}/airootfs/"
-
-    if [[ -d "${ROOT}/branding/assets/plymouth" ]]; then
-        install -d "${WORK_PROFILE}/airootfs/usr/share/plymouth/themes"
-        cp -a "${ROOT}/branding/assets/plymouth/." "${WORK_PROFILE}/airootfs/usr/share/plymouth/themes/"
-    fi
-
-    # 4) Boot menu background for GRUB + syslinux (optional; cfgs guard for it).
+    # 3) Boot menu background for GRUB + syslinux (optional; cfgs guard for it).
+    # Nota: Wallpapers e temas Plymouth agora são gerenciados exclusivamente 
+    # pelo pacote lyra-branding para evitar conflitos de arquivos no pacman.
     if [[ -f "${ROOT}/branding/assets/lyra-boot-bg.png" ]]; then
         cp "${ROOT}/branding/assets/lyra-boot-bg.png" "${WORK_PROFILE}/grub/lyra-boot-bg.png"
         cp "${ROOT}/branding/assets/lyra-boot-bg.png" "${WORK_PROFILE}/syslinux/lyra-boot-bg.png"

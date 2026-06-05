@@ -12,6 +12,9 @@ linux-zen-headers
 linux-firmware
 intel-ucode
 amd-ucode
+# PXE/Network boot support (required by mkinitcpio hooks)
+nbd
+mkinitcpio-nfs-utils
 mkinitcpio
 mkinitcpio-archiso
 # btrfs-progs: root fs is Btrfs (§4)

@@ -37,13 +37,15 @@ KERNELS = [
 ]
 
 
-def pacman_q(pkg: str) -> bool:
-    """Return True if *pkg* is installed."""
-    return subprocess.run(
-        ["pacman", "-Q", pkg],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    ).returncode == 0
+def kernel_installed(pkg: str) -> bool:
+    """Return True only if both kernel and headers are installed."""
+    def is_inst(p):
+        return subprocess.run(
+            ["pacman", "-Q", p],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        ).returncode == 0
+    return is_inst(pkg) and is_inst(f"{pkg}-headers")
 
 
 def running_kernel_pkg() -> str | None:
@@ -100,7 +102,7 @@ class KernelRow(QFrame):
         self.refresh()
 
     def refresh(self):
-        installed = pacman_q(self.pkg)
+        installed = kernel_installed(self.pkg)
         is_running = self.pkg == running_kernel_pkg()
         if installed:
             label = "Instalado" + (" (em uso)" if is_running else "")
@@ -114,12 +116,12 @@ class KernelRow(QFrame):
             self.action_btn.setEnabled(True)
 
     def toggle(self):
-        installed = pacman_q(self.pkg)
+        installed = kernel_installed(self.pkg)
         action = "remove" if installed else "install"
         verb = "Remover" if installed else "Instalar"
 
         if action == "remove":
-            installed_kernels = [k for k, _, _ in KERNELS if pacman_q(k)]
+            installed_kernels = [k for k, _, _ in KERNELS if kernel_installed(k)]
             if len(installed_kernels) <= 1:
                 QMessageBox.warning(
                     self, "Lyra", "Este é o único kernel instalado. "
