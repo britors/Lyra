@@ -21,6 +21,4 @@ images:
     welcomeBackground:   "wallpaper.png"
     welcomeLogo:         "logo.png"
 
-slideshow:
-    module: "show"
-    path: "slideshow" # Este caminho é relativo a /etc/calamares/branding/lyra/
+slideshow:           "show.qml"
