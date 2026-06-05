@@ -66,6 +66,12 @@ bold "5/5  Gerando a ISO com mkarchiso (root; baixa vários GB)"
 # build.sh iso já limpa out/archiso-work antes de rodar (re-execução segura).
 sudo ./build.sh iso
 
-bold "Concluído"
-echo "ISO em: $(pwd)/out/iso/"
-ls -lh out/iso/*.iso 2>/dev/null || echo "(verifique a saída do mkarchiso acima)"
+if ls out/iso/*.iso >/dev/null 2>&1; then
+    bold "Sucesso!"
+    echo "ISO gerada em: $(pwd)/out/iso/"
+    ls -lh out/iso/*.iso
+else
+    bold "Erro Crítico"
+    echo "A ISO não foi encontrada. Verifique os logs do mkarchiso acima."
+    exit 1
+fi

@@ -125,14 +125,15 @@ class KernelRow(QFrame):
                     "Instale outro antes de removê-lo."
                 )
                 return
-
-        self.action_btn.setEnabled(False)
-        self.action_btn.setText("Aguarde…")
-        QApplication.processEvents()
-        ok, output = run_privileged(action, self.pkg)
-        if not ok:
-            QMessageBox.critical(self, "Lyra", f"Falha ao {verb.lower()}:\n\n{output}")
-        self.window_ref.refresh_all()
+        
+        self.window_ref.set_busy(True, self.pkg)
+        try:
+            ok, output = run_privileged(action, self.pkg)
+            if not ok:
+                QMessageBox.critical(self, "Lyra", f"Falha ao {verb.lower()}:\n\n{output}")
+        finally:
+            self.window_ref.set_busy(False)
+            self.window_ref.refresh_all()
 
 
 class KernelManager(QWidget):
@@ -158,6 +159,15 @@ class KernelManager(QWidget):
             self.rows.append(row)
             layout.addWidget(row)
         layout.addStretch()
+
+    def set_busy(self, busy: bool, active_pkg: str = ""):
+        """Disable all rows while an operation is in progress."""
+        self.setEnabled(not busy)
+        if busy:
+            for row in self.rows:
+                if row.pkg == active_pkg:
+                    row.action_btn.setText("Aguarde…")
+        QApplication.processEvents()
 
     def refresh_all(self):
         for row in self.rows:

@@ -106,7 +106,7 @@ Pré-requisitos: `sudo pacman -S --needed qemu-desktop edk2-ovmf`.
 UEFI (modo principal `uefi.grub`):
 
 ```fish
-qemu-system-x86_64 -enable-kvm -m 4096 \
+qemu-system-x86_64 -enable-kvm -m 4096 -vga virtio \
   -drive if=pflash,format=raw,readonly=on,file=/usr/share/edk2/x64/OVMF.4m.fd \
   -cdrom out/iso/lyra-*.iso
 ```
@@ -114,7 +114,7 @@ qemu-system-x86_64 -enable-kvm -m 4096 \
 BIOS (modo `bios.syslinux`, sem OVMF):
 
 ```fish
-qemu-system-x86_64 -enable-kvm -m 4096 -cdrom out/iso/lyra-*.iso
+qemu-system-x86_64 -enable-kvm -m 4096 -vga virtio -cdrom out/iso/lyra-*.iso
 ```
 
 ## Reportar problemas

@@ -78,7 +78,14 @@ stage_assemble() {
     install -d "${WORK_PROFILE}/airootfs/etc/calamares"
     cp -a "${ROOT}/calamares/." "${WORK_PROFILE}/airootfs/etc/calamares/"
 
-    # 3) Boot menu background for GRUB + syslinux (optional; cfgs guard for it).
+    # 3) Injetar Branding e Wallpapers no airootfs
+    msg "Injecting branding assets into airootfs"
+    if [[ -d "${ROOT}/branding/wallpapers/generated" ]]; then
+        cp -a "${ROOT}/branding/wallpapers/generated/." "${WORK_PROFILE}/airootfs/"
+    fi
+    # Nota: Certifique-se que o generate-brand-assets.sh exporta para branding/assets/plymouth
+
+    # 4) Boot menu background for GRUB + syslinux (optional; cfgs guard for it).
     if [[ -f "${ROOT}/branding/assets/lyra-boot-bg.png" ]]; then
         cp "${ROOT}/branding/assets/lyra-boot-bg.png" "${WORK_PROFILE}/grub/lyra-boot-bg.png"
         cp "${ROOT}/branding/assets/lyra-boot-bg.png" "${WORK_PROFILE}/syslinux/lyra-boot-bg.png"
