@@ -1,6 +1,12 @@
 # Build output
 /out/
 
+# QEMU test disks
+*.qcow2
+
+# Stray desktop/config drafts in repo root
+/defaults.desktop
+
 # Generated assets (reproduced by branding/generate-*.sh)
 /branding/assets/*.png
 /branding/wallpapers/src/
