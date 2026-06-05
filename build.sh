@@ -82,11 +82,15 @@ stage_assemble() {
     # 2.1) Setup Lyra branding & System Backgrounds
     local brand_dir="${WORK_PROFILE}/airootfs/etc/calamares/branding/lyra"
     mkdir -p "${brand_dir}" "${WORK_PROFILE}/airootfs/usr/share/pixmaps" "${WORK_PROFILE}/airootfs/etc/sddm.conf.d" "${WORK_PROFILE}/grub"
+
+    # Copia o descritor de branding e o arquivo de slideshow
     cp "${ROOT}/calamares/branding/branding.desc" "${brand_dir}/"
+    [[ -f "${ROOT}/calamares/branding/show.qml" ]] && cp "${ROOT}/calamares/branding/show.qml" "${brand_dir}/"
+
     cp "${ROOT}/branding/assets/logo.png" "${brand_dir}/logo.png"
 
     # Configura SDDM para usar o wallpaper da Lyra
-    printf "[Theme]\nBackground=/usr/share/pixmaps/lyra-background.png\n" > "${WORK_PROFILE}/airootfs/etc/sddm.conf.d/lyra.conf"
+    printf "[Theme]\nCurrent=breeze\nCursorTheme=breeze_cursors\n" > "${WORK_PROFILE}/airootfs/etc/sddm.conf.d/lyra.conf"
 
     # Tenta usar o Cosmos como identidade padrão. Se não existir, tenta o primeiro wallpaper gerado.
     local cosmos_wallpaper="${ROOT}/branding/wallpapers/generated/usr/share/wallpapers/Lyra-Cosmos/contents/images/1920x1080.png"
@@ -99,6 +103,9 @@ stage_assemble() {
         cp "${cosmos_wallpaper}" "${brand_dir}/wallpaper.png"
         cp "${cosmos_wallpaper}" "${WORK_PROFILE}/airootfs/usr/share/pixmaps/lyra-background.png"
         cp "${cosmos_wallpaper}" "${WORK_PROFILE}/grub/lyra-boot-bg.png"
+        # Força o Breeze a usar o wallpaper da Lyra
+        mkdir -p "${WORK_PROFILE}/airootfs/usr/share/sddm/themes/breeze/"
+        printf "[General]\nbackground=/usr/share/pixmaps/lyra-background.png\n" > "${WORK_PROFILE}/airootfs/usr/share/sddm/themes/breeze/theme.conf.user"
     else
         warn "Lyra-Cosmos não encontrado. Usando fallback de gradiente."
         cp "${ROOT}/branding/assets/background.png" "${brand_dir}/wallpaper.png"
