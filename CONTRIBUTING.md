@@ -106,8 +106,13 @@ Pré-requisitos: `sudo pacman -S --needed qemu-desktop edk2-ovmf`.
 UEFI (modo principal `uefi.grub`):
 
 ```fish
-qemu-system-x86_64 -enable-kvm -m 4096 -vga virtio -display gtk,gl=on \
+# 1. Crie um disco virtual de 20GB se não existir
+qemu-img create -f qcow2 lyra-test.qcow2 20G
+
+# 2. Rode a ISO com o disco anexado
+qemu-system-x86_64 -enable-kvm -m 6144 -vga virtio -display gtk,gl=on \
   -drive if=pflash,format=raw,readonly=on,file=/usr/share/edk2/x64/OVMF.4m.fd \
+  -drive file=lyra-test.qcow2,format=qcow2 \
   -cdrom out/iso/lyra-*.iso
 ```
 

@@ -72,6 +72,7 @@ breeze
 breeze-gtk
 kde-gtk-config
 xdg-desktop-portal-kde
+qt6-wayland
 xdg-desktop-portal
 # NOTE: deliberately NOT installing the kde-applications group.
 

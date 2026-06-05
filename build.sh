@@ -81,9 +81,14 @@ stage_assemble() {
     # 3) Boot menu background for GRUB + syslinux (optional; cfgs guard for it).
     # Nota: Wallpapers e temas Plymouth agora são gerenciados exclusivamente 
     # pelo pacote lyra-branding para evitar conflitos de arquivos no pacman.
-    if [[ -f "${ROOT}/branding/assets/lyra-boot-bg.png" ]]; then
-        cp "${ROOT}/branding/assets/lyra-boot-bg.png" "${WORK_PROFILE}/grub/lyra-boot-bg.png"
-        cp "${ROOT}/branding/assets/lyra-boot-bg.png" "${WORK_PROFILE}/syslinux/lyra-boot-bg.png"
+    local grub_bg_path="${ROOT}/branding/wallpapers/generated/usr/share/wallpapers/Lyra-Nebula/contents/images/1920x1080.png"
+    local syslinux_bg_path="${ROOT}/branding/assets/lyra-boot-bg.png"
+
+    if [[ -f "${grub_bg_path}" ]]; then
+        cp "${grub_bg_path}" "${WORK_PROFILE}/grub/lyra-boot-bg.png"
+    fi
+    if [[ -f "${syslinux_bg_path}" ]]; then
+        cp "${syslinux_bg_path}" "${WORK_PROFILE}/syslinux/lyra-boot-bg.png"
     fi
     msg "Profile staged."
 }
