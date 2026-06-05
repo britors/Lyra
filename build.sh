@@ -83,10 +83,11 @@ stage_assemble() {
     install -d "${brand_dir}"
     cp "${ROOT}/calamares/branding/branding.desc" "${brand_dir}/"
     cp "${ROOT}/branding/assets/logo.png" "${brand_dir}/logo.png"
+    # Usa o Cosmos como fundo do Calamares
+    cp "${ROOT}/branding/wallpapers/generated/usr/share/wallpapers/Lyra-Cosmos/contents/images/1920x1080.png" "${brand_dir}/wallpaper.png"
 
-
-    # 3) Boot menu background for GRUB + syslinux (optional; cfgs guard for it).
-    local grub_bg_path="${ROOT}/branding/wallpapers/generated/usr/share/wallpapers/Lyra-Nebula/contents/images/1920x1080.png"
+    # 3) Boot menu background for GRUB (Cosmos) + syslinux.
+    local grub_bg_path="${ROOT}/branding/wallpapers/generated/usr/share/wallpapers/Lyra-Cosmos/contents/images/1920x1080.png"
     local syslinux_bg_path="${ROOT}/branding/assets/lyra-boot-bg.png"
 
     if [[ -f "${grub_bg_path}" ]]; then

@@ -29,7 +29,14 @@ else
         "${OUT}/logo.png"
 fi
 
-gradient_bg "${OUT}/background.png" 1920 1080      # SDDM
-gradient_bg "${OUT}/lyra-boot-bg.png" 1920 1080    # GRUB/syslinux menu bg
+# SDDM: Tenta usar o Cosmos processado, senão cai no gradiente.
+COSMOS_SRC="${HERE}/wallpapers/generated/usr/share/wallpapers/Lyra-Cosmos/contents/images/1920x1080.png"
+if [[ -f "${COSMOS_SRC}" ]]; then
+    cp "${COSMOS_SRC}" "${OUT}/background.png"
+    cp "${COSMOS_SRC}" "${OUT}/lyra-boot-bg.png"
+else
+    gradient_bg "${OUT}/background.png" 1920 1080      # Fallback SDDM
+    gradient_bg "${OUT}/lyra-boot-bg.png" 1920 1080    # Fallback GRUB/syslinux
+fi
 
 echo ":: Brand assets in ${OUT} (placeholder unless logo.svg supplied)."
