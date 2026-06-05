@@ -78,6 +78,9 @@ stage_assemble() {
     install -d "${WORK_PROFILE}/airootfs/etc/calamares"
     cp -a "${ROOT}/calamares/." "${WORK_PROFILE}/airootfs/etc/calamares/"
 
+    # 2.0) Prepara diretórios de sistema para backgrounds (Live ISO)
+    install -d "${WORK_PROFILE}/airootfs/usr/share/pixmaps"
+
     # 2.1) Setup Lyra branding specifically (fixes Calamares 'images' key error)
     local brand_dir="${WORK_PROFILE}/airootfs/etc/calamares/branding/lyra"
     install -d "${brand_dir}"
@@ -88,10 +91,12 @@ stage_assemble() {
     local cosmos_wallpaper="${ROOT}/branding/wallpapers/generated/usr/share/wallpapers/Lyra-Cosmos/contents/images/1920x1080.png"
     if [[ -f "${cosmos_wallpaper}" ]]; then
         cp "${cosmos_wallpaper}" "${brand_dir}/wallpaper.png"
+        cp "${cosmos_wallpaper}" "${WORK_PROFILE}/airootfs/usr/share/pixmaps/lyra-background.png"
         cp "${cosmos_wallpaper}" "${WORK_PROFILE}/grub/lyra-boot-bg.png"
     else
         warn "Lyra-Cosmos não encontrado. Usando fallback de gradiente."
         cp "${ROOT}/branding/assets/background.png" "${brand_dir}/wallpaper.png"
+        cp "${ROOT}/branding/assets/background.png" "${WORK_PROFILE}/airootfs/usr/share/pixmaps/lyra-background.png"
         cp "${ROOT}/branding/assets/lyra-boot-bg.png" "${WORK_PROFILE}/grub/lyra-boot-bg.png"
     fi
 
