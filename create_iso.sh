@@ -42,7 +42,7 @@ bold "1/5  Instalando dependências de build"
 # devtools -> makechrootpkg (compila o AUR em chroot limpo, sem tocar no host)
 # grub + mtools -> mkarchiso usa grub-install/mtools do HOST p/ o boot UEFI (uefi.grub)
 # git      -> clonar pacotes do AUR          | imagemagick + librsvg -> wallpapers/arte
-sudo pacman -S --needed --noconfirm archiso base-devel devtools grub mtools git imagemagick librsvg
+sudo pacman -S --needed --noconfirm archiso base-devel devtools grub mtools git imagemagick librsvg intel-ucode
 
 # ---------------------------------------------------------------------------
 bold "2/5  Gerando arte e wallpapers (Lyra-Cosmos como identidade padrão)"
