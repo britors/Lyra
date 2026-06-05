@@ -83,16 +83,20 @@ stage_assemble() {
     install -d "${brand_dir}"
     cp "${ROOT}/calamares/branding/branding.desc" "${brand_dir}/"
     cp "${ROOT}/branding/assets/logo.png" "${brand_dir}/logo.png"
-    # Usa o Cosmos como fundo do Calamares
-    cp "${ROOT}/branding/wallpapers/generated/usr/share/wallpapers/Lyra-Cosmos/contents/images/1920x1080.png" "${brand_dir}/wallpaper.png"
 
-    # 3) Boot menu background for GRUB (Cosmos) + syslinux.
-    local grub_bg_path="${ROOT}/branding/wallpapers/generated/usr/share/wallpapers/Lyra-Cosmos/contents/images/1920x1080.png"
-    local syslinux_bg_path="${ROOT}/branding/assets/lyra-boot-bg.png"
-
-    if [[ -f "${grub_bg_path}" ]]; then
-        cp "${grub_bg_path}" "${WORK_PROFILE}/grub/lyra-boot-bg.png"
+    # Tenta usar o Cosmos como fundo do Calamares e GRUB, senão usa o fallback de gradiente
+    local cosmos_wallpaper="${ROOT}/branding/wallpapers/generated/usr/share/wallpapers/Lyra-Cosmos/contents/images/1920x1080.png"
+    if [[ -f "${cosmos_wallpaper}" ]]; then
+        cp "${cosmos_wallpaper}" "${brand_dir}/wallpaper.png"
+        cp "${cosmos_wallpaper}" "${WORK_PROFILE}/grub/lyra-boot-bg.png"
+    else
+        warn "Lyra-Cosmos não encontrado. Usando fallback de gradiente."
+        cp "${ROOT}/branding/assets/background.png" "${brand_dir}/wallpaper.png"
+        cp "${ROOT}/branding/assets/lyra-boot-bg.png" "${WORK_PROFILE}/grub/lyra-boot-bg.png"
     fi
+
+    # 3) Boot menu background for syslinux.
+    local syslinux_bg_path="${ROOT}/branding/assets/lyra-boot-bg.png"
     if [[ -f "${syslinux_bg_path}" ]]; then
         cp "${syslinux_bg_path}" "${WORK_PROFILE}/syslinux/lyra-boot-bg.png"
     fi

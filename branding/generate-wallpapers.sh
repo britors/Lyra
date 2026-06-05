@@ -61,7 +61,8 @@ rasterize() {  # <in.svg> <out.png> <w> <h>
 
 for svg in "${svgs[@]}"; do
     base="$(basename "${svg}" .svg)"
-    base="${base#[Oo]pen[Bb]ase-}"   # drop the OpenBase- prefix (renamed to Lyra)
+    # Remove prefixos comuns (OpenBase ou Lyra) para normalizar o nome
+    base="${base#[Oo]pen[Bb]ase-}"; base="${base#[Ll]yra-}"
     name="$(tr '[:lower:]' '[:upper:]' <<<"${base:0:1}")${base:1}"  # Capitalize
 
     # 2) Recolor into a Lyra-palette working copy.
