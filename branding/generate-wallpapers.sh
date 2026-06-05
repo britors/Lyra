@@ -15,7 +15,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SRC_DIR="${HERE}/wallpapers/src"
 OUT_ROOT="${HERE}/wallpapers/generated/usr/share/wallpapers"
 REPO_URL="https://github.com/britors/OpenBase.Wallpapers"
-REPO_TAG="v1.0.0"
+REPO_TAG="main"
 SET_NAME="Lyra"   # §10: renamed from OpenBase
 
 RES=("1920x1080" "2560x1440" "3840x2160")

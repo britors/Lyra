@@ -1,4 +1,22 @@
 ---
+componentName:   lyra
+
+welcomeStyleCalamares:   false
+welcomeExpandingLogo:    true
+windowExpanding:         normal
+windowSize:              800,520
+windowPlacement:         center
+
+strings:
+    productName:         Lyra OS
+    shortProductName:    Lyra
+    productUrl:          https://github.com/rodrigo/Lyra
+    supportUrl:          https://github.com/rodrigo/Lyra/issues
+    knownIssuesUrl:      https://github.com/rodrigo/Lyra/issues
+    releaseNotesUrl:     https://github.com/rodrigo/Lyra
+
 images:
-    product: "branding/logo.png"
-    # Add other branding images here as needed, e.g., slideshow, background.
+    productLogo:         "logo.png"
+    productIcon:         "logo.png"
+    welcomeBackground:   "logo.png"
+    welcomeLogo:         "logo.png"
