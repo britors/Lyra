@@ -68,7 +68,8 @@ def run_privileged(action: str, kernel: str) -> tuple[bool, str]:
         ["pkexec", *cmd], capture_output=True, text=True
     )
     ok = proc.returncode == 0
-    return ok, (proc.stderr or proc.stdout)
+    output = (proc.stderr or proc.stdout).strip()
+    return ok, output
 
 
 class KernelRow(QFrame):
@@ -130,7 +131,8 @@ class KernelRow(QFrame):
         try:
             ok, output = run_privileged(action, self.pkg)
             if not ok:
-                QMessageBox.critical(self, "Lyra", f"Falha ao {verb.lower()}:\n\n{output}")
+                err_msg = output if output else "Operação cancelada ou erro de privilégios."
+                QMessageBox.critical(self, "Lyra", f"Falha ao {verb.lower()}:\n\n{err_msg}")
         finally:
             self.window_ref.set_busy(False)
             self.window_ref.refresh_all()

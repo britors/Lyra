@@ -80,10 +80,13 @@ stage_assemble() {
 
     # 3) Injetar Branding e Wallpapers no airootfs
     msg "Injecting branding assets into airootfs"
-    if [[ -d "${ROOT}/branding/wallpapers/generated" ]]; then
+    [[ ! -d "${ROOT}/branding/wallpapers/generated" ]] || \
         cp -a "${ROOT}/branding/wallpapers/generated/." "${WORK_PROFILE}/airootfs/"
+
+    if [[ -d "${ROOT}/branding/assets/plymouth" ]]; then
+        install -d "${WORK_PROFILE}/airootfs/usr/share/plymouth/themes"
+        cp -a "${ROOT}/branding/assets/plymouth/." "${WORK_PROFILE}/airootfs/usr/share/plymouth/themes/"
     fi
-    # Nota: Certifique-se que o generate-brand-assets.sh exporta para branding/assets/plymouth
 
     # 4) Boot menu background for GRUB + syslinux (optional; cfgs guard for it).
     if [[ -f "${ROOT}/branding/assets/lyra-boot-bg.png" ]]; then
