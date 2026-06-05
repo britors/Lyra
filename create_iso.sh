@@ -45,7 +45,7 @@ bold "1/5  Instalando dependências de build"
 sudo pacman -S --needed --noconfirm archiso base-devel devtools grub mtools git imagemagick librsvg
 
 # ---------------------------------------------------------------------------
-bold "2/5  Gerando arte e wallpapers (paleta safira->violeta)"
+bold "2/5  Gerando arte e wallpapers (Lyra-Cosmos como identidade padrão)"
 ./build.sh assets
 
 # ---------------------------------------------------------------------------

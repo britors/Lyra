@@ -53,8 +53,8 @@ preflight() {
 
 stage_assets() {
     msg "Generating brand assets + wallpapers (§10)"
-    "${ROOT}/branding/generate-brand-assets.sh"
     "${ROOT}/branding/generate-wallpapers.sh"
+    "${ROOT}/branding/generate-brand-assets.sh"
 }
 
 stage_aur() {
