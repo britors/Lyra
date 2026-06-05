@@ -1,10 +1,7 @@
 ---
 componentName:   lyra
 
-welcomeStyleCalamares:   false
 welcomeExpandingLogo:    true
-windowExpanding:         normal
-windowSize:              800,520
 windowPlacement:         center
 
 strings:

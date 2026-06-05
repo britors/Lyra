@@ -79,14 +79,22 @@ stage_assemble() {
     cp -r "${ROOT}/calamares/modules" "${WORK_PROFILE}/airootfs/etc/calamares/"
     cp "${ROOT}/calamares/settings.conf" "${WORK_PROFILE}/airootfs/etc/calamares/" 2>/dev/null || true
 
-    # 2.1) Setup Lyra branding
+    # 2.1) Setup Lyra branding & System Backgrounds
     local brand_dir="${WORK_PROFILE}/airootfs/etc/calamares/branding/lyra"
-    install -d "${brand_dir}"
+    mkdir -p "${brand_dir}" "${WORK_PROFILE}/airootfs/usr/share/pixmaps" "${WORK_PROFILE}/airootfs/etc/sddm.conf.d" "${WORK_PROFILE}/grub"
     cp "${ROOT}/calamares/branding/branding.desc" "${brand_dir}/"
     cp "${ROOT}/branding/assets/logo.png" "${brand_dir}/logo.png"
 
-    # Tenta usar o Cosmos como fundo do Calamares e GRUB, senão usa o fallback de gradiente
+    # Configura SDDM para usar o wallpaper da Lyra
+    printf "[Theme]\nBackground=/usr/share/pixmaps/lyra-background.png\n" > "${WORK_PROFILE}/airootfs/etc/sddm.conf.d/lyra.conf"
+
+    # Tenta usar o Cosmos como identidade padrão. Se não existir, tenta o primeiro wallpaper gerado.
     local cosmos_wallpaper="${ROOT}/branding/wallpapers/generated/usr/share/wallpapers/Lyra-Cosmos/contents/images/1920x1080.png"
+    if [[ ! -f "${cosmos_wallpaper}" ]]; then
+        # Busca qualquer outro wallpaper gerado (o primeiro que aparecer)
+        cosmos_wallpaper=$(find "${ROOT}/branding/wallpapers/generated" -name "1920x1080.png" | head -n 1)
+    fi
+
     if [[ -f "${cosmos_wallpaper}" ]]; then
         cp "${cosmos_wallpaper}" "${brand_dir}/wallpaper.png"
         cp "${cosmos_wallpaper}" "${WORK_PROFILE}/airootfs/usr/share/pixmaps/lyra-background.png"

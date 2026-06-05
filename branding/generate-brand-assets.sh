@@ -31,6 +31,11 @@ fi
 
 # SDDM: Tenta usar o Cosmos processado, senão cai no gradiente.
 COSMOS_SRC="${HERE}/wallpapers/generated/usr/share/wallpapers/Lyra-Cosmos/contents/images/1920x1080.png"
+if [[ ! -f "${COSMOS_SRC}" ]]; then
+    # Se o Cosmos não existe, tenta pegar o primeiro da lista de gerados
+    COSMOS_SRC=$(find "${HERE}/wallpapers/generated" -name "1920x1080.png" | head -n 1)
+fi
+
 if [[ -f "${COSMOS_SRC}" ]]; then
     cp "${COSMOS_SRC}" "${OUT}/background.png"
     cp "${COSMOS_SRC}" "${OUT}/lyra-boot-bg.png"

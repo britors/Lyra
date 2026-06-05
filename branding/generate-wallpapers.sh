@@ -10,7 +10,7 @@
 # Output: branding/wallpapers/generated/usr/share/wallpapers/<Name>/...
 # Sources (SVGs) are kept under branding/wallpapers/src/ for reproducibility.
 set -euo pipefail
-
+shopt -s globstar nullglob
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SRC_DIR="${HERE}/wallpapers/src"
 OUT_ROOT="${HERE}/wallpapers/generated/usr/share/wallpapers"
@@ -39,15 +39,20 @@ else die "Need one of: rsvg-convert (librsvg), inkscape, or imagemagick."; fi
 command -v git >/dev/null || die "git required."
 
 mkdir -p "${SRC_DIR}" "${OUT_ROOT}"
+# Limpa resíduos de execuções anteriores que usavam o SRC_DIR como workspace
+rm -f "${SRC_DIR}"/*.svg
 
 # 1) Fetch SVG sources (shallow, pinned tag).
 if [[ ! -d "${SRC_DIR}/.repo/.git" ]]; then
-    msg "Cloning OpenBase.Wallpapers ${REPO_TAG}"
+    msg "Cloning OpenBase.Wallpapers (${REPO_TAG})"
     git clone --depth 1 --branch "${REPO_TAG}" "${REPO_URL}" "${SRC_DIR}/.repo"
+else
+    msg "Updating OpenBase.Wallpapers to latest"
+    git -C "${SRC_DIR}/.repo" fetch --depth 1 origin "${REPO_TAG}"
+    git -C "${SRC_DIR}/.repo" reset --hard FETCH_HEAD
 fi
 
-shopt -s nullglob
-svgs=("${SRC_DIR}"/.repo/**/*.svg "${SRC_DIR}"/.repo/*.svg)
+svgs=("${SRC_DIR}"/.repo/**/*.svg)
 [[ ${#svgs[@]} -gt 0 ]] || die "No SVGs found in the OpenBase repo checkout."
 
 rasterize() {  # <in.svg> <out.png> <w> <h>
@@ -65,8 +70,8 @@ for svg in "${svgs[@]}"; do
     base="${base#[Oo]pen[Bb]ase-}"; base="${base#[Ll]yra-}"
     name="$(tr '[:lower:]' '[:upper:]' <<<"${base:0:1}")${base:1}"  # Capitalize
 
-    # 2) Recolor into a Lyra-palette working copy.
-    work="${SRC_DIR}/${name}-lyra.svg"
+    # 2) Recolor into a temporary working copy.
+    work="$(mktemp --suffix=.svg)"
     cp "${svg}" "${work}"
     for from in "${!RECOLOR[@]}"; do
         to="${RECOLOR[$from]}"
@@ -92,6 +97,7 @@ for svg in "${svgs[@]}"; do
     }
 }
 EOF
+    rm -f "${work}"
 done
 
 msg "Wallpapers generated under ${OUT_ROOT}"
