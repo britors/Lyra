@@ -35,5 +35,4 @@ file_permissions=(
   ["/etc/polkit-1/rules.d"]="0:0:750"
   ["/.snapshots"]="0:0:750"
   ["/etc/snapper/configs/root"]="0:0:644"
-  ["/usr/bin/lyra-kernel-manager"]="0:0:755"
 )
