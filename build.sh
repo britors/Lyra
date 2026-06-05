@@ -106,13 +106,6 @@ stage_assemble() {
         cp "${ROOT}/branding/assets/lyra-boot-bg.png" "${WORK_PROFILE}/grub/lyra-boot-bg.png"
     fi
 
-    # 2.2) Copia TODOS os wallpapers gerados para o sistema (KDE Plasma)
-    local wall_dir="${ROOT}/branding/wallpapers/generated/usr/share/wallpapers"
-    if [[ -d "${wall_dir}" ]]; then
-        install -d "${WORK_PROFILE}/airootfs/usr/share/wallpapers"
-        cp -a "${wall_dir}/." "${WORK_PROFILE}/airootfs/usr/share/wallpapers/"
-    fi
-
     # 3) Boot menu background for syslinux.
     local syslinux_bg_path="${ROOT}/branding/assets/lyra-boot-bg.png"
     if [[ -f "${syslinux_bg_path}" ]]; then
