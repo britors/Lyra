@@ -77,6 +77,10 @@ stage_assemble() {
     # 2) Ship the Calamares installer config inside the live image.
     install -d "${WORK_PROFILE}/airootfs/etc/calamares"
     cp -a "${ROOT}/calamares/." "${WORK_PROFILE}/airootfs/etc/calamares/"
+    # Copy branding assets for Calamares
+    install -d "${WORK_PROFILE}/airootfs/etc/calamares/branding"
+    cp "${ROOT}/branding/assets/logo.png" "${WORK_PROFILE}/airootfs/etc/calamares/branding/logo.png"
+
 
     # 3) Boot menu background for GRUB + syslinux (optional; cfgs guard for it).
     local grub_bg_path="${ROOT}/branding/wallpapers/generated/usr/share/wallpapers/Lyra-Nebula/contents/images/1920x1080.png"
