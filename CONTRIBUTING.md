@@ -100,14 +100,22 @@ O AUR é **curado**: só entra o que o mantenedor escolhe. Em `aur/packages.list
 
 ## Testar a ISO
 
-Depois de gerar `out/iso/lyra-*.iso`, teste em VM antes de gravar em pendrive:
+Depois de gerar `out/iso/lyra-*.iso`, teste em VM antes de gravar em pendrive.
+Pré-requisitos: `sudo pacman -S --needed qemu-desktop edk2-ovmf`.
+
+UEFI (modo principal `uefi.grub`):
 
 ```fish
-qemu-system-x86_64 -enable-kvm -m 4096 -bios /usr/share/edk2/x64/OVMF.4m.fd \
+qemu-system-x86_64 -enable-kvm -m 4096 \
+  -drive if=pflash,format=raw,readonly=on,file=/usr/share/edk2/x64/OVMF.4m.fd \
   -cdrom out/iso/lyra-*.iso
 ```
 
-(UEFI via OVMF; tire o `-bios` para testar boot BIOS/syslinux.)
+BIOS (modo `bios.syslinux`, sem OVMF):
+
+```fish
+qemu-system-x86_64 -enable-kvm -m 4096 -cdrom out/iso/lyra-*.iso
+```
 
 ## Reportar problemas
 
