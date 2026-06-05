@@ -79,8 +79,6 @@ stage_assemble() {
     cp -a "${ROOT}/calamares/." "${WORK_PROFILE}/airootfs/etc/calamares/"
 
     # 3) Boot menu background for GRUB + syslinux (optional; cfgs guard for it).
-    # Nota: Wallpapers e temas Plymouth agora são gerenciados exclusivamente 
-    # pelo pacote lyra-branding para evitar conflitos de arquivos no pacman.
     local grub_bg_path="${ROOT}/branding/wallpapers/generated/usr/share/wallpapers/Lyra-Nebula/contents/images/1920x1080.png"
     local syslinux_bg_path="${ROOT}/branding/assets/lyra-boot-bg.png"
 
