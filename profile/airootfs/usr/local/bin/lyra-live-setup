@@ -5,6 +5,9 @@
 # lyra-live-cleanup step removes the user, this script and its unit (§11).
 set -xeuo pipefail
 
+# Redireciona stdout e stderr para o console do tty1 para visualização no QEMU
+exec > >(tee /dev/tty1) 2>&1
+
 LIVE_USER="lyra"
 
 if ! getent group autologin >/dev/null; then
