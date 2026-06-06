@@ -95,4 +95,4 @@ padrões de código e fluxo de PR.
 
 ## Licença
 
-GPL-3.0. Lyra OS é um produto de **Rodrigo Brito**.
+GPL-3.0. Lyra OS crido por  **Rodrigo Brito**.
