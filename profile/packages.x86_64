@@ -99,8 +99,6 @@ gst-libav
 ### --- Package management & app delivery (§5) ---
 # flatpak: Flathub configured by airootfs (§5)
 flatpak
-# pamac-aur: graphical store, from lyra-local (built via AUR, §5)
-pamac-aur
 
 ### --- Stability: Btrfs snapshots (§4) ---
 snapper

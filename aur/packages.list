@@ -11,9 +11,6 @@
 # AUR-only — so it must be built here. All its deps are official (no AUR chain).
 calamares            https://aur.archlinux.org/calamares.git
 
-# Graphical package store (§5). pamac-aur depends on libpamac-aur (also AUR).
-libpamac-aur         https://aur.archlinux.org/libpamac-aur.git
-pamac-aur            https://aur.archlinux.org/pamac-aur.git                libpamac-aur
 
 # NVIDIA legacy driver for Maxwell/Pascal/Volta GPUs (§6). DKMS because linux-zen.
 nvidia-580xx-utils       https://aur.archlinux.org/nvidia-580xx-utils.git
