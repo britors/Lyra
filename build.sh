@@ -108,9 +108,8 @@ stage_assemble() {
     if [[ -f "${cosmos_wallpaper}" ]]; then
         cp "${cosmos_wallpaper}" "${brand_dir}/wallpaper.png"
         cp "${cosmos_wallpaper}" "${WORK_PROFILE}/airootfs/usr/share/pixmaps/lyra-background.png"
-        cp "${cosmos_wallpaper}" "${WORK_PROFILE}/grub/lyra-boot-bg.png"
-        mkdir -p "${WORK_PROFILE}/airootfs/boot"
-        cp "${cosmos_wallpaper}" "${WORK_PROFILE}/airootfs/boot/lyra-boot-bg.png"
+        mkdir -p "${WORK_PROFILE}/${install_dir}/boot"
+        cp "${cosmos_wallpaper}" "${WORK_PROFILE}/${install_dir}/boot/lyra-boot-bg.png"
         # Força o Breeze a usar o wallpaper da Lyra
         mkdir -p "${WORK_PROFILE}/airootfs/usr/share/sddm/themes/breeze/"
         printf "[General]\nbackground=/usr/share/pixmaps/lyra-background.png\n" > "${WORK_PROFILE}/airootfs/usr/share/sddm/themes/breeze/theme.conf.user"
@@ -118,9 +117,8 @@ stage_assemble() {
         warn "Lyra-Cosmos não encontrado. Usando fallback de gradiente."
         cp "${ROOT}/branding/assets/background.png" "${brand_dir}/wallpaper.png"
         cp "${ROOT}/branding/assets/background.png" "${WORK_PROFILE}/airootfs/usr/share/pixmaps/lyra-background.png"
-        cp "${ROOT}/branding/assets/lyra-boot-bg.png" "${WORK_PROFILE}/grub/lyra-boot-bg.png"
-        mkdir -p "${WORK_PROFILE}/airootfs/boot"
-        cp "${ROOT}/branding/assets/lyra-boot-bg.png" "${WORK_PROFILE}/airootfs/boot/lyra-boot-bg.png"
+        mkdir -p "${WORK_PROFILE}/${install_dir}/boot"
+        cp "${ROOT}/branding/assets/lyra-boot-bg.png" "${WORK_PROFILE}/${install_dir}/boot/lyra-boot-bg.png"
     fi
 
     # 3) Boot menu background for syslinux.
