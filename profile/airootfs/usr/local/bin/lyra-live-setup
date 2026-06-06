@@ -27,3 +27,15 @@ if [[ -f /usr/share/applications/calamares.desktop ]]; then
         /usr/share/applications/calamares.desktop \
         "${DESKTOP_DIR}/install-lyra.desktop"
 fi
+
+# Explicitly ensure autologin is configured
+install -d /etc/sddm.conf.d
+cat > /etc/sddm.conf.d/10-lyra-live-autologin.conf <<EOF
+[Autologin]
+User=${LIVE_USER}
+Session=plasma
+Relogin=false
+
+[General]
+DisplayServer=wayland
+EOF
