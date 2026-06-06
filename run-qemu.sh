@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Script para testar o ISO gerado no QEMU com suporte a UEFI
 
-ISO_PATH="out/archlinux-2026.06.06-x86_64.iso"
+ISO_PATH="out/lyra-2026.06.06-x86_64.iso"
 
 if [ ! -f "$ISO_PATH" ]; then
     echo "ISO não encontrado em $ISO_PATH. Execute o build.sh primeiro."
