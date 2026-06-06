@@ -7,10 +7,10 @@ windowPlacement:         center
 strings:
     productName:         Lyra OS
     shortProductName:    Lyra
-    productUrl:          https://github.com/rodrigo/Lyra
-    supportUrl:          https://github.com/rodrigo/Lyra/issues
-    knownIssuesUrl:      https://github.com/rodrigo/Lyra/issues
-    releaseNotesUrl:     https://github.com/rodrigo/Lyra
+    productUrl:          https://github.com/britors/Lyra
+    supportUrl:          https://github.com/britors/Lyra/issues
+    knownIssuesUrl:      https://github.com/britors/Lyra/issues
+    releaseNotesUrl:     https://github.com/britors/Lyra
 
 images:
     productLogo:         "logo.png"

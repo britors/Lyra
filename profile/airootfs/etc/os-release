@@ -7,5 +7,5 @@ ANSI_COLOR="38;2;110;106;255"
 HOME_URL="https://w3ti.com.br/lyra"
 DOCUMENTATION_URL="https://w3ti.com.br/lyra/docs"
 SUPPORT_URL="https://w3ti.com.br/lyra/suporte"
-BUG_REPORT_URL="https://w3ti.com.br/lyra/bugs"
+BUG_REPORT_URL="https://github.com/britors/Lyra/issues"
 LOGO=lyra

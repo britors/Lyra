@@ -7,8 +7,12 @@ set -euo pipefail
 
 LIVE_USER="lyra"
 
+if ! getent group autologin >/dev/null; then
+    groupadd autologin
+fi
+
 if ! id -u "${LIVE_USER}" &>/dev/null; then
-    useradd -m -G wheel,video,audio,storage,network,input \
+    useradd -m -G wheel,video,audio,storage,network,input,autologin \
             -s /bin/bash -c "Lyra Live" "${LIVE_USER}"
     # Passwordless login for the live session.
     passwd -d "${LIVE_USER}"

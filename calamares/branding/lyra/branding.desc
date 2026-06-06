@@ -19,7 +19,7 @@ strings:
     bootloaderEntryName:  Lyra
     productUrl:          https://w3ti.com.br/lyra
     supportUrl:          https://w3ti.com.br/lyra/suporte
-    knownIssuesUrl:      https://w3ti.com.br/lyra/bugs
+    knownIssuesUrl:      https://github.com/britors/Lyra/issues
     releaseNotesUrl:     https://w3ti.com.br/lyra/notas
     productLogo:         "logo.png"
     productIcon:         "logo.png"
