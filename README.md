@@ -8,7 +8,7 @@
 
 <p align="center">
   Distribuição Linux baseada em Arch, com KDE Plasma 6 enxuto, voltada ao usuário
-  final que quer "ligou, funcionou". Mantida pela <strong>W3TI</strong>.
+  final que quer "ligou, funcionou". Mantida por <strong>Rodrigo Brito</strong>.
 </p>
 
 ---
@@ -95,4 +95,4 @@ padrões de código e fluxo de PR.
 
 ## Licença
 
-GPL-3.0. Lyra OS é um produto da **W3TI Serviços de Informática Ltda.**
+GPL-3.0. Lyra OS é um produto de **Rodrigo Brito**.
