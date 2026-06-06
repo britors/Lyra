@@ -1,26 +1,12 @@
-# Build output
-/out/
+# Diretórios de Build
+work/
+out/
 
-# QEMU test disks
-*.qcow2
+# Metadados e arquivos temporários do sistema
+.build-metadata
+*.iso
+*.iso.sha256
 
-# Stray desktop/config drafts in repo root
-/defaults.desktop
-
-# Generated assets (reproduced by branding/generate-*.sh)
-/branding/assets/*.png
-/branding/wallpapers/src/
-/branding/wallpapers/generated/
-
-# makepkg leftovers
-**/pkg/
-**/src/
-*.pkg.tar.zst
-*.log
-
-# python
-__pycache__/
-*.pyc
-
-.gemini/
-gha-creds-*.json
+# Cache de pacotes e arquivos de sistema do chroot
+/profile/airootfs/var/cache/pacman/pkg/
+/profile/airootfs/var/lib/pacman/sync/

@@ -1,8 +1,0 @@
-[Plymouth Theme]
-Name=Lyra
-Description=Lyra OS boot splash — sapphire to violet
-ModuleName=script
-
-[script]
-ImageDir=/usr/share/plymouth/themes/lyra
-ScriptFile=/usr/share/plymouth/themes/lyra/lyra.script

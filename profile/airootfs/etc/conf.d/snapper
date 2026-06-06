@@ -1,2 +1,0 @@
-# Lyra OS — which Snapper configs the timeline/cleanup timers act on (§4)
-SNAPPER_CONFIGS="root"
