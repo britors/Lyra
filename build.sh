@@ -65,6 +65,10 @@ stage_aur() {
 
 stage_assemble() {
     msg "Assembling working archiso profile -> ${WORK_PROFILE}"
+    
+    # Load profile variables (needed for install_dir)
+    source "${ROOT}/profile/profiledef.sh"
+    
     rm -rf "${WORK_PROFILE}"
     cp -a "${ROOT}/profile" "${WORK_PROFILE}"
 
