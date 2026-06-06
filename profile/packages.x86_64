@@ -5,3 +5,7 @@ sddm
 gdm
 network-manager-applet
 xdg-user-dirs-gtk
+syslinux
+memtest86+
+memtest86+-efi
+edk2-shell
