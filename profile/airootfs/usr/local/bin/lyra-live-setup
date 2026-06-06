@@ -3,7 +3,7 @@
 # Creates the passwordless 'lyra' live user and drops a desktop launcher for the
 # Calamares installer. None of this reaches the installed system: the Calamares
 # lyra-live-cleanup step removes the user, this script and its unit (§11).
-set -euo pipefail
+set -xeuo pipefail
 
 LIVE_USER="lyra"
 

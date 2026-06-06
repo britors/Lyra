@@ -21,3 +21,6 @@
 # python
 __pycache__/
 *.pyc
+
+.gemini/
+gha-creds-*.json
