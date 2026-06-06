@@ -5,4 +5,4 @@
 # extra apps (sandboxed, auto-updating, won't break the base system).
 set -euo pipefail
 flatpak remote-add --if-not-exists flathub \
-    https://dl.flathub.org/repo/flathub.flatpakrepo
+    https://flathub.org/repo/flathub.flatpakrepo
