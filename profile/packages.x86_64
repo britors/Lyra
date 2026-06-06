@@ -97,8 +97,7 @@ gst-plugins-bad
 gst-libav
 
 ### --- Package management & app delivery (§5) ---
-# flatpak: Flathub configured by airootfs (§5)
-flatpak
+
 
 ### --- Stability: Btrfs snapshots (§4) ---
 snapper
