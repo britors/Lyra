@@ -109,6 +109,7 @@ stage_assemble() {
         cp "${cosmos_wallpaper}" "${brand_dir}/wallpaper.png"
         cp "${cosmos_wallpaper}" "${WORK_PROFILE}/airootfs/usr/share/pixmaps/lyra-background.png"
         cp "${cosmos_wallpaper}" "${WORK_PROFILE}/grub/lyra-boot-bg.png"
+        mkdir -p "${WORK_PROFILE}/airootfs/boot"
         cp "${cosmos_wallpaper}" "${WORK_PROFILE}/airootfs/boot/lyra-boot-bg.png"
         # Força o Breeze a usar o wallpaper da Lyra
         mkdir -p "${WORK_PROFILE}/airootfs/usr/share/sddm/themes/breeze/"
@@ -118,6 +119,7 @@ stage_assemble() {
         cp "${ROOT}/branding/assets/background.png" "${brand_dir}/wallpaper.png"
         cp "${ROOT}/branding/assets/background.png" "${WORK_PROFILE}/airootfs/usr/share/pixmaps/lyra-background.png"
         cp "${ROOT}/branding/assets/lyra-boot-bg.png" "${WORK_PROFILE}/grub/lyra-boot-bg.png"
+        mkdir -p "${WORK_PROFILE}/airootfs/boot"
         cp "${ROOT}/branding/assets/lyra-boot-bg.png" "${WORK_PROFILE}/airootfs/boot/lyra-boot-bg.png"
     fi
 
