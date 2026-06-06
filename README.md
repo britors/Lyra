@@ -1,18 +1,18 @@
-# Lyra OS
+# Lyra OS (Ubuntu Base)
 
-Este é um projeto baseado em Arch Linux para criar uma distribuição customizada.
+Projeto de distribuição Linux customizada baseada em Ubuntu.
 
-## Como usar
+## Requisitos
+- [Cubic](https://launchpad.net/cubic) instalado.
+- ISO oficial do Ubuntu (Desktop).
 
-### 1. Construir o ISO
-Para gerar o ISO, execute:
-```bash
-./build.sh
-```
+## Workflow de Customização
+1. Abra o Cubic.
+2. Selecione a ISO base do Ubuntu.
+3. No ambiente `chroot` do Cubic, aplique as customizações (instalação de pacotes, temas, scripts).
+4. Gere a nova ISO.
 
-### 2. Testar no QEMU
-Para testar o ISO gerado em uma máquina virtual, execute:
-```bash
-./run-qemu.sh
-```
-Certifique-se de ter o QEMU instalado e suporte a KVM no seu sistema.
+## Estrutura do Repositório
+- `branding/`: Assets, wallpapers, temas.
+- `scripts/`: Scripts de pós-instalação ou automação dentro do Cubic.
+- `docs/`: Documentação de design e decisões.
