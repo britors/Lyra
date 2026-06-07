@@ -1,0 +1,121 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="46%" r="65%">
+      <stop offset="0%"   stop-color="#0c0a22"/>
+      <stop offset="50%"  stop-color="#06040f"/>
+      <stop offset="100%" stop-color="#020208"/>
+    </radialGradient>
+    <radialGradient id="center-glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#4a40a8" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="logo-grad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0"    stop-color="#2f6bff"/>
+      <stop offset="0.55" stop-color="#6e6aff"/>
+      <stop offset="1"    stop-color="#8b3cf7"/>
+    </linearGradient>
+    <!-- Horizontal line gradient for decorative rule -->
+    <linearGradient id="rule-grad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%"   stop-color="#6e6aff" stop-opacity="0"/>
+      <stop offset="30%"  stop-color="#6e6aff" stop-opacity="0.5"/>
+      <stop offset="70%"  stop-color="#6e6aff" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#6e6aff" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="logo-bloom" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="40"/>
+    </filter>
+    <filter id="logo-glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="6" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="center-blur">
+      <feGaussianBlur stdDeviation="120"/>
+    </filter>
+  </defs>
+
+  <rect width="1920" height="1080" fill="url(#bg)"/>
+
+  <!-- Subtle center glow -->
+  <ellipse cx="960" cy="540" rx="700" ry="420" fill="url(#center-glow)" filter="url(#center-blur)"/>
+
+  <!-- Fine dot grid (very subtle) -->
+  <g fill="#3530a8" opacity="0.12">
+    <!-- Row 1 -->
+    <circle cx="160"  cy="135" r="1"/><circle cx="320"  cy="135" r="1"/><circle cx="480"  cy="135" r="1"/>
+    <circle cx="640"  cy="135" r="1"/><circle cx="800"  cy="135" r="1"/><circle cx="960"  cy="135" r="1"/>
+    <circle cx="1120" cy="135" r="1"/><circle cx="1280" cy="135" r="1"/><circle cx="1440" cy="135" r="1"/>
+    <circle cx="1600" cy="135" r="1"/><circle cx="1760" cy="135" r="1"/>
+    <!-- Row 2 -->
+    <circle cx="160"  cy="270" r="1"/><circle cx="320"  cy="270" r="1"/><circle cx="480"  cy="270" r="1"/>
+    <circle cx="640"  cy="270" r="1"/><circle cx="800"  cy="270" r="1"/><circle cx="960"  cy="270" r="1"/>
+    <circle cx="1120" cy="270" r="1"/><circle cx="1280" cy="270" r="1"/><circle cx="1440" cy="270" r="1"/>
+    <circle cx="1600" cy="270" r="1"/><circle cx="1760" cy="270" r="1"/>
+    <!-- Row 3 -->
+    <circle cx="160"  cy="405" r="1"/><circle cx="320"  cy="405" r="1"/><circle cx="480"  cy="405" r="1"/>
+    <circle cx="640"  cy="405" r="1"/><circle cx="800"  cy="405" r="1"/><circle cx="960"  cy="405" r="1"/>
+    <circle cx="1120" cy="405" r="1"/><circle cx="1280" cy="405" r="1"/><circle cx="1440" cy="405" r="1"/>
+    <circle cx="1600" cy="405" r="1"/><circle cx="1760" cy="405" r="1"/>
+    <!-- Row 4 -->
+    <circle cx="160"  cy="540" r="1"/><circle cx="320"  cy="540" r="1"/><circle cx="480"  cy="540" r="1"/>
+    <circle cx="640"  cy="540" r="1"/><circle cx="800"  cy="540" r="1"/><circle cx="1120" cy="540" r="1"/>
+    <circle cx="1280" cy="540" r="1"/><circle cx="1440" cy="540" r="1"/><circle cx="1600" cy="540" r="1"/>
+    <circle cx="1760" cy="540" r="1"/>
+    <!-- Row 5 -->
+    <circle cx="160"  cy="675" r="1"/><circle cx="320"  cy="675" r="1"/><circle cx="480"  cy="675" r="1"/>
+    <circle cx="640"  cy="675" r="1"/><circle cx="800"  cy="675" r="1"/><circle cx="960"  cy="675" r="1"/>
+    <circle cx="1120" cy="675" r="1"/><circle cx="1280" cy="675" r="1"/><circle cx="1440" cy="675" r="1"/>
+    <circle cx="1600" cy="675" r="1"/><circle cx="1760" cy="675" r="1"/>
+    <!-- Row 6 -->
+    <circle cx="160"  cy="810" r="1"/><circle cx="320"  cy="810" r="1"/><circle cx="480"  cy="810" r="1"/>
+    <circle cx="640"  cy="810" r="1"/><circle cx="800"  cy="810" r="1"/><circle cx="960"  cy="810" r="1"/>
+    <circle cx="1120" cy="810" r="1"/><circle cx="1280" cy="810" r="1"/><circle cx="1440" cy="810" r="1"/>
+    <circle cx="1600" cy="810" r="1"/><circle cx="1760" cy="810" r="1"/>
+    <!-- Row 7 -->
+    <circle cx="160"  cy="945" r="1"/><circle cx="320"  cy="945" r="1"/><circle cx="480"  cy="945" r="1"/>
+    <circle cx="640"  cy="945" r="1"/><circle cx="800"  cy="945" r="1"/><circle cx="960"  cy="945" r="1"/>
+    <circle cx="1120" cy="945" r="1"/><circle cx="1280" cy="945" r="1"/><circle cx="1440" cy="945" r="1"/>
+    <circle cx="1600" cy="945" r="1"/><circle cx="1760" cy="945" r="1"/>
+  </g>
+
+  <!-- Decorative horizontal rules -->
+  <rect x="360" y="757" width="1200" height="0.75" fill="url(#rule-grad)" opacity="0.6"/>
+  <rect x="480" y="764" width="960"  height="0.4"  fill="url(#rule-grad)" opacity="0.35"/>
+
+  <!-- Logo bloom -->
+  <g filter="url(#logo-bloom)" opacity="0.8">
+    <svg x="810" y="358" width="300" height="300" viewBox="0 0 256 256">
+      <path d="M128 16 L134 36 L154 42 L134 48 L128 68 L122 48 L102 42 L122 36 Z" fill="#6e6aff"/>
+      <g fill="none" stroke="#6e6aff" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M112 196 C 84 188 68 156 68 118 C 68 98 70 84 74 76" stroke-width="11"/>
+        <path d="M144 196 C 172 188 188 156 188 118 C 188 98 186 84 182 76" stroke-width="11"/>
+        <path d="M70 80 C 100 66 156 66 186 80" stroke-width="11"/>
+        <path d="M104 190 C 116 212 140 212 152 190" stroke-width="11"/>
+        <path d="M104 84 L 109 192" stroke-width="5"/>
+        <path d="M120 82 L 122 196" stroke-width="5"/>
+        <path d="M136 82 L 134 196" stroke-width="5"/>
+        <path d="M152 84 L 147 192" stroke-width="5"/>
+      </g>
+    </svg>
+  </g>
+
+  <!-- Logo crisp -->
+  <g filter="url(#logo-glow)">
+    <svg x="810" y="358" width="300" height="300" viewBox="0 0 256 256">
+      <path d="M128 16 L134 36 L154 42 L134 48 L128 68 L122 48 L102 42 L122 36 Z" fill="url(#logo-grad)"/>
+      <g fill="none" stroke="url(#logo-grad)" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M112 196 C 84 188 68 156 68 118 C 68 98 70 84 74 76" stroke-width="11"/>
+        <path d="M144 196 C 172 188 188 156 188 118 C 188 98 186 84 182 76" stroke-width="11"/>
+        <path d="M70 80 C 100 66 156 66 186 80" stroke-width="11"/>
+        <path d="M104 190 C 116 212 140 212 152 190" stroke-width="11"/>
+        <path d="M104 84 L 109 192" stroke-width="5"/>
+        <path d="M120 82 L 122 196" stroke-width="5"/>
+        <path d="M136 82 L 134 196" stroke-width="5"/>
+        <path d="M152 84 L 147 192" stroke-width="5"/>
+      </g>
+    </svg>
+  </g>
+
+  <!-- Wordmark -->
+  <text x="960" y="720" text-anchor="middle" font-family="system-ui,sans-serif" font-size="30" font-weight="200" letter-spacing="16" fill="#6e6aff" opacity="0.6">LYRA</text>
+  <text x="960" y="748" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="300" letter-spacing="6"  fill="#6e6aff" opacity="0.28">O P E R A T I N G   S Y S T E M</text>
+</svg>

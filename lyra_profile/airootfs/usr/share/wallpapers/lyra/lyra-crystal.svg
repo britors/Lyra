@@ -1,0 +1,155 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="50%" r="70%">
+      <stop offset="0%"   stop-color="#0a0e28"/>
+      <stop offset="60%"  stop-color="#050818"/>
+      <stop offset="100%" stop-color="#020410"/>
+    </radialGradient>
+    <linearGradient id="logo-grad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0"    stop-color="#2f6bff"/>
+      <stop offset="0.55" stop-color="#6e6aff"/>
+      <stop offset="1"    stop-color="#8b3cf7"/>
+    </linearGradient>
+    <filter id="blur10"><feGaussianBlur stdDeviation="10"/></filter>
+    <filter id="blur4"><feGaussianBlur stdDeviation="4"/></filter>
+    <filter id="logo-bloom" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="30"/>
+    </filter>
+    <filter id="logo-glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="5" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <rect width="1920" height="1080" fill="url(#bg)"/>
+
+  <!-- Crystal facets — large low-poly triangles covering the canvas -->
+  <!-- Colors range from very dark to dark-mid blues/violets, creating depth -->
+  <g stroke="#1a1e50" stroke-width="0.6" stroke-linejoin="round">
+    <!-- Top-left region -->
+    <polygon points="0,0 320,0 160,180"          fill="#0c1035" opacity="0.9"/>
+    <polygon points="0,0 160,180 0,280"           fill="#0a0c2e" opacity="0.9"/>
+    <polygon points="320,0 480,0 320,200"         fill="#0e1240" opacity="0.85"/>
+    <polygon points="320,0 320,200 160,180"       fill="#101445" opacity="0.8"/>
+    <polygon points="480,0 640,0 540,220"         fill="#0c1038" opacity="0.9"/>
+    <polygon points="480,0 540,220 320,200"       fill="#0f1342" opacity="0.85"/>
+    <!-- Top-middle -->
+    <polygon points="640,0 800,0 720,190"         fill="#0d1138" opacity="0.9"/>
+    <polygon points="640,0 720,190 540,220"       fill="#0c1035" opacity="0.85"/>
+    <polygon points="800,0 960,0 880,210"         fill="#0e1240" opacity="0.9"/>
+    <polygon points="800,0 880,210 720,190"       fill="#101548" opacity="0.8"/>
+    <polygon points="960,0 1120,0 1040,210"       fill="#0e1242" opacity="0.9"/>
+    <polygon points="960,0 1040,210 880,210"      fill="#0c1038" opacity="0.85"/>
+    <!-- Top-right region -->
+    <polygon points="1120,0 1280,0 1200,190"      fill="#0d1138" opacity="0.9"/>
+    <polygon points="1120,0 1200,190 1040,210"    fill="#0f1345" opacity="0.85"/>
+    <polygon points="1280,0 1440,0 1360,220"      fill="#0c1035" opacity="0.9"/>
+    <polygon points="1280,0 1360,220 1200,190"    fill="#101440" opacity="0.8"/>
+    <polygon points="1440,0 1600,0 1520,200"      fill="#0e1242" opacity="0.9"/>
+    <polygon points="1440,0 1520,200 1360,220"    fill="#0d1138" opacity="0.85"/>
+    <polygon points="1600,0 1760,0 1680,180"      fill="#0c1035" opacity="0.9"/>
+    <polygon points="1600,0 1680,180 1520,200"    fill="#101445" opacity="0.8"/>
+    <polygon points="1760,0 1920,0 1920,280 1760,180" fill="#0a0c2e" opacity="0.9"/>
+    <polygon points="1760,0 1760,180 1680,180"    fill="#0e1240" opacity="0.85"/>
+
+    <!-- Middle-left -->
+    <polygon points="0,280 160,180 240,380 0,460"  fill="#0b0f32" opacity="0.9"/>
+    <polygon points="160,180 320,200 380,360 240,380" fill="#0d1140" opacity="0.85"/>
+    <polygon points="320,200 540,220 560,400 380,360" fill="#0c1038" opacity="0.9"/>
+    <polygon points="540,220 720,190 740,380 560,400" fill="#101448" opacity="0.8"/>
+    <!-- Middle center — slightly brighter around logo area -->
+    <polygon points="720,190 880,210 900,380 740,380"  fill="#131860" opacity="0.7"/>
+    <polygon points="880,210 1040,210 1060,380 900,380" fill="#151a68" opacity="0.65"/>
+    <polygon points="1040,210 1200,190 1220,380 1060,380" fill="#131860" opacity="0.7"/>
+    <!-- Middle right -->
+    <polygon points="1200,190 1360,220 1380,400 1220,380" fill="#0d1140" opacity="0.85"/>
+    <polygon points="1360,220 1520,200 1540,380 1380,400" fill="#0c1038" opacity="0.9"/>
+    <polygon points="1520,200 1680,180 1700,380 1540,380" fill="#101445" opacity="0.8"/>
+    <polygon points="1680,180 1920,280 1920,460 1700,380" fill="#0b0f32" opacity="0.9"/>
+
+    <!-- Lower-middle rows -->
+    <polygon points="0,460 240,380 260,560 0,620"  fill="#0a0d30" opacity="0.9"/>
+    <polygon points="240,380 380,360 400,540 260,560" fill="#0e1240" opacity="0.85"/>
+    <polygon points="380,360 560,400 580,560 400,540" fill="#0c1035" opacity="0.9"/>
+    <polygon points="560,400 740,380 760,560 580,560" fill="#0f1345" opacity="0.85"/>
+    <!-- Center bright facets -->
+    <polygon points="740,380 900,380 920,560 760,560"  fill="#161a70" opacity="0.6"/>
+    <polygon points="900,380 1060,380 1080,560 920,560" fill="#181c78" opacity="0.55"/>
+    <polygon points="1060,380 1220,380 1240,560 1080,560" fill="#161a70" opacity="0.6"/>
+    <!-- Right -->
+    <polygon points="1220,380 1380,400 1400,560 1240,560" fill="#0e1240" opacity="0.85"/>
+    <polygon points="1380,400 1540,380 1560,560 1400,560" fill="#0c1035" opacity="0.9"/>
+    <polygon points="1540,380 1700,380 1720,560 1560,560" fill="#101445" opacity="0.8"/>
+    <polygon points="1700,380 1920,460 1920,620 1720,560" fill="#0a0d30" opacity="0.9"/>
+
+    <!-- Lower rows -->
+    <polygon points="0,620 260,560 280,760 0,800"  fill="#080b28" opacity="0.95"/>
+    <polygon points="260,560 400,540 420,720 280,760" fill="#0c1035" opacity="0.9"/>
+    <polygon points="400,540 580,560 600,740 420,720" fill="#0a0e30" opacity="0.9"/>
+    <polygon points="580,560 760,560 780,740 600,740" fill="#0c1035" opacity="0.9"/>
+    <polygon points="760,560 920,560 940,740 780,740" fill="#101445" opacity="0.85"/>
+    <polygon points="920,560 1080,560 1100,740 940,740" fill="#0f1342" opacity="0.85"/>
+    <polygon points="1080,560 1240,560 1260,740 1100,740" fill="#101445" opacity="0.85"/>
+    <polygon points="1240,560 1400,560 1420,720 1260,740" fill="#0c1035" opacity="0.9"/>
+    <polygon points="1400,560 1560,560 1580,740 1420,720" fill="#0a0e30" opacity="0.9"/>
+    <polygon points="1560,560 1720,560 1740,760 1580,740" fill="#0c1035" opacity="0.9"/>
+    <polygon points="1720,560 1920,620 1920,800 1740,760" fill="#080b28" opacity="0.95"/>
+
+    <!-- Bottom region -->
+    <polygon points="0,800 280,760 300,960 0,1080"  fill="#060920" opacity="0.95"/>
+    <polygon points="280,760 420,720 440,900 300,960" fill="#090d2e" opacity="0.95"/>
+    <polygon points="420,720 600,740 620,920 440,900" fill="#080b28" opacity="0.95"/>
+    <polygon points="600,740 780,740 800,920 620,920" fill="#0a0d30" opacity="0.95"/>
+    <polygon points="780,740 940,740 960,920 800,920" fill="#0c1038" opacity="0.9"/>
+    <polygon points="940,740 1100,740 1120,920 960,920" fill="#0c1038" opacity="0.9"/>
+    <polygon points="1100,740 1260,740 1280,920 1120,920" fill="#0a0d30" opacity="0.95"/>
+    <polygon points="1260,740 1420,720 1440,900 1280,920" fill="#080b28" opacity="0.95"/>
+    <polygon points="1420,720 1580,740 1600,960 1440,900" fill="#090d2e" opacity="0.95"/>
+    <polygon points="1580,740 1740,760 1760,1080 1600,960" fill="#080b28" opacity="0.95"/>
+    <polygon points="1740,760 1920,800 1920,1080 1760,1080" fill="#060920" opacity="0.95"/>
+    <polygon points="0,1080 300,960 440,900 620,920 800,920 960,920 1120,920 1280,920 1440,900 1600,960 1760,1080 0,1080" fill="#050818" opacity="0.95"/>
+  </g>
+
+  <!-- Edge highlights on select facets -->
+  <g stroke="#4a50cc" stroke-width="0.8" fill="none" opacity="0.4" filter="url(#blur4)">
+    <polygon points="880,210 1040,210 1060,380 900,380"/>
+    <polygon points="900,380 1060,380 1080,560 920,560"/>
+    <polygon points="920,560 1080,560 1100,740 940,740"/>
+  </g>
+
+  <!-- Logo bloom -->
+  <g filter="url(#logo-bloom)" opacity="0.85">
+    <svg x="810" y="390" width="300" height="300" viewBox="0 0 256 256">
+      <path d="M128 16 L134 36 L154 42 L134 48 L128 68 L122 48 L102 42 L122 36 Z" fill="#6e6aff"/>
+      <g fill="none" stroke="#6e6aff" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M112 196 C 84 188 68 156 68 118 C 68 98 70 84 74 76" stroke-width="11"/>
+        <path d="M144 196 C 172 188 188 156 188 118 C 188 98 186 84 182 76" stroke-width="11"/>
+        <path d="M70 80 C 100 66 156 66 186 80" stroke-width="11"/>
+        <path d="M104 190 C 116 212 140 212 152 190" stroke-width="11"/>
+        <path d="M104 84 L 109 192" stroke-width="5"/>
+        <path d="M120 82 L 122 196" stroke-width="5"/>
+        <path d="M136 82 L 134 196" stroke-width="5"/>
+        <path d="M152 84 L 147 192" stroke-width="5"/>
+      </g>
+    </svg>
+  </g>
+
+  <!-- Logo crisp -->
+  <g filter="url(#logo-glow)">
+    <svg x="810" y="390" width="300" height="300" viewBox="0 0 256 256">
+      <path d="M128 16 L134 36 L154 42 L134 48 L128 68 L122 48 L102 42 L122 36 Z" fill="url(#logo-grad)"/>
+      <g fill="none" stroke="url(#logo-grad)" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M112 196 C 84 188 68 156 68 118 C 68 98 70 84 74 76" stroke-width="11"/>
+        <path d="M144 196 C 172 188 188 156 188 118 C 188 98 186 84 182 76" stroke-width="11"/>
+        <path d="M70 80 C 100 66 156 66 186 80" stroke-width="11"/>
+        <path d="M104 190 C 116 212 140 212 152 190" stroke-width="11"/>
+        <path d="M104 84 L 109 192" stroke-width="5"/>
+        <path d="M120 82 L 122 196" stroke-width="5"/>
+        <path d="M136 82 L 134 196" stroke-width="5"/>
+        <path d="M152 84 L 147 192" stroke-width="5"/>
+      </g>
+    </svg>
+  </g>
+
+  <text x="960" y="738" text-anchor="middle" font-family="system-ui,sans-serif" font-size="26" font-weight="200" letter-spacing="14" fill="#6e6aff" opacity="0.5">LYRA</text>
+</svg>

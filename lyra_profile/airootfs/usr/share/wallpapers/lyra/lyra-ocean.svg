@@ -1,0 +1,118 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#020812"/>
+      <stop offset="40%"  stop-color="#030e1e"/>
+      <stop offset="100%" stop-color="#010508"/>
+    </linearGradient>
+    <radialGradient id="depth-glow" cx="50%" cy="60%" r="55%">
+      <stop offset="0%"   stop-color="#0a2a6e" stop-opacity="0.5"/>
+      <stop offset="60%"  stop-color="#051040" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="logo-grad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0"    stop-color="#2f6bff"/>
+      <stop offset="0.55" stop-color="#6e6aff"/>
+      <stop offset="1"    stop-color="#8b3cf7"/>
+    </linearGradient>
+    <filter id="blur60"><feGaussianBlur stdDeviation="60"/></filter>
+    <filter id="blur25"><feGaussianBlur stdDeviation="25"/></filter>
+    <filter id="blur6"><feGaussianBlur stdDeviation="6"/></filter>
+    <filter id="logo-bloom" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="28"/>
+    </filter>
+    <filter id="logo-glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="5" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <rect width="1920" height="1080" fill="url(#bg)"/>
+  <rect width="1920" height="1080" fill="url(#depth-glow)"/>
+
+  <!-- Deep ocean current — sweeping curves -->
+  <g fill="none" stroke-linecap="round">
+    <path d="M0 300 Q 480 200 960 320 Q 1440 440 1920 300" stroke="#0d3a8a" stroke-width="200" filter="url(#blur60)" opacity="0.4"/>
+    <path d="M0 500 Q 480 380 960 500 Q 1440 620 1920 500" stroke="#0d3a8a" stroke-width="180" filter="url(#blur60)" opacity="0.35"/>
+    <path d="M0 700 Q 480 580 960 700 Q 1440 820 1920 700" stroke="#0a2060" stroke-width="160" filter="url(#blur60)" opacity="0.3"/>
+  </g>
+
+  <!-- Bioluminescent wave trails -->
+  <g fill="none" opacity="0.6">
+    <path d="M0 380 Q 240 340 480 380 Q 720 420 960 380 Q 1200 340 1440 380 Q 1680 420 1920 380"
+          stroke="#2f6bff" stroke-width="1.5" filter="url(#blur6)"/>
+    <path d="M0 420 Q 240 380 480 420 Q 720 460 960 420 Q 1200 380 1440 420 Q 1680 460 1920 420"
+          stroke="#6e6aff" stroke-width="1" filter="url(#blur6)" opacity="0.8"/>
+    <path d="M0 600 Q 320 555 640 600 Q 960 645 1280 600 Q 1600 555 1920 600"
+          stroke="#2f6bff" stroke-width="1.5" filter="url(#blur6)"/>
+    <path d="M0 640 Q 320 595 640 640 Q 960 685 1280 640 Q 1600 595 1920 640"
+          stroke="#6e6aff" stroke-width="1" filter="url(#blur6)" opacity="0.8"/>
+    <path d="M0 760 Q 400 710 800 760 Q 1200 810 1600 760 Q 1760 735 1920 750"
+          stroke="#2f6bff" stroke-width="1.2" filter="url(#blur6)"/>
+    <path d="M0 200 Q 300 160 600 200 Q 900 240 1200 200 Q 1500 160 1800 200 Q 1870 208 1920 205"
+          stroke="#8b3cf7" stroke-width="1" filter="url(#blur6)" opacity="0.7"/>
+  </g>
+
+  <!-- Bioluminescent particles / plankton -->
+  <g filter="url(#blur6)" opacity="0.7">
+    <circle cx="120"  cy="180" r="3"  fill="#00c8ff"/><circle cx="280"  cy="340" r="2"  fill="#2f6bff"/>
+    <circle cx="450"  cy="220" r="2.5" fill="#6e6aff"/><circle cx="620"  cy="480" r="3"  fill="#00a8ff"/>
+    <circle cx="780"  cy="280" r="2"  fill="#2f6bff"/><circle cx="900"  cy="420" r="2.5" fill="#6e6aff"/>
+    <circle cx="1050" cy="190" r="3"  fill="#00c8ff"/><circle cx="1200" cy="370" r="2"  fill="#2f6bff"/>
+    <circle cx="1380" cy="260" r="2.5" fill="#6e6aff"/><circle cx="1520" cy="440" r="3"  fill="#00a8ff"/>
+    <circle cx="1680" cy="200" r="2"  fill="#2f6bff"/><circle cx="1820" cy="360" r="2.5" fill="#6e6aff"/>
+    <circle cx="60"   cy="620" r="2.5" fill="#6e6aff"/><circle cx="200"  cy="780" r="3"  fill="#2f6bff"/>
+    <circle cx="380"  cy="660" r="2"  fill="#00c8ff"/><circle cx="540"  cy="840" r="2.5" fill="#6e6aff"/>
+    <circle cx="720"  cy="700" r="3"  fill="#2f6bff"/><circle cx="880"  cy="860" r="2"  fill="#00a8ff"/>
+    <circle cx="1060" cy="720" r="2.5" fill="#6e6aff"/><circle cx="1220" cy="880" r="3"  fill="#2f6bff"/>
+    <circle cx="1400" cy="740" r="2"  fill="#00c8ff"/><circle cx="1560" cy="900" r="2.5" fill="#6e6aff"/>
+    <circle cx="1740" cy="760" r="3"  fill="#2f6bff"/><circle cx="1880" cy="920" r="2"  fill="#00a8ff"/>
+  </g>
+  <!-- Crisp plankton dots -->
+  <g opacity="0.6">
+    <circle cx="120"  cy="180" r="1"  fill="#88e4ff"/>
+    <circle cx="620"  cy="480" r="1"  fill="#88c8ff"/>
+    <circle cx="1050" cy="190" r="1"  fill="#88e4ff"/>
+    <circle cx="1520" cy="440" r="1"  fill="#88c8ff"/>
+    <circle cx="200"  cy="780" r="1"  fill="#88c8ff"/>
+    <circle cx="880"  cy="860" r="1"  fill="#88e4ff"/>
+    <circle cx="1400" cy="740" r="1"  fill="#88e4ff"/>
+    <circle cx="1880" cy="920" r="1"  fill="#88c8ff"/>
+  </g>
+
+  <!-- Logo bloom -->
+  <g filter="url(#logo-bloom)" opacity="0.8">
+    <svg x="810" y="390" width="300" height="300" viewBox="0 0 256 256">
+      <path d="M128 16 L134 36 L154 42 L134 48 L128 68 L122 48 L102 42 L122 36 Z" fill="#6e6aff"/>
+      <g fill="none" stroke="#6e6aff" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M112 196 C 84 188 68 156 68 118 C 68 98 70 84 74 76" stroke-width="11"/>
+        <path d="M144 196 C 172 188 188 156 188 118 C 188 98 186 84 182 76" stroke-width="11"/>
+        <path d="M70 80 C 100 66 156 66 186 80" stroke-width="11"/>
+        <path d="M104 190 C 116 212 140 212 152 190" stroke-width="11"/>
+        <path d="M104 84 L 109 192" stroke-width="5"/>
+        <path d="M120 82 L 122 196" stroke-width="5"/>
+        <path d="M136 82 L 134 196" stroke-width="5"/>
+        <path d="M152 84 L 147 192" stroke-width="5"/>
+      </g>
+    </svg>
+  </g>
+
+  <!-- Logo crisp -->
+  <g filter="url(#logo-glow)">
+    <svg x="810" y="390" width="300" height="300" viewBox="0 0 256 256">
+      <path d="M128 16 L134 36 L154 42 L134 48 L128 68 L122 48 L102 42 L122 36 Z" fill="url(#logo-grad)"/>
+      <g fill="none" stroke="url(#logo-grad)" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M112 196 C 84 188 68 156 68 118 C 68 98 70 84 74 76" stroke-width="11"/>
+        <path d="M144 196 C 172 188 188 156 188 118 C 188 98 186 84 182 76" stroke-width="11"/>
+        <path d="M70 80 C 100 66 156 66 186 80" stroke-width="11"/>
+        <path d="M104 190 C 116 212 140 212 152 190" stroke-width="11"/>
+        <path d="M104 84 L 109 192" stroke-width="5"/>
+        <path d="M120 82 L 122 196" stroke-width="5"/>
+        <path d="M136 82 L 134 196" stroke-width="5"/>
+        <path d="M152 84 L 147 192" stroke-width="5"/>
+      </g>
+    </svg>
+  </g>
+
+  <text x="960" y="738" text-anchor="middle" font-family="system-ui,sans-serif" font-size="26" font-weight="200" letter-spacing="14" fill="#2f6bff" opacity="0.5">LYRA</text>
+</svg>
