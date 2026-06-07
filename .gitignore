@@ -1,0 +1,23 @@
+# Archiso work directories
+work_dir/
+/tmp/archiso-work/
+
+# Build outputs
+out/
+
+# AUR build artifacts
+yay-bin/
+prosa/
+fina/
+calamares/
+*.pkg.tar.zst
+*.db.tar.gz
+
+# Local repo (only ignore the generated files)
+lyra_profile/repo/x86_64/
+lyra_profile/repo/lyra.db.tar.gz
+lyra_profile/repo/lyra.files.tar.gz
+
+# Logs and temp files
+*.log
+.DS_Store
