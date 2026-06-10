@@ -1,8 +1,0 @@
-[Desktop Entry]
-Type=Application
-Name=Install Lyra OS
-GenericName=System Installer
-Exec=pkexec calamares
-Icon=calamares
-Terminal=false
-Categories=System;
