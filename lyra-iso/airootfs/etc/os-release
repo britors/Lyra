@@ -1,0 +1,11 @@
+NAME="Lyra OS"
+PRETTY_NAME="Lyra OS"
+ID=lyra
+ID_LIKE=arch
+BUILD_ID=rolling
+ANSI_COLOR="38;2;123;104;238"
+HOME_URL="https://lyraos.org/"
+DOCUMENTATION_URL="https://lyraos.org/docs/"
+SUPPORT_URL="https://lyraos.org/support/"
+BUG_REPORT_URL="https://lyraos.org/bugs/"
+LOGO=lyra-logo

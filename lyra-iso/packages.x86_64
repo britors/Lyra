@@ -1,0 +1,100 @@
+# Lyra OS — lista consolidada de pacotes Pacman
+# Gerado a partir do PROMPT-LYRA-OS.md v2.0
+
+# --- Kernel e firmware (§3.1) ---
+linux-zen
+linux-zen-headers
+linux-lts
+linux-lts-headers
+linux-firmware
+intel-ucode
+amd-ucode
+
+# --- Bootloader (§3.2) ---
+grub
+efibootmgr
+grub-btrfs
+os-prober
+
+# --- Filesystem / snapshots (§3.3) ---
+btrfs-progs
+snapper
+snap-pac
+zram-generator
+
+# --- Init e serviços (§3.4) ---
+networkmanager
+firewalld
+pipewire
+pipewire-pulse
+pipewire-alsa
+pipewire-jack
+wireplumber
+bluez
+bluez-utils
+cups
+system-config-printer
+gutenprint
+
+# --- Ambiente gráfico (§4) ---
+xorg-server
+xorg-xwayland
+gdm
+gnome
+gnome-shell-extension-user-theme
+gnome-shell-extension-appindicator
+extension-manager
+
+# --- Aplicativos (§6.2, §6.3) ---
+firefox
+firefox-i18n-pt-br
+nautilus
+gnome-terminal
+gnome-text-editor
+gnome-calculator
+gnome-calendar
+gnome-clocks
+gnome-weather
+gnome-system-monitor
+gnome-disk-utility
+gnome-screenshot
+loupe
+totem
+snapshot
+evince
+file-roller
+
+# --- Codecs e fontes (§6.4) ---
+gstreamer
+gst-plugins-base
+gst-plugins-good
+gst-plugins-bad
+gst-plugins-ugly
+gst-libav
+noto-fonts
+noto-fonts-emoji
+noto-fonts-cjk
+ttf-liberation
+ttf-dejavu
+cantarell-fonts
+
+# --- Componentes Lyra (§9, repositório do projeto "lyra") ---
+lyrae
+lyraed
+lyra-backgrounds
+lyra-themes
+
+# --- Instalador (§7) ---
+calamares
+
+# --- Canais de software (§10) ---
+flatpak
+paru
+
+# --- Sistema/hora ---
+systemd
+networkmanager
+
+# Nota: pacotes AUR (prosa, calco, pulso, fina) NAO entram aqui.
+# Sao instalados via hook pos-instalacao com paru, com versoes fixadas
+# em packages.aur.lock (§12.4).
