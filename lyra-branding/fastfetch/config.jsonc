@@ -1,0 +1,99 @@
+// Lyra OS — configuração padrão do fastfetch (PROMPT-LYRA-IDENTIDADE.md §4.8)
+// Instalado em /etc/fastfetch/config.jsonc
+{
+    "$schema": "https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema.json",
+
+    "logo": {
+        "type": "file",
+        "source": "/usr/share/fastfetch/lyra-ascii.txt",
+        "color": {
+            "1": "#2D5BE3",
+            "2": "#3A5BE6",
+            "3": "#485BE8",
+            "4": "#555BEB",
+            "5": "#635CEE",
+            "6": "#705CF1",
+            "7": "#7E5CF3",
+            "8": "#8B5CF6"
+        },
+        "padding": {
+            "top": 1,
+            "right": 3
+        }
+    },
+
+    "display": {
+        "separator": " → "
+    },
+
+    "modules": [
+        "title",
+        "separator",
+        {
+            "type": "os",
+            "key": " OS"
+        },
+        {
+            "type": "kernel",
+            "key": " Kernel"
+        },
+        {
+            "type": "packages",
+            "key": " Pacotes"
+        },
+        {
+            "type": "shell",
+            "key": " Shell"
+        },
+        {
+            "type": "de",
+            "key": " Ambiente"
+        },
+        {
+            "type": "wm",
+            "key": " WM"
+        },
+        {
+            "type": "wmtheme",
+            "key": " Tema"
+        },
+        {
+            "type": "icons",
+            "key": " Ícones"
+        },
+        {
+            "type": "terminal",
+            "key": " Terminal"
+        },
+        "break",
+        {
+            "type": "host",
+            "key": " Host"
+        },
+        {
+            "type": "cpu",
+            "key": " CPU"
+        },
+        {
+            "type": "gpu",
+            "key": " GPU"
+        },
+        {
+            "type": "memory",
+            "key": " Memória"
+        },
+        {
+            "type": "disk",
+            "key": " Disco"
+        },
+        {
+            "type": "uptime",
+            "key": " Uptime"
+        },
+        "break",
+        {
+            "type": "colors",
+            "paddingLeft": 2
+        }
+    ]
+}

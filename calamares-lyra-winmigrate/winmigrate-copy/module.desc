@@ -1,0 +1,12 @@
+# Lyra OS — job de cópia dos arquivos do Windows
+# (PROMPT-CALAMARES-MIGRACAO-WINDOWS.md §5, §7)
+#
+# type "job" / interface "python": roda no bloco `exec` final, após o
+# job "users" (a conta de destino precisa existir) e próximo dos demais
+# jobs demorados (unpackfs etc.), reportando progresso na barra padrão
+# do Calamares com o rótulo de pretty_name() em main.py.
+
+type: "job"
+name: "winmigrate-copy"
+interface: "python"
+script: "main.py"

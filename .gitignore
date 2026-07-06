@@ -18,3 +18,7 @@ calamares/
 # Logs and temp files
 *.log
 .DS_Store
+
+# Python bytecode cache
+__pycache__/
+*.pyc

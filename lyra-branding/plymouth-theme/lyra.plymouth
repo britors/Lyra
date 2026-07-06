@@ -1,0 +1,8 @@
+[Plymouth Theme]
+Name=Lyra
+Description=Tema de boot do Lyra OS — logo da lira com pulso na estrela e spinner discreto
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/lyra
+ScriptFile=/usr/share/plymouth/themes/lyra/lyra.script

@@ -1,0 +1,59 @@
+# Maintainer: Lyra OS <contato@lyraos.org>
+#
+# calamares-lyra-winmigrate — módulo Calamares de migração assistida do
+# Windows (PROMPT-CALAMARES-MIGRACAO-WINDOWS.md)
+#
+# Instala três módulos Calamares (cada um em seu próprio diretório sob
+# /usr/share/calamares/modules/, como exige o Calamares):
+#   winmigrate-detect  job python  — varredura/montagem NTFS, cálculo de tamanho
+#   winmigrate         view qml    — tela de seleção do que copiar
+#   winmigrate-copy    job python  — cópia via rsync + conversão de favoritos
+# e o settings.conf que os posiciona na sequência do instalador (§2).
+#
+# Empacotamento 100% local (monorepo): sem fontes remotas.
+
+pkgname=calamares-lyra-winmigrate
+pkgver=1.0.0
+pkgrel=1
+pkgdesc="Módulo Calamares de migração assistida de arquivos do Windows para o Lyra OS"
+arch=('any')
+url="https://lyraos.org"
+license=('custom')
+depends=('calamares' 'python-yaml' 'rsync' 'ntfs-3g' 'util-linux')
+options=('!strip')
+source=()
+sha256sums=()
+
+_src="$startdir"
+
+check() {
+    for testfile in "$_src"/tests/*.test.py; do
+        python3 "$testfile" -v
+    done
+}
+
+package() {
+    # --- winmigrate-detect (job) ---
+    local detectdir="$pkgdir/usr/share/calamares/modules/winmigrate-detect"
+    install -Dm644 "$_src/winmigrate-detect/module.desc" "$detectdir/module.desc"
+    install -Dm644 "$_src/winmigrate-detect/main.py" "$detectdir/main.py"
+    install -Dm644 "$_src/winmigrate-detect/detection.py" "$detectdir/detection.py"
+
+    # --- winmigrate (view) ---
+    local viewdir="$pkgdir/usr/share/calamares/modules/winmigrate"
+    install -Dm644 "$_src/winmigrate/module.desc" "$viewdir/module.desc"
+    install -Dm644 "$_src/winmigrate/main.qml" "$viewdir/main.qml"
+
+    # --- winmigrate-copy (job) ---
+    local copydir="$pkgdir/usr/share/calamares/modules/winmigrate-copy"
+    install -Dm644 "$_src/winmigrate-copy/module.desc" "$copydir/module.desc"
+    install -Dm644 "$_src/winmigrate-copy/main.py" "$copydir/main.py"
+    install -Dm644 "$_src/winmigrate-copy/jobs/__init__.py" "$copydir/jobs/__init__.py"
+    install -Dm644 "$_src/winmigrate-copy/jobs/copy_job.py" "$copydir/jobs/copy_job.py"
+
+    # --- Configuração compartilhada (§4) ---
+    install -Dm644 "$_src/winmigrate-mapping.conf" "$pkgdir/etc/calamares/modules/winmigrate-mapping.conf"
+
+    # --- Sequência do instalador (§2) ---
+    install -Dm644 "$_src/settings.conf" "$pkgdir/etc/calamares/settings.conf"
+}

@@ -1,0 +1,11 @@
+# Lyra OS — job de detecção da instalação Windows (PROMPT-CALAMARES-MIGRACAO-WINDOWS.md §3, §7)
+#
+# type "job" / interface "python": job puro, sem UI, executado no bloco
+# `exec` do settings.conf logo após o job "partition" (ver
+# calamares-lyra-winmigrate/settings.conf), para que a partição NTFS já
+# esteja com o layout final aplicado no disco antes da varredura.
+
+type: "job"
+name: "winmigrate-detect"
+interface: "python"
+script: "main.py"

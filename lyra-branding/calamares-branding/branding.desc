@@ -1,0 +1,35 @@
+# Lyra OS — branding do Calamares (PROMPT-LYRA-IDENTIDADE.md §4.5)
+# Instalado em /usr/share/calamares/branding/lyra/
+# Complementa o branding.desc base descrito em PROMPT-LYRA-OS.md §7
+
+componentName: lyra
+
+welcomeStyleCalamares: false
+welcomeExpandingLogo: true
+
+strings:
+    productName:         "Lyra OS"
+    shortProductName:    "Lyra"
+    version:              "rolling"
+    shortVersion:          "rolling"
+    versionedName:        "Lyra OS"
+    shortVersionedName:   "Lyra OS"
+    bootloaderEntryName: "Lyra OS"
+    productUrl:          "https://lyraos.org"
+    supportUrl:          "https://lyraos.org/support/"
+    knownIssuesUrl:      "https://lyraos.org/support/"
+    releaseNotesUrl:     "https://lyraos.org/docs/"
+
+images:
+    productLogo:         "logo.svg"
+    productIcon:         "logo.svg"
+    productWallpaper:    "wallpaper.png"
+
+slideshow:               "show.qml"
+slideshowAPI:            2
+
+style:
+   sidebarBackground:    "#0D0D1F"
+   sidebarText:          "#E8ECFF"
+   sidebarTextSelect:    "#1A1A2E"
+   sidebarTextHighlight: "#8B5CF6"

@@ -10,8 +10,14 @@ set -e -u
 echo "==> Atualizando cache de ícones (Lyra-Icons-v2)"
 gtk-update-icon-cache -f -t /usr/share/icons/Lyra-Icons-v2/
 
+echo "==> Atualizando cache de ícones (hicolor / lyra-logo)"
+gtk-update-icon-cache -f -t /usr/share/icons/hicolor/
+
 echo "==> Aplicando defaults do dconf"
 dconf update
+
+echo "==> Aplicando tema Plymouth padrao (lyra)"
+plymouth-set-default-theme -R lyra
 
 echo "==> Habilitando serviços systemd padrão"
 systemctl enable gdm.service

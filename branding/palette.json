@@ -1,0 +1,51 @@
+{
+  "$schema": "https://lyraos.org/schemas/palette.json",
+  "name": "Lyra OS Palette",
+  "version": "1.0.0",
+  "gradient": {
+    "name": "lyra-gradient",
+    "css": "linear-gradient(135deg, #2D5BE3 0%, #8B5CF6 100%)",
+    "angle": 135,
+    "stops": [
+      { "color": "#2D5BE3", "position": 0 },
+      { "color": "#8B5CF6", "position": 100 }
+    ]
+  },
+  "tokens": {
+    "lyra-sapphire": {
+      "hex": "#2D5BE3",
+      "rgb": [45, 91, 227],
+      "usage": "Azul-safira base (início do degradê)"
+    },
+    "lyra-blue": {
+      "hex": "#3B82F6",
+      "rgb": [59, 130, 246],
+      "usage": "Azul intermediário, elementos interativos"
+    },
+    "lyra-violet": {
+      "hex": "#8B5CF6",
+      "rgb": [139, 92, 246],
+      "usage": "Violeta (fim do degradê)"
+    },
+    "lyra-neon": {
+      "hex": "#A78BFA",
+      "rgb": [167, 139, 250],
+      "usage": "Violeta neon, brilhos e acentos"
+    },
+    "lyra-night": {
+      "hex": "#0D0D1F",
+      "rgb": [13, 13, 31],
+      "usage": "Fundo escuro profundo (céu noturno)"
+    },
+    "lyra-night-alt": {
+      "hex": "#1A1A2E",
+      "rgb": [26, 26, 46],
+      "usage": "Fundo escuro secundário"
+    },
+    "lyra-star": {
+      "hex": "#E8ECFF",
+      "rgb": [232, 236, 255],
+      "usage": "Branco-azulado, texto sobre fundo escuro"
+    }
+  }
+}

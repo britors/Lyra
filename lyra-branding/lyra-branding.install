@@ -1,0 +1,40 @@
+# lyra-branding.install — hooks de pós-instalação/atualização
+#
+# Aplica o tema Plymouth e o tema GRUB assim que o pacote é instalado no
+# sistema final (via Calamares) ou atualizado via pacman -Syu
+# (PROMPT-LYRA-IDENTIDADE.md §4.2, §4.3, §5).
+
+_apply_plymouth() {
+    command -v plymouth-set-default-theme >/dev/null 2>&1 || return 0
+    plymouth-set-default-theme -R lyra 2>/dev/null || true
+}
+
+_apply_grub_theme() {
+    [[ -f /etc/default/grub ]] || return 0
+    if grep -q '^GRUB_THEME=' /etc/default/grub; then
+        sed -i 's|^GRUB_THEME=.*|GRUB_THEME="/boot/grub/themes/lyra/theme.txt"|' /etc/default/grub
+    else
+        printf '\nGRUB_THEME="/boot/grub/themes/lyra/theme.txt"\n' >> /etc/default/grub
+    fi
+    command -v grub-mkconfig >/dev/null 2>&1 && [[ -d /boot/grub ]] \
+        && grub-mkconfig -o /boot/grub/grub.cfg 2>/dev/null || true
+}
+
+_update_icon_cache() {
+    command -v gtk-update-icon-cache >/dev/null 2>&1 || return 0
+    gtk-update-icon-cache -f -t /usr/share/icons/hicolor/ 2>/dev/null || true
+}
+
+post_install() {
+    _apply_plymouth
+    _apply_grub_theme
+    _update_icon_cache
+}
+
+post_upgrade() {
+    post_install
+}
+
+post_remove() {
+    _update_icon_cache
+}

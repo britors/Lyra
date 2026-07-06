@@ -1,0 +1,13 @@
+# Lyra OS — view step de seleção da migração do Windows
+# (PROMPT-CALAMARES-MIGRACAO-WINDOWS.md §6.1, §7)
+#
+# type "view" / interface "qml": view step puramente declarativo (sem
+# C++), análogo ao módulo "packagechooser" do próprio Calamares. Toda a
+# lógica pesada (montagem NTFS, varredura, cálculo de tamanho) já foi
+# feita pelo job "winmigrate-detect" no bloco exec anterior; esta tela
+# só lê o resultado em globalstorage e grava a seleção do usuário.
+
+type: "view"
+name: "winmigrate"
+interface: "qml"
+source: "main.qml"

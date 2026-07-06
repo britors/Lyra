@@ -1,0 +1,60 @@
+# Lyra OS — tema GRUB (PROMPT-LYRA-IDENTIDADE.md §4.2)
+# Instalado em /boot/grub/themes/lyra/
+
+title-text: ""
+desktop-image: "background.png"
+desktop-color: "#0D0D1F"
+terminal-box: "terminal_box_*.png"
+terminal-font: "Lyra Regular 16"
+
+# Tokens de paleta (branding/palette.json), para referência de quem editar:
+#   lyra-sapphire  #2D5BE3
+#   lyra-violet    #8B5CF6
+#   lyra-neon      #A78BFA
+#   lyra-night     #0D0D1F
+#   lyra-star      #E8ECFF
+
++ image {
+    id = "logo"
+    file = "wordmark.png"
+    top = 12%
+    left = 50%-300
+    width = 600
+    height = 143
+}
+
++ boot_menu {
+    left = 50%-350
+    top = 45%
+    width = 700
+    height = 300
+    item_height = 48
+    item_spacing = 8
+    item_padding = 12
+
+    item_font = "Lyra Regular 16"
+    item_color_normal = "#E8ECFF"
+    item_color_selected = "#FFFFFF"
+
+    selected_item_pixmap_style = "select_highlight_*.png"
+
+    icon_width = 0
+    icon_height = 0
+
+    scrollbar = false
+}
+
++ progress_bar {
+    id = "__timeout__"
+    left = 50%-200
+    top = 82%
+    width = 400
+    height = 6
+    show_text = true
+    font = "Lyra Regular 12"
+    text_color = "#A78BFA"
+    fg_color = "#8B5CF6"
+    bg_color = "#1A1A2E"
+    border_color = "#0D0D1F"
+    text = "@TIMEOUT_NOTIFICATION_MIDDLE@"
+}
