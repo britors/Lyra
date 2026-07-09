@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+<defs>
+<linearGradient id="folder" x1="0%" y1="0%" x2="100%" y2="100%">
+<stop offset="0%" stop-color="#28C7FA"/>
+<stop offset="100%" stop-color="#6C63FF"/>
+</linearGradient>
+
+<linearGradient id="top" x1="0%" y1="0%" x2="100%" y2="0%">
+<stop offset="0%" stop-color="#9B5CF6"/>
+<stop offset="100%" stop-color="#28C7FA"/>
+</linearGradient>
+</defs>
+
+<path d="M30 78 h70 l18 18 h108 v96 a18 18 0 0 1 -18 18 h-160 a18 18 0 0 1 -18 -18 z"
+fill="url(#folder)"/>
+
+<path d="M30 78 a18 18 0 0 1 18-18 h54 l18 18 h52 a18 18 0 0 1 18 18 z"
+fill="url(#top)"/>
+
+<path d="M44 92 h168"
+stroke="#E8EAF4"
+stroke-width="3"
+opacity="0.4"/>
+
+</svg>

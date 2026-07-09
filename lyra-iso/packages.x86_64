@@ -1,6 +1,12 @@
 # Lyra OS — lista consolidada de pacotes Pacman
 # Gerado a partir do PROMPT-LYRA-OS.md v2.0
 
+# --- Live boot (archiso) ---
+base
+mkinitcpio
+mkinitcpio-archiso
+syslinux
+
 # --- Kernel e firmware (§3.1) ---
 linux-zen
 linux-zen-headers
@@ -25,6 +31,13 @@ zram-generator
 # --- Init e serviços (§3.4) ---
 networkmanager
 firewalld
+# restic (motor do modulo Backup do Vega) e fwupd (atualizacao de firmware
+# via LVFS, modulo Hardware do Vega) confirmados como entrada explicita do
+# build - ver PROMPT-LYRA-OS-PACOTES-SISTEMA.md. Ambos vem do repositorio
+# oficial [extra], sem unit systemd a habilitar (fwupd sobe por D-Bus bus
+# activation; restic e invocado como subprocesso pelo vegad).
+restic
+fwupd
 pipewire
 pipewire-pulse
 pipewire-alsa
@@ -41,7 +54,8 @@ xorg-server
 xorg-xwayland
 gdm
 gnome
-gnome-shell-extension-user-theme
+# gnome-shell-extension-user-theme nao existe mais como pacote separado nos
+# repositorios oficiais (confirmado via archlinux.org em 2026-07) - removido.
 gnome-shell-extension-appindicator
 extension-manager
 
@@ -79,10 +93,16 @@ ttf-dejavu
 cantarell-fonts
 
 # --- Componentes Lyra (§9, repositório do projeto "lyra") ---
-lyrae
-lyraed
-lyra-backgrounds
-lyra-themes
+# lyrae/lyraed/lyra-backgrounds/lyra-themes vivem em repos próprios ainda não
+# publicados (sem PKGBUILD disponível em lugar nenhum hoje) - ver README
+# "Escopo". Comentados até existir um repositório 'lyra' hospedado com eles
+# (pacman.conf TODO) ou seus PKGBUILDs serem trazidos para este monorepo.
+#lyrae
+#lyraed
+#lyra-backgrounds
+#lyra-themes
+# lyra-branding TEM PKGBUILD neste monorepo (lyra-branding/) - buildado
+# automaticamente por scripts/setup-build-host.sh no repositório local [lyra].
 lyra-branding
 
 # --- Boot splash e identidade de terminal (PROMPT-LYRA-IDENTIDADE.md §4.3, §4.8) ---
@@ -95,7 +115,10 @@ calamares-lyra-winmigrate
 
 # --- Canais de software (§10) ---
 flatpak
-paru
+# paru é um pacote AUR-only (nunca esteve em [extra]/[community]) - não pode
+# ser resolvido pelo pacstrap. Precisa do mesmo tratamento de bootstrap dos
+# pacotes AUR citados abaixo (prosa, calco, pulso, fina), não de uma entrada
+# direta aqui. Removido até essa etapa de bootstrap ser implementada.
 
 # --- Sistema/hora ---
 systemd

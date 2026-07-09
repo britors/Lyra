@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=X-GNOME-Metatheme
+Name=Lyra Dark
+Comment=Tema oficial do Lyra OS
+
+GtkTheme=Lyra-Dark
+IconTheme=Papirus-Dark
+CursorTheme=Bibata-Modern-Ice
+ShellTheme=Lyra-Dark
+
+X-GNOME-Metatheme=true

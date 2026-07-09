@@ -14,6 +14,12 @@ fina/
 calamares/
 *.pkg.tar.zst
 *.db.tar.gz
+/.aur-build/
+/.build-repo/
+pkg/
+
+# QEMU scratch (run-qemu.sh)
+/.qemu/
 
 # Logs and temp files
 *.log

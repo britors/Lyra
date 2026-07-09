@@ -10,15 +10,36 @@ fi
 
 LYRA_REPO_DIR="$HOME/.local/share/lyra-repo"
 LYRA_ISO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPO_ROOT="$(cd "$LYRA_ISO_DIR/.." && pwd)"
 PACMAN_CONF="$LYRA_ISO_DIR/pacman.conf"
 LOG_FILE="$LYRA_REPO_DIR/setup.log"
 
 # Pacotes AUR do ecossistema Lyra disponíveis para build local.
 # Atualizar esta lista conforme novos pacotes forem publicados no AUR:
-# calco, pulso, lyra-tour, vega, vegad ainda NÃO estão aqui — adicionar quando publicados.
+# calco, pulso, vega, vegad ainda NÃO estão aqui — adicionar quando publicados.
 LYRA_AUR_PACKAGES=(
     "prosa"
     "fina"
+    # calamares saiu dos repositórios oficiais (core/extra) e hoje só existe
+    # no AUR — sem isso o build.sh falha com "target not found: calamares".
+    # Compila do zero (kpmcore/Qt6), pode levar alguns minutos.
+    "calamares"
+    # Publicado no AUR real (https://aur.archlinux.org/packages/lyra-tour) —
+    # ver PROMPT-LYRA-OS-INTEGRACAO-TOUR-AUR.md. Versão travada em
+    # packages.aur.lock.
+    "lyra-tour"
+    # App de terceiros (mantido por psygreg), oferecido como conveniência —
+    # ver PROMPT-LYRA-OS-ADICIONA-LINUXTOYS.md. Versão travada em
+    # packages.aur.lock.
+    "linuxtoys-bin"
+)
+
+# Pacotes com PKGBUILD dentro deste monorepo (não são AUR — o próprio yay não
+# resolve). Build via makepkg direto, mesmo tratamento de repositório local
+# dos pacotes AUR acima. Caminhos relativos à raiz do repo.
+LOCAL_PACKAGE_DIRS=(
+    "lyra-branding"
+    "calamares-lyra-winmigrate"
 )
 
 SYSTEM_PACKAGES=(
@@ -28,6 +49,7 @@ SYSTEM_PACKAGES=(
     grub
     xorriso
     base-devel
+    cantarell-fonts
 )
 
 mkdir -p "$LYRA_REPO_DIR"
@@ -62,6 +84,28 @@ for pkg in "${LYRA_AUR_PACKAGES[@]}"; do
 
     if [[ -z "$pkgfile" ]]; then
         fail "Não encontrei o pacote compilado de '$pkg' em $HOME/.cache/yay/$pkg"
+    fi
+
+    cp -f "$pkgfile" "$LYRA_REPO_DIR/"
+    log "  -> copiado: $(basename "$pkgfile")"
+done
+
+# --- Passo 4b — build e cópia dos pacotes locais (PKGBUILD no monorepo) ---
+for pkg_dir in "${LOCAL_PACKAGE_DIRS[@]}"; do
+    full_path="$REPO_ROOT/$pkg_dir"
+    log "Processando pacote local: $pkg_dir"
+
+    if [[ ! -f "$full_path/PKGBUILD" ]]; then
+        fail "Não encontrei $full_path/PKGBUILD"
+    fi
+
+    ( cd "$full_path" && makepkg -f --noconfirm )
+
+    pkgfile="$(find "$full_path" -maxdepth 1 -name '*.pkg.tar.zst' -printf '%T@ %p\n' 2>/dev/null \
+                | sort -rn | head -1 | cut -d' ' -f2-)"
+
+    if [[ -z "$pkgfile" ]]; then
+        fail "makepkg não gerou um .pkg.tar.zst em $full_path"
     fi
 
     cp -f "$pkgfile" "$LYRA_REPO_DIR/"
@@ -124,6 +168,16 @@ else
 fi
 
 for pkg in "${LYRA_AUR_PACKAGES[@]}"; do
+    if ls "$LYRA_REPO_DIR/$pkg"-*.pkg.tar.zst >/dev/null 2>&1; then
+        echo "[ok] $pkg: pacote presente no repositório local"
+    else
+        echo "[FALHA] $pkg: pacote ausente do repositório local"
+        validation_failed=1
+    fi
+done
+
+for pkg_dir in "${LOCAL_PACKAGE_DIRS[@]}"; do
+    pkg="$(basename "$pkg_dir")"
     if ls "$LYRA_REPO_DIR/$pkg"-*.pkg.tar.zst >/dev/null 2>&1; then
         echo "[ok] $pkg: pacote presente no repositório local"
     else

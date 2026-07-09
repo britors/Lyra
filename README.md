@@ -72,6 +72,18 @@ O script:
 
 O ISO final e o arquivo `SHA256SUMS` ficam em `lyra-iso/out/`.
 
+## Testando a ISO em uma VM
+
+```bash
+cd lyra-iso
+./scripts/run-qemu.sh
+```
+
+Sobe a ISO mais recente de `out/` numa VM QEMU (usa aceleração KVM
+automaticamente se disponível), com um disco alvo de teste para quem
+quiser rodar a instalação completa via Calamares. Login da sessão live:
+usuário `lyra`, senha `lyra` (autologin habilitado).
+
 ## Validação pós-build
 
 Ver checklist completo em `PROMPT-LYRA-OS.md` §11.2. Pontos principais:

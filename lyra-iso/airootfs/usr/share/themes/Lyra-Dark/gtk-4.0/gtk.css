@@ -1,0 +1,59 @@
+@define-color bg_color #0B1020;
+@define-color surface #151B2E;
+@define-color surface_alt #1D2640;
+
+@define-color accent #6C63FF;
+@define-color accent2 #9B5CF6;
+@define-color cyan #28C7FA;
+
+@define-color text #E8EAF4;
+@define-color text_secondary #9BA3B5;
+
+@define-color border #2A3557;
+
+window {
+  background: @bg_color;
+  color: @text;
+}
+
+headerbar {
+  background: @surface;
+  color: @text;
+  border-bottom: 1px solid @border;
+  min-height: 48px;
+}
+
+button {
+  background: @surface;
+  color: @text;
+  border-radius: 12px;
+  border: 1px solid @border;
+  padding: 8px 16px;
+}
+
+button:hover {
+  background: @surface_alt;
+  border-color: @accent;
+}
+
+button:active {
+  background: @accent;
+  color: white;
+}
+
+entry {
+  background: @surface;
+  color: @text;
+  border-radius: 12px;
+  border: 1px solid @border;
+  padding: 8px;
+}
+
+entry:focus {
+  border-color: @accent;
+}
+
+selection {
+  background: @accent;
+  color: white;
+}

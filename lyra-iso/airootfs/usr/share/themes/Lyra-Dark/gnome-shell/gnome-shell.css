@@ -1,0 +1,32 @@
+#panel {
+  background-color: rgba(11,16,32,0.85);
+  height: 38px;
+  border-bottom: 1px solid #2A3557;
+}
+
+#panel .panel-button {
+  color: #E8EAF4;
+  border-radius: 12px;
+}
+
+#panel .panel-button:hover {
+  background-color: #1D2640;
+}
+
+.calendar {
+  background: #151B2E;
+  border-radius: 18px;
+  color: #E8EAF4;
+  border: 1px solid #2A3557;
+}
+
+.quick-settings {
+  background: #151B2E;
+  border-radius: 24px;
+}
+
+.notification {
+  background: #151B2E;
+  border-radius: 18px;
+  border: 1px solid #2A3557;
+}

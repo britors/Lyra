@@ -44,6 +44,63 @@ check_prereqs() {
   [[ -f "$ASSETS_DIR/wallpaper/default.png" ]] || fail "assets/wallpaper/default.png não existe (§12.5 — build falha explicitamente)."
   [[ -f "$THEME_ARCHIVE" ]] || fail "assets/Lyra-Dark.tar.xz não encontrado."
   [[ -f "$ICONS_ARCHIVE" ]] || fail "assets/Lyra-Icons-v2.tar.xz não encontrado."
+  check_lyra_repo
+}
+
+# Verifica que o repositório local [lyra] (calamares, lyra-branding,
+# calamares-lyra-winmigrate, prosa, fina, lyra-tour) existe e está populado,
+# ANTES de baixar o resto do sistema — sem isso, o mkarchiso só falha depois
+# de baixar vários GB, com "target not found" no meio do log do pacstrap.
+check_lyra_repo() {
+  local pacman_conf="$SCRIPT_DIR/pacman.conf"
+  local setup_hint="Rode ./scripts/setup-build-host.sh (uma vez por máquina) antes de build.sh."
+
+  grep -q '^\[lyra\]' "$pacman_conf" || fail "Seção [lyra] não encontrada em pacman.conf. $setup_hint"
+
+  local server_line repo_path
+  server_line="$(awk '/^\[lyra\]/{f=1; next} /^\[/{f=0} f && /^Server/{print; exit}' "$pacman_conf")"
+  repo_path="${server_line#*file://}"
+  repo_path="${repo_path%/\$arch}"
+
+  [[ -n "$repo_path" && -d "$repo_path" ]] || fail "Repositório local [lyra] não encontrado em '$repo_path'. $setup_hint"
+  ls "$repo_path"/lyra.db.tar.gz >/dev/null 2>&1 || fail "'$repo_path/lyra.db.tar.gz' não existe. $setup_hint"
+
+  local pkg required_packages=(calamares lyra-branding calamares-lyra-winmigrate prosa fina lyra-tour)
+  for pkg in "${required_packages[@]}"; do
+    ls "$repo_path/$pkg"-*.pkg.tar.zst >/dev/null 2>&1 \
+      || fail "Pacote '$pkg' ausente de '$repo_path'. $setup_hint"
+  done
+
+  check_aur_lock_versions "$repo_path"
+}
+
+# Confere que os pacotes AUR presentes no repositório local batem com a
+# versão travada em packages.aur.lock (PROMPT-LYRA-OS-INTEGRACAO-TOUR-AUR.md
+# §3.1) — evita gerar um ISO com uma versão de pacote diferente da esperada
+# porque o cache do yay tinha uma build mais nova (ou mais antiga) parada.
+check_aur_lock_versions() {
+  local repo_path="$1"
+  local lock_file="$SCRIPT_DIR/packages.aur.lock"
+
+  [[ -f "$lock_file" ]] || fail "packages.aur.lock não encontrado em $SCRIPT_DIR."
+
+  local line pkg pinned_version found_file found_version
+  while IFS= read -r line; do
+    [[ -z "$line" || "$line" == \#* ]] && continue
+    pkg="${line%%=*}"
+    pinned_version="${line#*=}"
+
+    found_file="$(ls "$repo_path/$pkg"-*.pkg.tar.zst 2>/dev/null | head -1)"
+    [[ -n "$found_file" ]] || continue # já validado por required_packages acima, se aplicável
+
+    found_version="$(basename "$found_file")"
+    found_version="${found_version#"$pkg"-}"
+    found_version="${found_version%-x86_64.pkg.tar.zst}"
+    found_version="${found_version%-any.pkg.tar.zst}"
+
+    [[ "$found_version" == "$pinned_version" ]] \
+      || fail "Pacote '$pkg' no repositório local está em '$found_version', mas packages.aur.lock trava '$pinned_version'. Atualize packages.aur.lock ou rebuilde o pacote."
+  done < "$lock_file"
 }
 
 # 1. Wallpapers
@@ -118,6 +175,16 @@ checksum_iso() {
   ( cd "$OUT_DIR" && sha256sum ./*.iso > SHA256SUMS )
 }
 
+# Confere que o pacote lyra-tour realmente registrou seu autostart no
+# airootfs montado por mkarchiso (PROMPT-LYRA-OS-INTEGRACAO-TOUR-AUR.md §3.3)
+# — sem isso o Tour não abre no primeiro login e o ISO seria gerado sem
+# ninguém perceber até o teste manual em VM.
+check_lyra_tour_autostart() {
+  local desktop_file="$WORK_DIR/x86_64/airootfs/etc/xdg/autostart/lyra-tour.desktop"
+  [[ -f "$desktop_file" ]] \
+    || fail "$desktop_file não encontrado após mkarchiso — o pacote lyra-tour não registrou autostart."
+}
+
 main() {
   check_prereqs
   install_wallpapers
@@ -131,6 +198,7 @@ main() {
 
   require_root
   run_mkarchiso
+  check_lyra_tour_autostart
   checksum_iso
   log "Build concluído. ISO em $OUT_DIR/"
 }

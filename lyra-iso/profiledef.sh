@@ -16,8 +16,7 @@ airootfs_image_type="squashfs"
 airootfs_image_tool_options=('-comp' 'zstd' '-Xcompression-level' '19')
 file_permissions=(
   ["/etc/shadow"]="0:0:0400"
+  ["/etc/sudoers.d/wheel"]="0:0:0440"
   ["/root"]="0:0:750"
-  ["/root/.automated_script.sh"]="0:0:755"
   ["/root/customize_airootfs.sh"]="0:0:755"
-  ["/usr/local/bin/choose-mirror"]="0:0:755"
 )
