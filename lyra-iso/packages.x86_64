@@ -113,6 +113,16 @@ fastfetch
 calamares
 calamares-lyra-winmigrate
 
+# --- Apps AUR pré-instalados (PROMPT-LYRA-OS-INTEGRACAO-TOUR-AUR.md,
+# PROMPT-LYRA-OS-ADICIONA-LINUXTOYS.md) --- buildados por
+# setup-build-host.sh e resolvidos via repositório local [lyra], versões
+# travadas em packages.aur.lock. Ficaram fora desta lista por um tempo
+# depois de setup-build-host.sh já buildá-los — build.sh checava
+# lyra-tour.desktop no ISO final e falhava, porque o pacstrap nunca
+# tentava instalar nenhum dos dois sem entrada aqui.
+lyra-tour
+linuxtoys-bin
+
 # --- Canais de software (§10) ---
 flatpak
 # paru é um pacote AUR-only (nunca esteve em [extra]/[community]) - não pode

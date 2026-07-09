@@ -46,18 +46,58 @@ calamares-lyra-winmigrate/   Módulo Calamares de migração assistida do
 
 ## Pré-requisitos
 
-- Arch Linux (ou derivada) com o pacote `archiso` instalado
-- `gtk-update-icon-cache` disponível (pacote `hicolor-icon-theme` ou `gtk-update-icon-cache`)
-- Privilégios de root para rodar `mkarchiso`
+- Arch Linux (ou derivada), com acesso a `sudo`
 - Os arquivos de assets já presentes em `lyra-iso/assets/`:
   - `wallpaper/default.png` (obrigatório) e demais wallpapers
   - `Lyra-Dark.tar.xz`
   - `Lyra-Icons-v2.tar.xz`
 
-## Como rodar o build
+Tudo o mais (`archiso`, `yay`, dependências de build, o repositório
+local `[lyra]` com os pacotes AUR/monorepo do ecossistema) é resolvido
+pelo próprio fluxo abaixo — não precisa instalar nada manualmente antes.
+
+## Build rápido (recomendado para quem está começando)
 
 ```bash
 cd lyra-iso
+./scripts/quickstart.sh
+```
+
+Um único comando que faz tudo: prepara o host de build, gera o ISO e
+sobe a VM QEMU para você validar o resultado. Não rode como root — ele
+usa `sudo` internamente só onde precisa (instalação de pacotes de
+sistema e o `mkarchiso`). Para só gerar o ISO sem abrir o QEMU:
+
+```bash
+./scripts/quickstart.sh --no-qemu
+```
+
+Login da sessão live no QEMU: usuário `lyra`, senha `lyra` (autologin
+habilitado).
+
+## Passo a passo manual
+
+Útil se você já tem o host preparado e quer rodar só uma etapa, ou
+está depurando uma delas isoladamente.
+
+### 1. Preparar o host de build (uma vez por máquina)
+
+```bash
+cd lyra-iso
+./scripts/setup-build-host.sh
+```
+
+Instala as dependências de sistema (`archiso`, `git`, `base-devel` etc.),
+instala o `yay` se necessário, builda os pacotes AUR e locais do
+ecossistema Lyra (`prosa`, `fina`, `calamares`, `lyra-tour`,
+`linuxtoys-bin`, `lyra-branding`, `calamares-lyra-winmigrate`) e monta o
+repositório local `[lyra]` em `~/.local/share/lyra-repo`, referenciado
+em `pacman.conf`. Idempotente — pode rodar de novo a qualquer momento
+para atualizar os pacotes locais.
+
+### 2. Gerar o ISO
+
+```bash
 sudo ./build.sh
 ```
 
@@ -66,16 +106,19 @@ O script:
 1. Copia os wallpapers de `assets/wallpaper/` para o rootfs live
 2. Extrai o tema `Lyra-Dark` e o tema de ícones `Lyra-Icons-v2`
 3. Gera o `gnome-background-properties/lyra.xml` a partir dos wallpapers presentes
-4. Executa `mkarchiso`, que por sua vez aplica `airootfs/root/customize_airootfs.sh`
-   (atualização de cache de ícones, `dconf update` e habilitação dos serviços systemd)
-5. Gera o checksum SHA-256 do ISO resultante
+4. Limpa qualquer `work/` de um build anterior (garante que o build sempre
+   reflita o profile atual — um `work/` reaproveitado pode esconder mudanças
+   em `airootfs/`)
+5. Executa `mkarchiso`, que por sua vez aplica `airootfs/root/customize_airootfs.sh`
+   (cópia do kernel, geração do initramfs, atualização de cache de ícones,
+   `dconf update` e habilitação dos serviços systemd)
+6. Gera o checksum SHA-256 do ISO resultante
 
 O ISO final e o arquivo `SHA256SUMS` ficam em `lyra-iso/out/`.
 
-## Testando a ISO em uma VM
+### 3. Testar a ISO em uma VM
 
 ```bash
-cd lyra-iso
 ./scripts/run-qemu.sh
 ```
 

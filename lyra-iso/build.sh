@@ -65,7 +65,7 @@ check_lyra_repo() {
   [[ -n "$repo_path" && -d "$repo_path" ]] || fail "Repositório local [lyra] não encontrado em '$repo_path'. $setup_hint"
   ls "$repo_path"/lyra.db.tar.gz >/dev/null 2>&1 || fail "'$repo_path/lyra.db.tar.gz' não existe. $setup_hint"
 
-  local pkg required_packages=(calamares lyra-branding calamares-lyra-winmigrate prosa fina lyra-tour)
+  local pkg required_packages=(calamares lyra-branding calamares-lyra-winmigrate prosa fina lyra-tour linuxtoys-bin)
   for pkg in "${required_packages[@]}"; do
     ls "$repo_path/$pkg"-*.pkg.tar.zst >/dev/null 2>&1 \
       || fail "Pacote '$pkg' ausente de '$repo_path'. $setup_hint"
@@ -166,6 +166,18 @@ generate_wallpaper_collection() {
 
 # 8. mkarchiso
 run_mkarchiso() {
+  # mkarchiso reaproveita um work/ existente e pula pacstrap+customize_airootfs.sh
+  # se já parecem feitos — o que significa que uma mudança no profile (ex.: um
+  # fix no customize_airootfs.sh) fica invisível para sempre num work/ velho,
+  # e o build só re-tenta a última etapa que falhou contra o mesmo chroot
+  # desatualizado. Já causou build quebrado silenciosamente (vmlinuz nunca
+  # copiado) até alguém apagar work/ à mão. Limpar sempre custa mais tempo
+  # de build, mas garante que todo build reflita o profile atual.
+  if [[ -d "$WORK_DIR" ]]; then
+    log "Removendo work/ existente para garantir um build limpo"
+    rm -rf "$WORK_DIR"
+  fi
+
   log "Executando mkarchiso"
   mkarchiso -v -w "$WORK_DIR" -o "$OUT_DIR" "$SCRIPT_DIR"
 }

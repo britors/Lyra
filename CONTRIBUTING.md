@@ -38,10 +38,12 @@ para o mapa completo (`lyra-iso/`, `branding/`, `lyra-branding/`,
   pacote, ou deixe o `makepkg` rodar tudo via `check()`.
 - **Pacotes Pacman** (`PKGBUILD`): rode `makepkg` localmente antes de
   abrir o PR. Se o pacote tiver `check()`, ele precisa passar.
-- **ISO completa**: `cd lyra-iso && sudo ./build.sh` gera a imagem;
-  `./scripts/run-qemu.sh` sobe a ISO mais recente numa VM QEMU para
-  validar boot, Calamares e qualquer módulo novo antes de commitar.
-  Veja a seção "Testando a ISO em uma VM" do README para detalhes.
+- **ISO completa**: `cd lyra-iso && ./scripts/quickstart.sh` prepara o
+  host, gera a imagem e sobe a VM QEMU num único comando — é o caminho
+  recomendado se você nunca buildou o ISO nesta máquina. Se já tem o
+  host preparado, `sudo ./build.sh` seguido de `./scripts/run-qemu.sh`
+  fazem só a parte de gerar e testar. Veja a seção "Build rápido" do
+  README para detalhes.
 
 Mudanças em `airootfs/`, `packages.x86_64`, ou nos módulos do Calamares
 merecem pelo menos um boot em VM antes do PR — não são coisas fáceis

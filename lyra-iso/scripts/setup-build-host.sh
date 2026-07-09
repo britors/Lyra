@@ -77,10 +77,25 @@ fi
 # --- Passo 4 — build e cópia dos pacotes AUR ------------------------------
 for pkg in "${LYRA_AUR_PACKAGES[@]}"; do
     log "Processando pacote AUR: $pkg"
-    yay -S --needed --noconfirm "$pkg"
+    # --rebuild (não --needed): precisamos do artefato .pkg.tar.zst desta
+    # build no cache do yay mesmo que o pacote já esteja instalado no host
+    # (--needed pula a build inteira nesse caso, deixando o cache vazio).
+    yay -S --rebuild --noconfirm "$pkg"
 
-    pkgfile="$(find "$HOME/.cache/yay/$pkg" -name '*.pkg.tar.zst' -printf '%T@ %p\n' 2>/dev/null \
-                | sort -rn | head -1 | cut -d' ' -f2-)"
+    # "|| true" evita que um `find` sobre diretório de cache inexistente
+    # aborte o script silenciosamente sob set -e/pipefail antes do check
+    # de $pkgfile abaixo (é exatamente o que fazia o script morrer sem
+    # nenhuma mensagem quando o cache não tinha o pacote esperado).
+    #
+    # "-name "$pkg-*"" (sem "*.pkg.tar.zst" genérico) + exclusão explícita
+    # de "$pkg-debug-*": makepkg gera automaticamente um pacote "$pkg-debug"
+    # com símbolos de depuração quando o PKGBUILD não desabilita (options
+    # sem '!debug'). Sem o filtro, "sort -rn | head -1" por mtime pode
+    # escolher o pacote de debug em vez do pacote real (foi o que aconteceu
+    # com calamares e fina) — o repositório fica com o artefato errado.
+    pkgfile="$(find "$HOME/.cache/yay/$pkg" -name "${pkg}-*.pkg.tar.zst" \
+                ! -name "${pkg}-debug-*.pkg.tar.zst" -printf '%T@ %p\n' 2>/dev/null \
+                | sort -rn | head -1 | cut -d' ' -f2- || true)"
 
     if [[ -z "$pkgfile" ]]; then
         fail "Não encontrei o pacote compilado de '$pkg' em $HOME/.cache/yay/$pkg"
@@ -99,10 +114,15 @@ for pkg_dir in "${LOCAL_PACKAGE_DIRS[@]}"; do
         fail "Não encontrei $full_path/PKGBUILD"
     fi
 
-    ( cd "$full_path" && makepkg -f --noconfirm )
+    # -s/--syncdeps instala via pacman as dependências declaradas no PKGBUILD
+    # (ex.: python-yaml, rsync, ntfs-3g do calamares-lyra-winmigrate) que não
+    # estejam já instaladas no host — sem isso makepkg só verifica e aborta.
+    ( cd "$full_path" && makepkg -sf --noconfirm )
 
-    pkgfile="$(find "$full_path" -maxdepth 1 -name '*.pkg.tar.zst' -printf '%T@ %p\n' 2>/dev/null \
-                | sort -rn | head -1 | cut -d' ' -f2-)"
+    pkg="$(basename "$pkg_dir")"
+    pkgfile="$(find "$full_path" -maxdepth 1 -name "${pkg}-*.pkg.tar.zst" \
+                ! -name "${pkg}-debug-*.pkg.tar.zst" -printf '%T@ %p\n' 2>/dev/null \
+                | sort -rn | head -1 | cut -d' ' -f2- || true)"
 
     if [[ -z "$pkgfile" ]]; then
         fail "makepkg não gerou um .pkg.tar.zst em $full_path"
