@@ -1,30 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Lyra OS — wordmark (logo + "Lyra OS"), usado em GRUB, GDM, Calamares -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 100" width="420" height="100">
+<!-- Lyra OS — wordmark (texto "Lyra OS"), vetor puro. "Lyra" em tom claro,
+     "OS" no degradê ciano->magenta da marca. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="160" viewBox="0 0 600 160">
   <defs>
-    <linearGradient id="lyraGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#2D5BE3"/>
-      <stop offset="100%" stop-color="#8B5CF6"/>
+    <linearGradient id="lyraOsGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#18B4E0"/>
+      <stop offset="50%" stop-color="#685BCA"/>
+      <stop offset="100%" stop-color="#9530D6"/>
     </linearGradient>
   </defs>
-
-  <!-- Marca (mesma geometria de lyra-logo.svg, escala/posição ajustadas) -->
-  <g transform="translate(0,0) scale(0.9)">
-    <path d="M27,88 C23,64 20,42 22,24 C23,15 27,9 34,7"
-          fill="none" stroke="url(#lyraGradient)" stroke-width="8.5" stroke-linecap="round"/>
-    <path d="M60,88 C63,68 64,50 61,36 C59,29 55,25 49,23"
-          fill="none" stroke="url(#lyraGradient)" stroke-width="8.5" stroke-linecap="round"/>
-    <path d="M33,9 C39,13 45,17 49,23"
-          fill="none" stroke="url(#lyraGradient)" stroke-width="6" stroke-linecap="round"/>
-    <line x1="32" y1="20" x2="32" y2="84" stroke="#E8ECFF" stroke-width="2.2" stroke-linecap="round" opacity="0.9"/>
-    <line x1="40" y1="17" x2="40" y2="84" stroke="#E8ECFF" stroke-width="2.2" stroke-linecap="round" opacity="0.9"/>
-    <line x1="48" y1="20" x2="48" y2="84" stroke="#E8ECFF" stroke-width="2.2" stroke-linecap="round" opacity="0.9"/>
-    <line x1="56" y1="27" x2="56" y2="84" stroke="#E8ECFF" stroke-width="2.2" stroke-linecap="round" opacity="0.9"/>
-    <rect x="18" y="84" width="70" height="12" rx="6" fill="url(#lyraGradient)"/>
-    <path d="M31,0 L33.4,6.6 L40,9 L33.4,11.4 L31,18 L28.6,11.4 L22,9 L28.6,6.6 Z" fill="url(#lyraGradient)"/>
-  </g>
-
-  <!-- Texto "Lyra" (regular) + "OS" (degradê) -->
-  <text x="110" y="66" font-family="'Cantarell', 'DejaVu Sans', sans-serif" font-size="52" font-weight="600" fill="#E8ECFF">Lyra</text>
-  <text x="228" y="66" font-family="'Cantarell', 'DejaVu Sans', sans-serif" font-size="52" font-weight="600" fill="url(#lyraGradient)">OS</text>
+  <text x="10" y="120" font-family="sans-serif" font-weight="bold" font-size="110" fill="#E8ECFF">Lyra</text>
+  <text x="260" y="120" font-family="sans-serif" font-weight="bold" font-size="110" fill="url(#lyraOsGradient)">OS</text>
 </svg>

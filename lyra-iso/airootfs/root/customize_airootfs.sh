@@ -39,6 +39,16 @@ dconf update
 echo "==> Aplicando tema Plymouth padrao (lyra)"
 plymouth-set-default-theme -R lyra
 
+echo "==> Habilitando fastfetch ao abrir um terminal"
+# /etc/bash.bashrc ja retorna cedo para shells nao-interativas (topo do
+# arquivo do pacote bash), entao o que chega aqui embaixo so roda em
+# sessoes interativas de verdade (cada terminal novo).
+cat >> /etc/bash.bashrc << 'EOF'
+
+# Lyra OS — banner de boas-vindas (PROMPT-LYRA-IDENTIDADE.md §4.8)
+command -v fastfetch >/dev/null 2>&1 && fastfetch
+EOF
+
 echo "==> Habilitando serviços systemd padrão"
 systemctl enable gdm.service
 systemctl enable NetworkManager.service

@@ -117,7 +117,16 @@ for pkg_dir in "${LOCAL_PACKAGE_DIRS[@]}"; do
     # -s/--syncdeps instala via pacman as dependências declaradas no PKGBUILD
     # (ex.: python-yaml, rsync, ntfs-3g do calamares-lyra-winmigrate) que não
     # estejam já instaladas no host — sem isso makepkg só verifica e aborta.
-    ( cd "$full_path" && makepkg -sf --noconfirm )
+    #
+    # -i instala o próprio pacote local no host logo após buildar. Sem isso,
+    # calamares-lyra-winmigrate (que depende de lyra-branding, buildado
+    # antes dele neste mesmo loop) nunca resolve essa dependência: o
+    # repositório [lyra] só é registrado em pacman.conf no Passo 6, bem
+    # depois deste loop, então "lyra-branding" não está instalado nem
+    # disponível em nenhum repositório no momento em que é preciso. Os
+    # pacotes AUR já não sofriam disso porque "yay -S" já instala no host
+    # como efeito colateral.
+    ( cd "$full_path" && makepkg -sfi --noconfirm )
 
     pkg="$(basename "$pkg_dir")"
     pkgfile="$(find "$full_path" -maxdepth 1 -name "${pkg}-*.pkg.tar.zst" \

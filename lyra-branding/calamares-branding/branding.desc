@@ -28,8 +28,12 @@ images:
 slideshow:               "show.qml"
 slideshowAPI:            2
 
+# Nomes de chave exatos que o Calamares realmente lê (CamelCase) — os
+# nomes usados antes (sidebarBackground, sidebarTextSelect,
+# sidebarTextHighlight) não existem no schema e eram ignorados em
+# silêncio (comparado com o branding.desc padrão do pacote calamares).
 style:
-   sidebarBackground:    "#0D0D1F"
-   sidebarText:          "#E8ECFF"
-   sidebarTextSelect:    "#1A1A2E"
-   sidebarTextHighlight: "#8B5CF6"
+   SidebarBackground:        "#0D0D1F"
+   SidebarText:              "#E8ECFF"
+   SidebarTextCurrent:       "#E8ECFF"
+   SidebarBackgroundCurrent: "#8B5CF6"
