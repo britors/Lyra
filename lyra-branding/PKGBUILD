@@ -87,13 +87,11 @@ package() {
     local caldir="$pkgdir/usr/share/calamares/branding/lyra"
     install -Dm644 "$_pkgdir_src/calamares-branding/branding.desc" "$caldir/branding.desc"
     install -Dm644 "$_pkgdir_src/calamares-branding/show.qml" "$caldir/show.qml"
-    install -Dm644 "$_pkgdir_src/calamares-branding/stylesheet.qss" "$caldir/stylesheet.qss"
     install -Dm644 "$_branding/logo/lyra-logo.svg" "$caldir/logo.svg"
     install -Dm644 "$_pkgdir_src/grub-theme/wordmark.png" "$caldir/wordmark.png"
     install -Dm644 "$_branding/mascot/lyro-transparent.png" "$caldir/lyro.png"
-    if [[ -f "$startdir/../lyra-iso/assets/wallpaper/default.png" ]]; then
-        install -Dm644 "$startdir/../lyra-iso/assets/wallpaper/default.png" "$caldir/wallpaper.png"
-    fi
+    # wallpaper.png não é instalado aqui de propósito: branding.desc não usa
+    # mais productWallpaper (ver comentário lá), então nada o consumiria.
 
     # --- fastfetch (§4.8) ---
     install -Dm644 "$_pkgdir_src/fastfetch/config.jsonc" "$pkgdir/etc/fastfetch/config.jsonc"

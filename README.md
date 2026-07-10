@@ -4,10 +4,9 @@
 
 Lyra OS é uma distribuição Linux baseada em Arch Linux, com ambiente
 gráfico GNOME vanilla e identidade visual própria (tema, ícones,
-wallpapers, mascote e branding de boot/instalador). A especificação
-completa do build está em [`PROMPT-LYRA-OS.md`](PROMPT-LYRA-OS.md) e a
-especificação de identidade visual em
-[`PROMPT-LYRA-IDENTIDADE.md`](PROMPT-LYRA-IDENTIDADE.md).
+wallpapers, mascote e branding de boot/instalador). O pipeline de build
+(`lyra-iso/`) está validado de ponta a ponta: gera o ISO, boota em
+QEMU/hardware real e instala via Calamares com a marca Lyra aplicada.
 
 ## Estrutura do repositório
 
@@ -34,13 +33,13 @@ lyra-branding/        Pacote Pacman que instala a identidade no sistema
 └── fastfetch/       config.jsonc + ASCII art da marca Lyra
 
 calamares-lyra-winmigrate/   Módulo Calamares de migração assistida do
-                              Windows (PROMPT-CALAMARES-MIGRACAO-WINDOWS.md)
+                              Windows
 ├── PKGBUILD
 ├── settings.conf    Sequência do instalador com os módulos abaixo
-├── winmigrate-mapping.conf  Mapeamento origem (Windows) → destino (§4)
-├── winmigrate-detect/   job python — detecção e montagem NTFS (§3)
-├── winmigrate/          view qml   — tela de seleção (§6.1)
-├── winmigrate-copy/     job python — cópia via rsync + favoritos (§5)
+├── winmigrate-mapping.conf  Mapeamento origem (Windows) → destino
+├── winmigrate-detect/   job python — detecção e montagem NTFS
+├── winmigrate/          main.qml da tela de seleção (hospedado pelo notesqml)
+├── winmigrate-copy/     job python — cópia via rsync + favoritos
 └── tests/           detection.test.py, copy_job.test.py
 ```
 
@@ -129,16 +128,14 @@ usuário `lyra`, senha `lyra` (autologin habilitado).
 
 ## Validação pós-build
 
-Ver checklist completo em `PROMPT-LYRA-OS.md` §11.2. Pontos principais:
+Pontos principais a checar depois de um build (boot em QEMU via
+`./scripts/run-qemu.sh` ou em hardware real):
 
-- Boot do live USB abre o GDM com o wallpaper padrão
+- Boot do live USB abre o GDM com o wallpaper padrão e autologin `lyra`/`lyra`
 - Tema `Lyra-Dark` e ícones `Lyra-Icons-v2` aplicados
-- Calamares abre em português com a marca Lyra
+- `fastfetch` abre sozinho em terminal novo com o ASCII art da marca
+- Calamares abre em português com a marca Lyra e instala até o fim
 - `os-release` reporta `ID=lyra`
-
-Checklist de identidade visual: `PROMPT-LYRA-IDENTIDADE.md` §6 (tema
-GRUB, Plymouth, slideshow do Calamares, ASCII art do fastfetch, slogan
-idêntico em todos os pontos de contato).
 
 ## Empacotando a identidade visual (`lyra-branding`)
 
@@ -161,20 +158,28 @@ cd calamares-lyra-winmigrate
 makepkg -si
 ```
 
-Instala os módulos Calamares `winmigrate-detect`, `winmigrate` e
-`winmigrate-copy` em `/usr/share/calamares/modules/`, o mapeamento
-origem→destino em `/etc/calamares/modules/winmigrate-mapping.conf` e o
-`settings.conf` que os posiciona na sequência do instalador (ver
-`PROMPT-CALAMARES-MIGRACAO-WINDOWS.md` §2). `makepkg` roda os testes em
-`tests/` durante o `check()`. O pacote está listado em
+Instala os jobs Calamares `winmigrate-detect` e `winmigrate-copy` em
+`/usr/lib/calamares/modules/` (onde o Calamares realmente procura
+módulos completos — `/usr/share/calamares/modules/` é só para `.conf`
+de configuração). A tela de seleção (`winmigrate`) **não** é um módulo
+próprio — o Calamares não tem interface `qml` para módulos `view` (toda
+tela exige um plugin C++ compilado), então ela reaproveita o módulo
+genérico `notesqml` do próprio pacote `calamares` como host do QML,
+configurado como instância `notesqml@winmigrate` em `settings.conf`. O
+`main.qml` vai para a pasta de branding do Calamares
+(`/usr/share/calamares/branding/lyra/winmigrate.qml`), por isso o
+pacote depende de `lyra-branding`. Mapeamento origem→destino em
+`/etc/calamares/modules/winmigrate-mapping.conf`. `makepkg` roda os
+testes em `tests/` durante o `check()`. O pacote está listado em
 `lyra-iso/packages.x86_64`, então um build normal do ISO já o inclui.
 
 ## Escopo
 
-Este repositório cobre a geração do ISO. Os componentes `Lyrae`
-(painel de controle) e `lyraed` (daemon privilegiado) têm specs de
-build separadas e são consumidos aqui apenas como pacotes Pacman do
-repositório do projeto (ver `PROMPT-LYRA-OS.md` §9).
+Este repositório cobre a geração do ISO. `Lyrae` (painel de controle,
+também conhecido como Vega no ecossistema) e `lyraed` (daemon
+privilegiado) já estão desenvolvidos em outro lugar, mas ainda não
+publicados como pacote resolvível pelo pacman — por isso não aparecem
+em `packages.x86_64` nem em `setup-build-host.sh` ainda.
 
 A arte vetorial do logo e do mascote Lyro em `branding/` é uma
 primeira versão funcional (gerada proceduralmente), não uma peça

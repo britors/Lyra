@@ -23,7 +23,15 @@ strings:
 images:
     productLogo:         "logo.svg"
     productIcon:         "logo.svg"
-    productWallpaper:    "wallpaper.png"
+    # productWallpaper removido de propósito: ele troca o fundo de TODA
+    # página do instalador (não só a sidebar) pelo wallpaper escuro, e
+    # várias telas (ex.: descrição das opções em Partições) desenham
+    # texto secundário com cor fixa no próprio C++ do Calamares — não dá
+    # pra sobrescrever via QSS de forma confiável. Sem esta chave, o
+    # conteúdo principal usa o fundo claro padrão do Qt (onde o texto
+    # escuro nativo já é legível em todo lugar), e só a sidebar
+    # (SidebarBackground/SidebarText abaixo) fica com a identidade
+    # visual escura da marca.
 
 slideshow:               "show.qml"
 slideshowAPI:            2
