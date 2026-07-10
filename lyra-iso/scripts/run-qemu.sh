@@ -15,8 +15,15 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ISO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 OUT_DIR="$ISO_DIR/out"
-DISK_IMAGE="$OUT_DIR/qemu-target-disk.qcow2"
+# out/ é gerado por "sudo ./build.sh" (dono root) — um disco de teste criado
+# ali por este script (rodando sem sudo, de propósito) esbarraria em
+# "Permission denied" ao tentar criar o arquivo. Fica num diretório à parte,
+# de propriedade do usuário normal.
+QEMU_SCRATCH_DIR="$ISO_DIR/.qemu"
+DISK_IMAGE="$QEMU_SCRATCH_DIR/qemu-target-disk.qcow2"
 DISK_SIZE="20G"
+
+mkdir -p "$QEMU_SCRATCH_DIR"
 
 log() { printf '\033[1;34m==>\033[0m %s\n' "$1"; }
 fail() { printf '\033[1;31m==> ERRO:\033[0m %s\n' "$1" >&2; exit 1; }

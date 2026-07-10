@@ -19,7 +19,7 @@ calamares/
 pkg/
 
 # QEMU scratch (run-qemu.sh)
-/.qemu/
+.qemu/
 
 # Logs and temp files
 *.log
