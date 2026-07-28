@@ -1,0 +1,66 @@
+#!/bin/bash
+#
+# Lyra OS - Odisseia (v1)
+# KIWI config.sh: runs chrooted into the image after packages are installed.
+
+set -euo pipefail
+
+test -f /.kconfig && . /.kconfig
+test -f /.profile && . /.profile
+
+echo "Configuring image: [$kiwi_iname]..."
+
+# Networking / firewall - Leap defaults, enabled explicitly for the live boot
+suseInsertService NetworkManager
+suseInsertService firewalld
+
+# Display manager
+baseUpdateSysConfig /etc/sysconfig/displaymanager DISPLAYMANAGER gdm
+suseInsertService gdm
+
+# Live-session autologin as liveuser. This is a live-boot convenience
+# only; the installed system's login/account model is set up by
+# Calamares (root disabled, sudo user), not here.
+mkdir -p /etc/gdm
+cat > /etc/gdm/custom.conf <<EOF
+[daemon]
+AutomaticLoginEnable=true
+AutomaticLogin=liveuser
+EOF
+
+# zram-generator activates its own systemd generator at boot from
+# /etc/systemd/zram-generator.conf - no service to enable here.
+
+# Flathub as the third-party app channel (PROMPT-LYRA-OS.md). Registered
+# here, at image-build time, rather than as a Calamares install step:
+# unpackfs later rsyncs this whole live root - including whatever ends
+# up under /etc/flatpak and /var/lib/flatpak - onto the installed
+# system, so this one remote-add covers both the live session and every
+# installed system built from this image. Needs network access during
+# the KIWI build (fetches flathub.flatpakrepo) - see kiwi/README.md.
+flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+
+# Product identity (PROMPT-LYRA-OS.md: "Lyra OS", not "Lyra Linux" or
+# "Lyra Enterprise Linux" - those are historical/discontinued names).
+# ID_LIKE keeps openSUSE/SUSE tooling that branches on it (package
+# managers, some installers) working correctly; everything user-visible
+# says Lyra OS. Overwrites whatever openSUSE-release just installed.
+#
+# Deliberately no HOME_URL/BUG_REPORT_URL/LOGO here: there's no
+# confirmed project website, issue tracker, or a matching icon name
+# shipped by lyra-enterprise-icons to point them at - adding guessed
+# URLs/icon names felt worse than leaving these optional fields out.
+cat > /etc/os-release <<EOF
+NAME="Lyra OS"
+PRETTY_NAME="Lyra OS 1.0 (Odisseia)"
+ID=lyra-os
+ID_LIKE="opensuse suse"
+VERSION="1.0 (Odisseia)"
+VERSION_ID="1.0"
+VERSION_CODENAME=odisseia
+CPE_NAME="cpe:/o:rodrigosbrito:lyra_os:1.0"
+EOF
+
+baseCleanMount
+
+exit 0

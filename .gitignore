@@ -1,24 +1,20 @@
-# Archiso work directories
-work_dir/
-lyra-iso/work/
-/tmp/archiso-work/
+# KIWI build work/output directories
+.kiwi/
+kiwi-build/
+/build/
+/out/
 
-# Build outputs
-out/
-lyra-iso/out/
+# RPM build artifacts
+*.rpm
+*.src.rpm
+rpmbuild/
 
-# AUR build artifacts
-yay-bin/
-prosa/
-fina/
-calamares/
-*.pkg.tar.zst
-*.db.tar.gz
-/.aur-build/
-/.build-repo/
-pkg/
+# ISO images and checksums
+*.iso
+*.iso.sha256
+*.packages
 
-# QEMU scratch (run-qemu.sh)
+# QEMU scratch (test boots)
 .qemu/
 
 # Logs and temp files

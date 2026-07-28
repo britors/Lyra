@@ -1,0 +1,215 @@
+# PROMPT-LYRA-OS.md
+
+## Contexto
+
+Este documento é o prompt de implementação da distribuição **Lyra OS** —
+projeto pessoal independente de Rodrigo Brito, não afiliado à W3TI.
+Todas as decisões arquiteturais abaixo já foram tomadas e são
+definitivas para a v1 (primeira ISO, codinome **Odisseia**). Não
+questione ou reabra nenhuma delas — implemente exatamente como
+especificado. Onde houver ambiguidade não coberta aqui, sinalize
+explicitamente em vez de assumir.
+
+## Identidade do produto
+
+- **Nome oficial**: Lyra OS (usado em `/etc/os-release`, branding, site,
+  documentação). "Lyra Linux" e "Lyra Enterprise Linux" são nomes
+  históricos/descontinuados — não usar.
+- **Slogan**: "Harmonia. Performance. Liberdade."
+- **Codinome da release v1**: Odisseia (convenção de codinomes: obras
+  literárias, não mais estrelas da constelação Lyra)
+- **Mascote**: Lyro (chibi robot, capuz/capa escura, olhos azuis,
+  headphones com logo de lira, estética cósmica/noturna) — usado em
+  marketing e onboarding, não em componentes de sistema
+- **Logo**: "L" estilizado em formato de lira, base curva tipo lua, 4
+  cordas verticais, estrela de 4 pontas no canto superior direito
+
+## Base do sistema
+
+| Item | Decisão |
+|---|---|
+| Distribuição base | openSUSE Leap 16 |
+| Kernel | `kernel-default` (padrão do Leap, sem customização) |
+| Sistema de arquivos | Btrfs + Snapper (padrão do Leap, mantido) |
+| Swap | zram apenas (sem swapfile em disco) |
+| Áudio | PipeWire (padrão do Leap, sem alteração) |
+| Rede | NetworkManager (padrão do Leap, sem alteração) |
+| Firewall | firewalld (padrão do Leap, sem alteração) |
+| Arquitetura (v1) | x86_64 apenas — ARM64 fica para versão futura |
+| Secure Boot | suporte padrão do Leap (shim assinado pela Microsoft) |
+| Desktop environment | GNOME vanilla (edição inicial). KDE Plasma é
+  uma segunda edição planejada para depois — não implementar nesta fase |
+| Ferramenta de build de ISO | KIWI (ferramenta oficial de imagens do
+  openSUSE) |
+
+> Nota de arquitetura: o conceito de "Buffer de Estabilidade" (mitigação
+> de instabilidade, herdado de uma fase anterior do projeto quando a base
+> era Arch Linux) está **obsoleto e fora de escopo** — o modelo
+> point-release do Leap já resolve esse problema. Não implementar
+> nenhum mecanismo equivalente.
+
+## Instalador
+
+- **Calamares customizado** (não usar o Agama, que é o padrão do Leap 16)
+- Idioma/região: **pt-BR pré-selecionado** como sugestão inicial, mas
+  livremente trocável pelo usuário
+- Hostname padrão sugerido: `lyra-os`
+- Conta de usuário: **root desabilitado**; usuário criado durante a
+  instalação recebe privilégios administrativos via sudo (padrão
+  desktop moderno)
+- Sem tela de migração/onboarding especial no v1 além do fluxo padrão
+  do Calamares (o assistente de migração do Windows já especificado em
+  PROMPT-CALAMARES-MIGRACAO-WINDOWS.md é um componente separado — não
+  reimplementar aqui, apenas referenciar se necessário)
+
+## Repositórios e canais de pacotes
+
+**Repositórios de sistema habilitados por padrão:**
+- Apenas os oficiais do Leap 16: OSS, Non-OSS, Updates
+- **Sem Packman** e sem outros repositórios de terceiros por padrão
+
+**Repositórios OBS do ecossistema Lyra** (hospedados em
+build.opensuse.org, sob a conta `rodrigosbrito`):
+
+| Repositório | Conteúdo | URL |
+|---|---|---|
+| `home:rodrigosbrito:lyra` | Pacotes gerais do Lyra (atualmente só tema) | https://build.opensuse.org/project/show/home:rodrigosbrito:lyra |
+| `home:rodrigosbrito:vega` | Vega (também instalável standalone em outras distros) | https://build.opensuse.org/project/show/home:rodrigosbrito:vega |
+| `home:rodrigosbrito:atelier` | Prosa, Calco, Pulso | (repo do ecossistema Atelier) |
+| `home:rodrigosbrito:fina` | Fina (repositório próprio, dedicado) | https://build.opensuse.org/project/show/home:rodrigosbrito:fina |
+
+**Canal de apps de terceiros (fora do ecossistema Lyra):**
+- Flatpak (Flathub) como canal primário
+- Sem equivalente ao AUR — não existe no openSUSE, não tentar recriar
+
+**Codecs multimídia proprietários** (H.264, MP3 etc.): empacotados e
+distribuídos pelo próprio OBS do Lyra — **não depender do Packman**.
+
+**Drivers de GPU (NVIDIA)**: sem detecção/instalação automática no
+instalador. Fica a cargo do usuário após a instalação, configurável
+através do Vega.
+
+## Apps pré-instalados (v1)
+
+- **Vega** (frontend GTK4) — único app do ecossistema Lyra pré-instalado
+  na v1. Prosa, Calco, Pulso, Fina e Lyra Tour seguem em validação com
+  usuários de teste e **não entram no v1**.
+- **GNOME Terminal** (`gnome-terminal`) como terminal padrão — não
+  Chord/Console/outro
+- **Firefox** como navegador padrão
+- **LibreOffice** pré-instalado como suíte de escritório temporária,
+  até o Atelier estar pronto para substituí-lo
+- **CUPS** + drivers comuns, pré-instalado e habilitado (impressão/scanner)
+- **GNOME Software** mantido e coexistindo com o Vega — GNOME Software
+  cuida da loja de apps/gerenciamento de pacotes gráfico; o Vega cuida
+  de outras áreas do sistema, **não substitui** o gerenciamento de apps
+- Conjunto de apps GNOME padrão: **curadoria aplicada** — remover apps
+  redundantes ou pouco usados do conjunto default do GNOME (definir
+  lista exata na implementação, mantendo o essencial: Arquivos, Textos,
+  Configurações, Câmera, etc.)
+- **Sem onboarding de primeiro boot no v1** — usuário cai direto no
+  desktop após a instalação (o Lyra Tour, quando pronto, preencherá
+  essa lacuna em versão futura)
+
+## Branding e identidade visual
+
+Fonte de verdade: repositório [britors/Lyra-Theme](https://github.com/britors/Lyra-Theme)
+("Lyra Enterprise").
+
+- **Abordagem**: Adwaita nativo para GNOME Shell, GTK4/libadwaita e
+  GTK3 — não é um shell theme customizado à parte, é o Adwaita padrão
+  com ícones e wallpapers da marca
+- **Tema de ícones**: `Lyra-Enterprise-Icons` (vetorial, com fallback
+  completo para Adwaita)
+- **Wallpapers**: variantes dark e light, PNG + JPEG XL, 3840×2160
+- **GRUB 2**: tema customizado com fundo Full HD e menu de boot Lyra
+- **Plymouth**: tema de boot com o mesmo fundo/logo do GRUB
+- **Fastfetch/Neofetch**: configs com logo ASCII da marca e paleta de
+  cores oficial
+- **GDM (tela de login): fora de escopo.** Decisão explícita — o GDM
+  mantém o Adwaita padrão, sem branding Lyra. Não criar pacote nem
+  etapa separada para isso.
+- **Requisito**: GNOME 48 ou superior
+- **Instalação**: via pacote RPM através do repositório OBS
+  (`home:rodrigosbrito:lyra`), usando o fluxo de `install-rpm.sh` do
+  repositório Lyra-Theme como referência de empacotamento
+- Tanto a variante **dark** quanto a **light** devem ser instaladas
+  juntas (ambas ficam disponíveis; a flag de instalação só define qual
+  fica ativa por padrão via `color-scheme`)
+
+**Paleta oficial** (dark-slate suave, "enterprise", substitui a paleta
+antiga vibrante azul-safira→violeta):
+- Dark: base `#16191d`/`#1c2025`, tons `#262b3d`, `#1e2b39`
+- Light: base `#f4f5f7`/`#fcfcfd`, acento lavanda-azulado `#ced3f3`
+
+## Atualizações do sistema
+
+- Mecanismo exposto pelo Vega: **`zypper dup`** (distribution upgrade,
+  recomendado para Leap) — não usar `zypper update`/`patch` tradicional
+- **Snapshots do Snapper**: gerados automaticamente pelo Snapper em
+  operações do zypper (comportamento padrão), mas **não expostos na UI
+  do Vega no v1** — reversão de snapshot é feita apenas pelo boot menu
+  do GRUB (botão de pânico já especificado em outro documento)
+- **Upgrades de ponto de versão** (ex: 16.0 → 16.1): antes de liberar
+  como seguro para os usuários, é necessário atualizar os repositórios
+  OBS do Lyra (`lyra`, `vega`, `atelier`, `fina`) para incluir o novo
+  alvo de build do Leap, testar, e só então anunciar a migração. Uma
+  ideia em avaliação (não obrigatória para o v1) é um módulo do Vega
+  que envolva o `opensuse-migration-tool` oficial, verificando primeiro
+  se os repositórios do Lyra já suportam a versão-alvo antes de permitir
+  o upgrade.
+
+## Diagnóstico e telemetria
+
+- **`lyra-report`**: ferramenta de relatório de diagnóstico/bug, gerada
+  **apenas sob demanda do usuário**
+- **Sem telemetria automática** de qualquer tipo no v1
+
+## CI/CD e release
+
+- Pipeline de CI para refresh mensal da ISO
+- GRUB panic button (reversão via boot menu, ver Snapshots acima)
+- Target de release: 15 de agosto de 2026 (data flexível — priorizar
+  qualidade sobre prazo; não é um requisito rígido de implementação)
+
+## Fora de escopo nesta fase (não implementar)
+
+- KDE edition (planejada, mas não faz parte do v1)
+- Prosa, Calco, Pulso, Fina, Lyra Tour pré-instalados
+- Onboarding/first-boot wizard
+- Branding do GDM
+- Telemetria/analytics
+- Suporte ARM64
+- Snapshots do Snapper na UI do Vega
+- "Buffer de Estabilidade" ou qualquer mitigação de instabilidade
+  equivalente à de distros rolling-release
+
+## Checklist de validação
+
+- [ ] ISO builda via KIWI, base Leap 16, kernel-default, Btrfs+Snapper, zram
+- [ ] Calamares customizado instala com pt-BR pré-selecionado e
+      hostname sugerido `lyra-os`
+- [ ] Root desabilitado; usuário criado tem sudo
+- [ ] Repos habilitados por padrão: apenas OSS/Non-OSS/Updates do Leap 16
+- [ ] Repos OBS do Lyra (lyra/vega/atelier/fina) configurados e
+      acessíveis, com os pacotes corretos instaláveis de cada um
+- [ ] Flatpak/Flathub configurado como canal de apps de terceiros
+- [ ] Codecs multimídia instaláveis via OBS do Lyra, sem depender do Packman
+- [ ] Vega (GTK4) pré-instalado e funcional; nenhum outro app do
+      ecossistema Lyra pré-instalado
+- [ ] GNOME Terminal, Firefox, LibreOffice, CUPS pré-instalados
+- [ ] GNOME Software presente e funcional, coexistindo com o Vega
+- [ ] Curadoria de apps GNOME padrão aplicada (lista final documentada)
+- [ ] Nenhum onboarding/wizard de primeiro boot presente
+- [ ] Branding aplicado via Lyra-Theme: Adwaita + Lyra-Enterprise-Icons
+      + wallpapers dark/light + GRUB + Plymouth + Fastfetch/Neofetch
+- [ ] GDM permanece com Adwaita padrão, sem customização Lyra
+- [ ] `/etc/os-release` reporta "Lyra OS" (não "Lyra Linux"/"Lyra
+      Enterprise Linux")
+- [ ] `zypper dup` funcional como mecanismo de atualização via Vega
+- [ ] Snapshots do Snapper funcionando (automáticos), reversão
+      disponível apenas via GRUB, sem tela correspondente no Vega
+- [ ] `lyra-report` funcional sob demanda; nenhuma telemetria automática
+      ativa
+- [ ] Secure Boot funcional (shim padrão do Leap)
+- [ ] Apenas imagem x86_64 gerada nesta fase

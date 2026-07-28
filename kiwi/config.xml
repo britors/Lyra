@@ -1,0 +1,299 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Lyra OS - Odisseia (v1)
+  KIWI appliance description for the x86_64 live/installer ISO.
+
+  Scope of this file: base Leap 16 system, kernel-default, GNOME live
+  session, Btrfs/Snapper and zram-generator packages present, official
+  Leap 16 repos + the Lyra OBS repos, Calamares installed with
+  Lyra-specific config (root/etc/calamares/), Vega + a curated GNOME
+  app set + Firefox/LibreOffice/CUPS/Flatpak pre-installed. See
+  kiwi/README.md for what is deliberately left out (branding,
+  os-release override, multimedia codecs pending upstream, and known
+  gaps) and tracked as separate work.
+-->
+<image schemaversion="8.5" name="lyra-os" displayname="Lyra OS">
+
+  <description type="system">
+    <author>Rodrigo Brito</author>
+    <contact>rodrigo@w3ti.com.br</contact>
+    <specification>Lyra OS "Odisseia" (v1) - live/installer ISO, openSUSE Leap 16 base, GNOME desktop, x86_64</specification>
+  </description>
+
+  <preferences>
+    <version>1.0.0</version>
+    <packagemanager>zypper</packagemanager>
+    <rpm-excludedocs>true</rpm-excludedocs>
+    <rpm-check-signatures>true</rpm-check-signatures>
+    <locale>pt_BR,en_US</locale>
+    <keytable>us</keytable>
+    <timezone>UTC</timezone>
+    <type
+      image="iso"
+      primary="true"
+      flags="overlay"
+      filesystem="squashfs"
+      firmware="uefi"
+      volid="LYRA_OS_ODISSEIA"
+      application_id="LyraOS"
+      publisher="Lyra OS Project">
+      <bootloader name="grub2" timeout="10"/>
+    </type>
+  </preferences>
+
+  <users>
+    <!--
+      root is locked in the image itself (build/live concern only).
+      The spec's "root disabled, sudo user created at install time" is
+      a Calamares behavior on the installed system, not this file.
+    -->
+    <user name="root" password="!" pwdformat="encrypted" home="/root" shell="/bin/bash"/>
+    <!--
+      Live-session convenience account with GDM autologin (configured
+      in config.sh) so the ISO boots to a usable desktop before an
+      installer exists. Locked password, no relation to the installed
+      system's user model.
+    -->
+    <user name="liveuser" password="!" pwdformat="encrypted" home="/home/liveuser" shell="/bin/bash" groups="wheel,video,audio"/>
+  </users>
+
+  <!-- Official Leap 16 repos only - no Packman, no third-party repos. -->
+  <repository alias="repo-oss" priority="1" type="rpm-md" imageinclude="true">
+    <source path="https://download.opensuse.org/distribution/leap/16.0/repo/oss/"/>
+  </repository>
+  <repository alias="repo-non-oss" priority="2" type="rpm-md" imageinclude="true">
+    <source path="https://download.opensuse.org/distribution/leap/16.0/repo/non-oss/"/>
+  </repository>
+  <repository alias="repo-update-oss" priority="3" type="rpm-md" imageinclude="true">
+    <source path="https://download.opensuse.org/update/leap/16.0/oss/"/>
+  </repository>
+  <repository alias="repo-update-non-oss" priority="4" type="rpm-md" imageinclude="true">
+    <source path="https://download.opensuse.org/update/leap/16.0/non-oss/"/>
+  </repository>
+
+  <!--
+    Lyra ecosystem repos, hosted on OBS under the `rodrigosbrito` account
+    (see PROMPT-LYRA-OS.md). Verified live against the real OBS instance
+    on 2026-07-28 (build target "openSUSE_Leap_16.0" on all three,
+    repodata resolves, vega-gtk/fina/lyra-theme's subpackages all build
+    "succeeded"):
+      https://download.opensuse.org/repositories/home:/rodrigosbrito:/{lyra,vega,fina}/openSUSE_Leap_16.0/
+
+    home:rodrigosbrito:atelier (Prosa/Calco/Pulso, per the spec) does
+    NOT currently exist as an OBS project - confirmed via the OBS API,
+    not assumed. Deliberately left out below rather than pointing at a
+    URL that would 404 and break the build; Prosa/Calco/Pulso aren't
+    pre-installed in v1 anyway, but this repo is still missing even for
+    optional/manual install once those apps are ready. Needs the OBS
+    project created (or the spec corrected) before this can be added.
+  -->
+  <repository alias="repo-lyra" priority="10" type="rpm-md" imageinclude="true">
+    <source path="https://download.opensuse.org/repositories/home:/rodrigosbrito:/lyra/openSUSE_Leap_16.0/"/>
+  </repository>
+  <repository alias="repo-vega" priority="11" type="rpm-md" imageinclude="true">
+    <source path="https://download.opensuse.org/repositories/home:/rodrigosbrito:/vega/openSUSE_Leap_16.0/"/>
+  </repository>
+  <repository alias="repo-fina" priority="12" type="rpm-md" imageinclude="true">
+    <source path="https://download.opensuse.org/repositories/home:/rodrigosbrito:/fina/openSUSE_Leap_16.0/"/>
+  </repository>
+
+  <packages type="bootstrap">
+    <package name="filesystem"/>
+    <package name="glibc-locale"/>
+    <package name="openSUSE-release"/>
+  </packages>
+
+  <packages type="image" patternType="onlyRequired">
+    <!--
+      onlyRequired: pull in each pattern's Requires only, not its long
+      Recommends lists (checked against the real patterns-gnome.spec
+      from OBS - gnome_basic/gnome's Recommends include things like
+      evolution, pidgin, planner, remmina, gnome-initial-setup, and
+      opensuse-welcome-launcher, none of which fit "curated" or the
+      spec's "no onboarding" rule). Everything actually wanted is added
+      back explicitly below instead of trying to block-list from a much
+      larger default set.
+    -->
+
+    <!-- Base system -->
+    <namedCollection name="base"/>
+    <namedCollection name="enhanced_base"/>
+    <package name="kernel-default"/>
+    <package name="grub2"/>
+    <package name="grub2-x86_64-efi"/>
+    <package name="shim"/>
+    <package name="mokutil"/>
+
+    <!--
+      Filesystem / snapshots. Btrfs itself stays the Leap default; the
+      Snapper *config* on the installed system is bootstrapped by
+      Calamares (root/etc/calamares/modules/snapshotcfg.conf) since
+      there's no YaST/Agama here to do it automatically.
+      grub2-snapper-plugin provides /etc/grub.d/80_suse_btrfs_snapshot,
+      which SUSE_BTRFS_SNAPSHOT_BOOTING (grubcfg.conf) turns on - this
+      is what makes the GRUB panic-button rollback menu exist at all.
+    -->
+    <package name="btrfsprogs"/>
+    <package name="snapper"/>
+    <package name="grub2-snapper-plugin"/>
+
+    <!-- Swap: zram only, no swapfile. Config shipped via root/etc/systemd/zram-generator.conf -->
+    <package name="zram-generator"/>
+
+    <!-- Leap defaults, listed explicitly so a minimal bootstrap doesn't drop them -->
+    <package name="NetworkManager"/>
+    <package name="firewalld"/>
+    <package name="pipewire"/>
+    <package name="pipewire-pulseaudio"/>
+    <package name="wireplumber"/>
+    <package name="plymouth"/>
+
+    <!--
+      Installer. Config at root/etc/calamares/; launched from the live
+      GDM session via root/usr/share/applications/calamares.desktop
+      (pkexec) + root/etc/polkit-1/rules.d/90-lyra-live-installer.rules
+      (grants liveuser that one action without a password prompt it
+      couldn't satisfy anyway). See README.md "Known gaps" for what's
+      still unverified here.
+    -->
+    <package name="calamares"/>
+    <package name="polkit"/>
+
+    <!--
+      GNOME desktop. gnome_basic+gnome's own Requires chain (not
+      Recommends, so pulled even with onlyRequired) already brings in
+      gdm, gnome-session(-wayland), nautilus, seahorse, at-spi2-core,
+      and base fonts - everything else wanted is explicit below.
+    -->
+    <namedCollection name="gnome_basic"/>
+    <namedCollection name="gnome"/>
+
+    <!--
+      Curated app set (checklist: "manter o essencial: Arquivos, Textos,
+      Configuracoes, Camera, etc." + explicit spec requirements). Picked
+      by reading patterns-gnome.spec's actual Recommends lists on OBS
+      and choosing what earns a place, not by trimming everything down
+      to the bare Requires chain above and stopping there.
+
+      Deliberately NOT included (redundant/rare/onboarding-flavored,
+      confirmed present as Recommends in patterns-gnome.spec so they'd
+      otherwise sneak in under plusRecommended): gnome-maps,
+      gnome-weather, gnome-contacts, evolution(-ews), pidgin, planner,
+      remmina, vinagre, gnome-music, totem, gnome-initial-setup,
+      opensuse-welcome-launcher (this last pair specifically because the
+      spec rules out any first-boot onboarding).
+    -->
+    <package name="gnome-control-center"/>
+    <package name="gnome-text-editor"/>
+    <!-- Cheese was renamed/rewritten upstream; there is no "cheese" RPM
+         in Leap 16 - verified against the real repodata. -->
+    <package name="snapshot"/>
+    <!-- Spec-mandated default terminal - explicitly not gnome-console
+         (GNOME's own current default) or any other terminal. -->
+    <package name="gnome-terminal"/>
+    <package name="gnome-calculator"/>
+    <package name="gnome-characters"/>
+    <package name="gnome-system-monitor"/>
+    <package name="gnome-disk-utility"/>
+    <!-- gnome-papers isn't packaged for Leap 16 yet - evince is what's
+         actually in the repo, also verified. -->
+    <package name="evince"/>
+    <package name="loupe"/>
+    <package name="baobab"/>
+    <package name="gnome-logs"/>
+    <package name="gnome-tweaks"/>
+    <!-- Accessibility - kept deliberately; curation is about redundant
+         apps, not accessibility tooling. -->
+    <package name="orca"/>
+    <!--
+      GNOME Software: coexists with Vega per the spec (Vega handles
+      other system areas, not app/package management). Not pulled by
+      gnome_basic/gnome's Requires chain at all - it only shows up as a
+      Recommends under the separate sw_management_gnome pattern, which
+      isn't referenced here, so it needs to be explicit.
+    -->
+    <package name="gnome-software"/>
+
+    <!-- Firefox: default browser. Confirmed as `MozillaFirefox` in the
+         real Leap 16.0 OSS repodata (there is no plain "firefox" RPM). -->
+    <package name="MozillaFirefox"/>
+
+    <!-- LibreOffice: temporary suite until Atelier replaces it. -->
+    <package name="libreoffice"/>
+    <package name="libreoffice-writer"/>
+    <package name="libreoffice-calc"/>
+    <package name="libreoffice-impress"/>
+    <package name="libreoffice-draw"/>
+    <package name="libreoffice-gnome"/>
+
+    <!-- CUPS + common drivers, printing and scanning. -->
+    <package name="cups"/>
+    <package name="cups-filters"/>
+    <package name="system-config-printer"/>
+    <package name="gutenprint"/>
+    <package name="sane-backends"/>
+    <package name="sane-airscan"/>
+    <package name="simple-scan"/>
+
+    <!--
+      Flatpak itself; the Flathub remote is registered at build time in
+      config.sh (needs network access during the KIWI build - see
+      README.md). No Flatpak apps are pre-installed here.
+    -->
+    <package name="flatpak"/>
+
+    <!--
+      Vega (GTK4 frontend) - the only Lyra-ecosystem app pre-installed
+      in v1. Package name confirmed against home:rodrigosbrito:vega's
+      real OBS package list (vega-gtk, alongside vega-cli/vegad which
+      aren't pulled in explicitly - RPM deps will bring in whatever
+      vega-gtk actually needs).
+    -->
+    <package name="vega-gtk"/>
+
+    <!--
+      Branding (Lyra-Theme, github.com/britors/Lyra-Theme). Package
+      names, dependency, and behavior confirmed against that repo's real
+      packaging/opensuse/*.spec and install-rpm.sh, not assumed:
+
+      - lyra-enterprise-theme's %post already sets GRUB_THEME in
+        /etc/default/grub + runs grub2-mkconfig, and runs
+        `plymouth-set-default-theme -R Lyra-Enterprise` - both GRUB and
+        Plymouth theming happen automatically on install, nothing extra
+        needed here or in Calamares config for that part.
+      - It also ships a compiled-in gsettings default
+        (/usr/share/glib-2.0/schemas/99-lyra-enterprise.gschema.override:
+        icon-theme, accent-color, color-scheme=prefer-dark, both
+        picture-uri/picture-uri-dark wallpapers) - this is what actually
+        satisfies "dark and light both installed, one active by
+        default" from the spec, with no extra dconf work needed here.
+        Dark is the package's own hardcoded default; nothing in the spec
+        picks one for v1, and the dark palette is the one described in
+        more detail there, so accepting the package default was the
+        reasonable call rather than fighting it.
+      - GDM is untouched by any of this: the gschema override only
+        covers org.gnome.desktop.interface/background for user
+        sessions, not org.gnome.login-screen - matches the spec's "GDM
+        out of scope" explicitly.
+      - Requires lyra-enterprise-icons + plymouth-plugin-script
+        automatically (RPM deps); fastfetch is only a Recommends in the
+        spec file so it's made explicit here. Neofetch is left out
+        deliberately (Suggests-only upstream, and it's an archived/EOL
+        project - fastfetch is the maintained one and is what the theme
+        package's own README leads with).
+    -->
+    <package name="lyra-enterprise-theme"/>
+    <package name="lyra-enterprise-icons"/>
+    <package name="fastfetch"/>
+  </packages>
+
+  <packages type="iso">
+    <!-- Required dracut module for KIWI live (overlay) boot -->
+    <package name="dracut-kiwi-live"/>
+  </packages>
+
+  <packages type="delete">
+    <package name="kernel-debug"/>
+  </packages>
+
+</image>
