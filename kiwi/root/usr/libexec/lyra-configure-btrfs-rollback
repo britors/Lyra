@@ -1,0 +1,86 @@
+#!/bin/bash
+# Prepare the installed root for Snapper's standard default-subvolume rollback.
+
+set -euo pipefail
+
+fstab=/etc/fstab
+
+rewrite_fstab() {
+    local program=$1
+    local temporary
+
+    temporary="$(mktemp /etc/fstab.lyra.XXXXXX)"
+    trap 'rm -f "$temporary"' EXIT
+    /usr/bin/awk "$program" "$fstab" > "$temporary"
+    /usr/bin/chmod --reference="$fstab" "$temporary"
+    /usr/bin/chown --reference="$fstab" "$temporary"
+    /usr/bin/mv -f "$temporary" "$fstab"
+    trap - EXIT
+}
+
+prepare_root() {
+    # Calamares mounted /@ explicitly while installing. Make that currently
+    # mounted root the initial Btrfs default; future `snapper rollback` calls
+    # will replace the default with their new read-write rollback snapshot.
+    /usr/sbin/btrfs subvolume set-default /
+
+    # A root fstab entry with subvol=/@ would override the default chosen above
+    # on every boot. Remove only subvol/subvolid from the Btrfs root entry while
+    # preserving every other mount option and all other lines verbatim.
+    rewrite_fstab '
+    BEGIN { found = 0 }
+    /^[[:space:]]*#/ || NF < 4 { print; next }
+    $2 == "/" && $3 == "btrfs" {
+        count = split($4, option, ",")
+        options = ""
+        for (i = 1; i <= count; i++) {
+            if (option[i] !~ /^subvol(id)?=/) {
+                options = options (options == "" ? "" : ",") option[i]
+            }
+        }
+        if (options == "") options = "defaults"
+        printf "%s\t%s\t%s\t%s\t%s\t%s\n", $1, $2, $3, options, $5, $6
+        found++
+        next
+    }
+    { print }
+    END { if (found != 1) exit 42 }
+    '
+}
+
+mount_snapshots() {
+    # create-config must create this subvolume itself, so this step necessarily
+    # runs afterward. It must then be a separate mount: when / is a read-only
+    # snapshot, its nested .snapshots directory is not the live snapshot tree.
+    /usr/sbin/btrfs subvolume show /.snapshots >/dev/null
+
+    rewrite_fstab '
+    BEGIN { root = 0; snapshots = 0 }
+    /^[[:space:]]*#/ || NF < 4 { print; next }
+    $2 == "/.snapshots" { snapshots++; next }
+    $2 == "/" && $3 == "btrfs" {
+        source = $1
+        options = $4
+        root++
+    }
+    { print }
+    END {
+        if (root != 1 || snapshots > 1) exit 42
+        if (options == "" || options == "-") options = "defaults"
+        printf "%s\t/.snapshots\tbtrfs\t%s,subvol=/@/.snapshots\t0\t0\n", source, options
+    }
+    '
+}
+
+case "${1-}" in
+    prepare-root)
+        prepare_root
+        ;;
+    mount-snapshots)
+        mount_snapshots
+        ;;
+    *)
+        echo "usage: $0 {prepare-root|mount-snapshots}" >&2
+        exit 2
+        ;;
+esac

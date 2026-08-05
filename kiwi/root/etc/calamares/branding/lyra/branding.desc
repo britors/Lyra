@@ -1,0 +1,44 @@
+# Lyra OS - Odisseia (v1)
+#
+# Product strings only. Adapted from calamares-branding-upstream's
+# "default" component (window behavior, sidebar/navigation, slideshow,
+# style - all left as upstream ships them); this is what makes the
+# installer say "Lyra OS" instead of the generic "Instalador Linux"
+# placeholder. images/slideshow below still point at the assets copied
+# from that same "default" component (squid.png, languages.png,
+# show.qml, stylesheet.qss, lang/) - swapping those for real Lyra
+# logo/wallpaper assets is separate follow-up work, same as the rest of
+# the Calamares installer-UI branding tracked in kiwi/README.md.
+---
+componentName:  lyra
+
+welcomeStyleCalamares:   false
+welcomeExpandingLogo:   true
+windowExpanding:    normal
+windowSize: 800px,520px
+windowPlacement: center
+sidebar: widget
+navigation: widget
+
+strings:
+    productName:         Lyra OS
+    shortProductName:    Lyra OS
+    version:              Odisseia Beta 1
+    shortVersion:        Beta 1
+    versionedName:       Lyra OS Odisseia Beta 1
+    shortVersionedName:  Lyra OS Beta 1
+    bootloaderEntryName: Lyra OS
+
+images:
+    productLogo:         "squid.png"
+    productIcon:         "squid.png"
+    productWelcome:      "languages.png"
+
+slideshow:               "show.qml"
+slideshowAPI: 2
+
+style:
+   sidebarBackground:    "#292F34"
+   sidebarText:          "#FFFFFF"
+   sidebarTextSelect:    "#292F34"
+   sidebarTextHighlight: "#D35400"

@@ -75,7 +75,6 @@ build.opensuse.org, sob a conta `rodrigosbrito`):
 |---|---|---|
 | `home:rodrigosbrito:lyra` | Pacotes gerais do Lyra (atualmente só tema) | https://build.opensuse.org/project/show/home:rodrigosbrito:lyra |
 | `home:rodrigosbrito:vega` | Vega (também instalável standalone em outras distros) | https://build.opensuse.org/project/show/home:rodrigosbrito:vega |
-| `home:rodrigosbrito:atelier` | Prosa, Calco, Pulso | (repo do ecossistema Atelier) |
 | `home:rodrigosbrito:fina` | Fina (repositório próprio, dedicado) | https://build.opensuse.org/project/show/home:rodrigosbrito:fina |
 
 **Canal de apps de terceiros (fora do ecossistema Lyra):**
@@ -91,14 +90,13 @@ através do Vega.
 
 ## Apps pré-instalados (v1)
 
-- **Vega** (frontend GTK4) — único app do ecossistema Lyra pré-instalado
-  na v1. Prosa, Calco, Pulso, Fina e Lyra Tour seguem em validação com
-  usuários de teste e **não entram no v1**.
+- **Vega** (frontend GTK4), **Sheliak** (dock do GNOME) e **Fina**
+  pré-instalados na v1. O Lyra Tour segue em validação com usuários de
+  teste e **não entra no v1**.
 - **GNOME Terminal** (`gnome-terminal`) como terminal padrão — não
   Chord/Console/outro
 - **Firefox** como navegador padrão
-- **LibreOffice** pré-instalado como suíte de escritório temporária,
-  até o Atelier estar pronto para substituí-lo
+- **LibreOffice** pré-instalado como suíte de escritório
 - **CUPS** + drivers comuns, pré-instalado e habilitado (impressão/scanner)
 - **GNOME Software** mantido e coexistindo com o Vega — GNOME Software
   cuida da loja de apps/gerenciamento de pacotes gráfico; o Vega cuida
@@ -152,7 +150,7 @@ antiga vibrante azul-safira→violeta):
   do GRUB (botão de pânico já especificado em outro documento)
 - **Upgrades de ponto de versão** (ex: 16.0 → 16.1): antes de liberar
   como seguro para os usuários, é necessário atualizar os repositórios
-  OBS do Lyra (`lyra`, `vega`, `atelier`, `fina`) para incluir o novo
+  OBS do Lyra (`lyra`, `vega`, `fina`) para incluir o novo
   alvo de build do Leap, testar, e só então anunciar a migração. Uma
   ideia em avaliação (não obrigatória para o v1) é um módulo do Vega
   que envolva o `opensuse-migration-tool` oficial, verificando primeiro
@@ -175,7 +173,7 @@ antiga vibrante azul-safira→violeta):
 ## Fora de escopo nesta fase (não implementar)
 
 - KDE edition (planejada, mas não faz parte do v1)
-- Prosa, Calco, Pulso, Fina, Lyra Tour pré-instalados
+- Lyra Tour pré-instalado
 - Onboarding/first-boot wizard
 - Branding do GDM
 - Telemetria/analytics
@@ -191,12 +189,11 @@ antiga vibrante azul-safira→violeta):
       hostname sugerido `lyra-os`
 - [ ] Root desabilitado; usuário criado tem sudo
 - [ ] Repos habilitados por padrão: apenas OSS/Non-OSS/Updates do Leap 16
-- [ ] Repos OBS do Lyra (lyra/vega/atelier/fina) configurados e
+- [ ] Repos OBS do Lyra (lyra/vega/fina) configurados e
       acessíveis, com os pacotes corretos instaláveis de cada um
 - [ ] Flatpak/Flathub configurado como canal de apps de terceiros
 - [ ] Codecs multimídia instaláveis via OBS do Lyra, sem depender do Packman
-- [ ] Vega (GTK4) pré-instalado e funcional; nenhum outro app do
-      ecossistema Lyra pré-instalado
+- [ ] Vega (GTK4), Sheliak e Fina pré-instalados e funcionais
 - [ ] GNOME Terminal, Firefox, LibreOffice, CUPS pré-instalados
 - [ ] GNOME Software presente e funcional, coexistindo com o Vega
 - [ ] Curadoria de apps GNOME padrão aplicada (lista final documentada)

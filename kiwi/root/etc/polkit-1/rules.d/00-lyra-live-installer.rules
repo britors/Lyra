@@ -1,0 +1,14 @@
+// Lyra OS - Odisseia (v1)
+//
+// Lets the live session's autologin account (liveuser, locked password -
+// see kiwi/config.sh) launch Calamares without an impossible root-password
+// prompt. The 00- prefix is intentional: openSUSE's default-privilege rules
+// may return an authentication decision before later rules are considered.
+// Grants exactly the action declared by Calamares' packaged policy, and only
+// to the live account.
+polkit.addRule(function(action, subject) {
+    if (action.id == "com.github.calamares.calamares.pkexec.run" &&
+        subject.user == "liveuser") {
+        return polkit.Result.YES;
+    }
+});

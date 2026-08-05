@@ -1,41 +1,65 @@
 # Lyra OS - KIWI appliance (ISO)
 
-KIWI image description for the Lyra OS "Odisseia" (v1) x86_64 live/installer
+KIWI image description for the Lyra OS "Odisseia" Beta 1 x86_64 live/installer
 ISO, built on openSUSE Leap 16. See `/PROMPT-LYRA-OS.md` at the repo root
 for the full product spec this implements.
 
 ## Scope of this directory (current state)
 
-Implements all four checklist items so far: an ISO that builds via KIWI,
-on top of Leap 16, with `kernel-default`, a GNOME live session, the
+Current implementation: a KIWI description for an ISO based on Leap 16,
+with `kernel-default`, a GNOME live session, the
 Btrfs/Snapper + zram-generator packages present; Calamares installed with
 Lyra-specific config (`root/etc/calamares/`) covering root-disabled
 install, pt-BR default, hostname suggestion, an openSUSE-style Btrfs
 subvolume layout, a working live-session launcher, and a Snapper/GRUB
 rollback bootstrap (see "Snapper bootstrap" below for the one place this
 deliberately isn't a byte-for-byte match of what YaST/Agama do); the Lyra
-OBS repos, Vega, Flatpak/Flathub, and a curated app set (Firefox,
+OBS repos, Vega, Sheliak, Fina, Flatpak/Flathub, and a curated app set (Firefox,
 LibreOffice, CUPS+print/scan, a specific hand-picked GNOME app list); and
-Lyra-Theme branding (GRUB/Plymouth/GNOME theming, `/etc/os-release`) - see
-"Repos and package selection" and "Branding" below for what's real here
-vs. still blocked.
+Lyra-Theme branding (GRUB/Plymouth/GNOME theming, `/etc/os-release`), plus
+the local-only, on-demand `lyra-report` diagnostic collector - see
+"Repos and package selection", "Branding", and "Untested" below for what
+is implemented, externally blocked, or still awaiting end-to-end validation.
+
+### Diagnostics and privacy
+
+`/usr/bin/lyra-report` creates a mode-0600 `.tar.gz` archive only when the
+user invokes it; it has no timer, service, network request, or upload path.
+It deliberately refuses to run as root and refuses to overwrite an existing
+file. The report captures system/package/repository state, Btrfs/Snapper,
+Secure Boot/EFI state, desktop versions, and up to 2,000 warning-or-higher
+messages from the current boot. Its included README warns that logs and paths
+can contain personal data and must be reviewed before sharing. No automatic
+telemetry is introduced.
 
 **Deliberately not done here yet** (tracked as separate follow-up work):
 
-- Calamares' installer *UI itself* still uses upstream's placeholder
-  branding (`branding: default` in settings.conf) - product strings
-  (name/logo/slideshow) for the install wizard specifically, as opposed
-  to the boot/desktop theming below, which is done.
+- Calamares' installer *UI itself* has its product strings set
+  (`root/etc/calamares/branding/lyra/branding.desc`, `branding: lyra` in
+  settings.conf - window title/wizard text now say "Lyra OS" instead of
+  the generic "Instalador Linux"), but the images/slideshow in that same
+  branding.desc still reuse calamares-branding-upstream's "default"
+  assets (`squid.png`, `languages.png`, `show.qml`) verbatim - swapping
+  those for real Lyra logo/wallpaper assets, as opposed to the
+  boot/desktop theming below (which is done), is still pending.
 
 ### Live-session Calamares launcher (resolved)
 
 `root/usr/share/applications/calamares.desktop` overrides the RPM-shipped
-launcher to `Exec=pkexec calamares`, and
-`root/etc/polkit-1/rules.d/90-lyra-live-installer.rules` grants exactly
+launcher with the desktop-entry-compliant
+`Exec=pkexec /usr/bin/calamares`.
+The same command is used by the live-session autostart entry. And
+`root/etc/polkit-1/rules.d/00-lyra-live-installer.rules` grants exactly
 that action to `liveuser` without a password prompt. The action ID,
 `com.github.calamares.calamares.pkexec.run`, is not guessed - it's read
 directly from upstream Calamares' own shipped policy file
 ([`com.github.calamares.calamares.policy`](https://github.com/calamares/calamares/blob/calamares/com.github.calamares.calamares.policy)).
+
+The `00-` prefix is significant: polkit stops at the first rule that returns
+a decision. Evaluating Lyra's narrowly-scoped live-session exception before
+openSUSE's generic default-privilege rules prevents those rules from returning
+an administrator-authentication decision first and asking for the locked root
+account's password.
 
 This deliberately diverges from what openSUSE's own `calamares` OBS
 package does: their `calamares-desktop-file.patch` (see
@@ -48,28 +72,50 @@ authenticate with - which conflicts with the locked, autologin
 `liveuser` account here. Since upstream Calamares' own pkexec+polkit
 mechanism is standard on GNOME (GNOME Shell ships its own polkit agent,
 no extra package needed) and openSUSE's workaround was specifically
-about Leap 15-era bugs, pkexec was kept and the polkit rule added
-instead. **This choice is unverified** - whether pkexec reliably raises
-the graphical prompt from a GNOME Wayland live session on Leap 16 is
-exactly the kind of thing that needs a real VM boot test, and if it
-turns out Leap 16 has the same problem Leap 15 did, falling back to
-openSUSE's kdesu approach (and giving `liveuser` a real, even if
-trivial, password) is the documented, proven fallback.
+about Leap 15-era display forwarding, pkexec remains the launcher. An
+initial live test exposed the late `90-` rule ordering as a password
+prompt; the rule now sorts first as described above. The rebuilt ISO
+still needs a VM boot test to confirm this correction. If Leap 16 also
+shows the older display-forwarding failure after authorization,
+openSUSE's kdesu approach remains the fallback, but that is separate
+from the password-prompt issue fixed here.
+
+The live account and its privileges are explicitly removed from the target by
+`shellprocess@installcleanup`, after the real user/display-manager setup and
+before the first snapshot. It deletes `liveuser`, GDM's live autologin file,
+the global installer autostart, the live-only polkit rule, and the installer
+desktop entry. It also lowers the three Lyra OBS repositories to priority 90
+on the target: priorities 1-3 are needed during image construction to select
+the Qt6-enabled Calamares fork, but must not let a personal OBS project broadly
+override official Leap packages during later `zypper dup` runs. This cleanup
+is required because `unpackfs` copies the complete live squashfs rather than a
+separate target root filesystem. The following `packages` job also removes the
+Calamares and upstream-branding RPMs from the installed system; they remain
+available only in the live environment.
 
 ### Snapper bootstrap (resolved, simplified)
 
 `root/etc/calamares/modules/snapshotcfg.conf` (a `shellprocess@snapshotcfg`
 instance, see `settings.conf`) runs, chrooted, **after** `grubcfg` and
-`bootloader`:
+the native Leap UEFI bootloader step:
 
-1. `snapper --no-dbus -c root create-config /` - the same command SUSE's
+1. The Lyra helper makes `/@` the initial default Btrfs subvolume and removes
+   the root entry's explicit `subvol=/@`, so future rollbacks are not
+   overridden by `/etc/fstab`.
+2. `snapper --no-dbus -c root create-config /` - the same command SUSE's
    own Snapper Tutorial documents for adding Snapper to an already-mounted
    Btrfs root.
-2. `snapper --no-dbus -c root create --read-only --type single ...` - a
+3. The helper adds a separate `/.snapshots` fstab mount after Snapper has
+   created that subvolume. This keeps the global snapshot tree accessible
+   when `/` is booted from a read-only snapshot.
+4. `dracut --force --fstab` rebuilds the target initramfs from the final
+   fstab. This prevents host-only dracut from preserving the installer-time
+   `subvol=/@` mount in its embedded kernel command line.
+5. `snapper --no-dbus -c root create --read-only --type single ...` - a
    "first root filesystem" snapshot. `--read-only` is mandatory, not
    cosmetic: `grub2-snapper-plugin.sh` (in the openSUSE `grub2` package)
    explicitly skips writable snapshots when building the boot menu.
-3. `grub2-mkconfig -o /boot/grub2/grub.cfg` again, so the just-created
+6. `grub2-mkconfig -o /boot/grub2/grub.cfg` again, so the just-created
    snapshot actually shows up in the regenerated menu.
 
 `grub2-snapper-plugin` was added to `kiwi/config.xml`'s package list (it
@@ -77,6 +123,15 @@ ships `/etc/grub.d/80_suse_btrfs_snapshot`), and `grubcfg.conf` now sets
 `SUSE_BTRFS_SNAPSHOT_BOOTING: true`, which that script explicitly checks
 - without it the "Start bootloader from a read-only snapshot" submenu
 never gets generated at all, regardless of what Snapper is doing.
+`snapper-zypp-plugin` is also explicit: the `snapper` RPM only recommends it,
+and this image intentionally disables recommended dependencies. Without that
+plugin, zypper transactions would not create the required pre/post snapshots.
+
+The two helper operations are idempotent, so a late dracut/GRUB failure can be
+retried safely. Only after every fallible setup command succeeds does the job
+remove the target copy of `/etc/calamares` and the helper. The first recovery
+snapshot can therefore contain these inert configuration files, but not the
+Calamares RPM, executable, launcher, autostart entry, or live-user privilege.
 
 The exact commands and ordering here aren't guessed - they come from
 openSUSE/snapper's own `client/installation-helper/{readme.txt,test1.sh,
@@ -95,9 +150,10 @@ even unpacked. Reproducing that exactly turns out to require replacing
 Calamares' partition/mount handling for `/` with a fully custom module
 (traced through `mount`'s actual source: its single-pass, plain-mount
 design can't express "root is a nested `.snapshots/N/snapshot`, but
-`/home` etc. are flat siblings of `.snapshots`" at the same time) - out
-of proportion for what the spec actually needs, which is the GRUB panic
-button working *going forward*. The trade-off: there's no pristine
+`/home` etc. are flat siblings of `.snapshots`" at the same time). The
+one-time default-subvolume/fstab conversion above keeps the standard Snapper
+rollback mechanism working going forward without claiming byte-for-byte YaST
+layout parity. The remaining trade-off: there's no pristine
 "as-installed" snapshot to roll back to on a system built from this
 config - only the "first root filesystem" snapshot above, and everything
 snapshotted after it (zypper transactions, timeline), are available for
@@ -105,27 +161,33 @@ rollback via GRUB.
 
 ### Repos and package selection
 
+**Leap updates**: Leap 16 has no dedicated update repository; official
+maintenance updates are published through `repo-oss`. The configured OSS and
+Non-OSS sources therefore cover the specification's official update channel
+without the invalid Leap 15-style `/update/leap/16.0/` URLs.
+
 **Lyra OBS repos**: `repo-lyra`, `repo-vega`, `repo-fina` were added to
 `config.xml`, pointed at
 `download.opensuse.org/repositories/home:/rodrigosbrito:/{lyra,vega,fina}/openSUSE_Leap_16.0/`.
 This isn't assumed from the spec text - verified live against the real
-OBS instance on 2026-07-28: all three projects exist, all three have an
+OBS instance on 2026-08-05: all three projects exist, all three have an
 `openSUSE_Leap_16.0` build target, all three repos actually publish
 repodata at that URL (HTTP 200), and the packages this config installs
-from them (`vega-gtk`) show `code="succeeded"` in OBS's own build
-status API.
+from them (`vega-gtk`, `sheliak`, and `fina`) show successful builds in
+OBS's own build-status API.
 
-**`home:rodrigosbrito:atelier` (Prosa/Calco/Pulso) does not exist on
-OBS** - confirmed via `GET /public/source/home:rodrigosbrito:atelier`,
-which returns `unknown_project`, not just "no packages yet". This is a
-real discrepancy between `PROMPT-LYRA-OS.md` and the current state of
-the OBS account, not something this config works around: adding a repo
-URL for a project that returns 404 would break every `zypper ref`/KIWI
-build that touches it. Left out entirely rather than added-and-disabled.
-**Confirmed expected for now**: Prosa/Calco/Pulso aren't shipping any
-software yet, so there's nothing this repo would even carry today - this
-isn't a v1 blocker. Revisit when Atelier has something to publish (create
-the OBS project then, or fix the spec's repo name if it changes).
+`sheliak` installs the system GNOME Shell extension, and
+`root/usr/share/glib-2.0/schemas/99-lyra-sheliak.gschema.override` enables it
+by default for the live session and newly-created users. `config.sh` recompiles
+the system schema cache after the KIWI overlay is applied. Because this is a
+GSettings default rather than a mandatory dconf lock, users can still disable
+the dock. `fina` is installed from its dedicated `repo-fina` source.
+
+Repository metadata and package-signature checks are explicitly enabled on
+all official and OBS sources. KIWI otherwise writes `repo_gpgcheck=0` and
+`pkg_gpgcheck=0` into each image-included zypper repository even when the
+global build preference checks RPM signatures, which would weaken the
+installed system's update path.
 
 **Every package name in `config.xml` was checked against the real Leap
 16.0 repodata** (`download.opensuse.org/distribution/leap/16.0/repo/{oss,non-oss}/`),
@@ -157,6 +219,12 @@ only reachable via the separate `sw_management_gnome` pattern, not
 `gnome_basic`/`gnome` at all - would have been silently missing even
 under `plusRecommended`).
 
+The same audit made hardware and desktop plumbing explicit:
+`kernel-firmware-all` plus AMD/Intel microcode (the kernel merely recommends
+firmware), `gvfs` with its backends/FUSE bridge and `udisks2` (otherwise
+Nautilus loses trash, removable media, phones, and network locations), and
+`xdg-desktop-portal-gnome` for Flatpak file pickers and desktop portals.
+
 **Multimedia codecs are blocked, not skipped.** The spec says these
 should be "empacotados e distribuídos pelo próprio OBS do Lyra", but
 `home:rodrigosbrito:lyra` only has `lyra-theme` (plus other Lyra-app
@@ -184,8 +252,9 @@ from the product spec's prose description:
   `plymouth-set-default-theme -R Lyra-Enterprise` automatically on
   install. Since `unpackfs` later copies this whole live root (including
   those already-updated config files) onto the install target, and
-  Calamares' own `dracut`/`grubcfg`/`bootloader` steps regenerate the
-  initramfs/grub.cfg from them afterward, this carries through correctly
+  Calamares' `dracut`/`grubcfg` plus Lyra's native Leap `shim-install`
+  step regenerate the initramfs/grub.cfg from them afterward, so this
+  carries through correctly
   without any Calamares-side branding config.
 - **Dark/light "both installed, one default" is handled by the package
   itself**, not by anything in this repo: it ships a compiled-in
@@ -217,15 +286,16 @@ from the product spec's prose description:
   actual file write in that path is a safe line-level in-place edit, not
   a full rewrite, so it won't clobber `GRUB_THEME`.
 - **`/etc/os-release`** is overwritten in `config.sh` to report
-  `NAME="Lyra OS"` / `PRETTY_NAME="Lyra OS 1.0 (Odisseia)"` /
+  `NAME="Lyra OS"` / `PRETTY_NAME="Lyra OS Beta 1 (Odisseia)"` /
   `ID=lyra-os`, keeping `ID_LIKE="opensuse suse"` so tooling that branches
   on family detection still works. `HOME_URL`, `BUG_REPORT_URL`, and
   `LOGO` were deliberately left out rather than filled with guesses -
   there's no confirmed project website/tracker URL, and no icon name
   confirmed to exist under `lyra-enterprise-icons` for `LOGO` to point at.
 - **Calamares' own installer UI branding** (product name/logo in the
-  wizard itself, as opposed to the desktop/boot theming above) is still
-  `branding: default` - see the "not done yet" note above.
+  wizard itself, as opposed to the desktop/boot theming above): product
+  strings are done (`branding: lyra`), images/slideshow still aren't -
+  see the "not done yet" note above.
 - GNOME 48+ is required by the theme; confirmed Leap 16.0 actually ships
   GNOME 48.3, so this isn't a live concern.
 
@@ -251,14 +321,15 @@ trusting this.
   subvolume layout in `root/etc/calamares/modules/mount.conf` only
   applies to the *installed* system.
 - **`liveuser` with GDM autologin** (`config.sh`): makes the live ISO
-  boot to a usable desktop even before there's a way to launch Calamares
-  from it (see "Known gaps" below). No relation to the installed
-  system's account model (root disabled, sudo user created by
-  Calamares) - that's separate, install-time behavior.
-- **`grub2-*` binary names**: `bootloader.conf`/`grubcfg.conf` point at
-  `grub2-install`, `grub2-mkconfig`, `/boot/grub2/grub.cfg` etc. -
-  Calamares' own defaults assume Arch/Debian-style `grub-*` names, which
-  don't exist on Leap.
+  boot to a usable desktop. `shellprocess@installcleanup` removes that user
+  and every live-only launcher/privilege from the target before the first
+  installed-system snapshot; the installed account model is the separate
+  root-disabled sudo user created by Calamares.
+- **Native Leap UEFI bootloader**: the generic Calamares bootloader job
+  is disabled. `shellprocess@uefibootloader` runs `grub2-mkconfig` and
+  Leap's `/usr/sbin/shim-install`, so the signed shim, GRUB EFI image,
+  fallback loader and NVRAM entry are installed by the distribution's
+  own supported path.
 - **Btrfs subvolume layout**: `mount.conf`'s `btrfsSubvolumes` list
   mirrors the fallback list openSUSE's own installer (yast2-storage-ng)
   uses, rather than Calamares' generic `@`/`@home` example, so an
@@ -267,8 +338,9 @@ trusting this.
 - **zram**: `zram-generator` package + `root/etc/systemd/zram-generator.conf`
   shipped verbatim into the image (`zram0`, size = min(ram/2, 8GiB),
   zstd). No swapfile anywhere.
-- **Secure Boot groundwork**: `firmware="uefi"` + `shim`/`mokutil`
-  packages, relying on Leap's Microsoft-signed shim (nothing custom).
+- **Secure Boot**: `firmware="uefi"` + `shim`/`mokutil` packages and
+  `shellprocess@uefibootloader`, relying on Leap's signed shim and native
+  `shim-install` implementation (nothing custom-signed by Lyra).
 
 ## Building
 
@@ -282,4 +354,18 @@ sudo kiwi-ng system build \
 
 If `kiwi-ng` rejects the description with a schema version error, check
 the installed tool's supported schema (`kiwi-ng --version`) and adjust
-the `schemaversion` attribute in `config.xml` (currently `8.5`) to match.
+the `schemaversion` attribute in `config.xml` (currently `8.3`) to match.
+
+For a clean end-to-end installation test with Secure Boot enabled, run
+the helper as the regular desktop user (not with `sudo`):
+
+```sh
+./kiwi/test/build-and-run-vm.sh --fresh-disk --secure-boot
+```
+
+After completing the installation, boot the installed disk without the
+ISO while preserving the same Secure Boot NVRAM:
+
+```sh
+./kiwi/test/build-and-run-vm.sh --boot-disk --secure-boot
+```

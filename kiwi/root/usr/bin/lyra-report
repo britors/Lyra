@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+# Generate a local, user-requested Lyra OS diagnostic archive. Nothing is sent.
+
+set -euo pipefail
+umask 077
+
+if [ "$(id -u)" -eq 0 ]; then
+    echo "Run lyra-report as your regular user, not as root." >&2
+    exit 1
+fi
+
+if [ "$#" -gt 1 ]; then
+    echo "usage: lyra-report [output.tar.gz]" >&2
+    exit 2
+fi
+
+timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
+output="${1:-lyra-report-$timestamp.tar.gz}"
+output_dir="$(dirname -- "$output")"
+
+if [ ! -d "$output_dir" ] || [ ! -w "$output_dir" ]; then
+    echo "Output directory does not exist or is not writable: $output_dir" >&2
+    exit 1
+fi
+if [ -e "$output" ] || [ -L "$output" ]; then
+    echo "Refusing to overwrite existing output: $output" >&2
+    exit 1
+fi
+
+work_dir="$(mktemp -d /tmp/lyra-report.XXXXXX)"
+report_dir="$work_dir/lyra-report"
+archive_tmp=""
+
+cleanup() {
+    /usr/bin/rm -rf -- "$work_dir"
+    if [ -n "$archive_tmp" ]; then
+        /usr/bin/rm -f -- "$archive_tmp"
+    fi
+}
+trap cleanup EXIT
+
+mkdir -p "$report_dir"
+
+collect() {
+    local name=$1
+    shift
+    {
+        printf '$'
+        printf ' %q' "$@"
+        printf '\n\n'
+        if "$@"; then
+            :
+        else
+            status=$?
+            printf '\n[command exited with status %s]\n' "$status"
+        fi
+    } > "$report_dir/$name" 2>&1
+}
+
+cat > "$report_dir/README.txt" <<'EOF'
+This archive was generated locally and was not uploaded or transmitted.
+
+It can contain host names, user names, mounted paths, package/repository data,
+and recent warning/error log messages. Review its contents before sharing it.
+EOF
+
+collect os-release /usr/bin/cat /etc/os-release
+collect kernel /usr/bin/uname -a
+collect cpu /usr/bin/lscpu
+collect memory /usr/bin/free -h
+collect block-devices /usr/bin/lsblk --output NAME,TYPE,SIZE,FSTYPE,FSVER,MOUNTPOINTS
+collect mounts /usr/bin/findmnt --real
+collect failed-units /usr/bin/systemctl --failed --no-pager
+collect journal-warnings /usr/bin/journalctl -b -p warning..alert --no-pager \
+    --output=short-monotonic --lines=2000
+collect repositories /usr/bin/zypper --no-refresh repos --details
+collect packages /usr/bin/rpm -qa --queryformat \
+    '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n'
+collect snapper-configs /usr/bin/snapper list-configs
+collect snapper-root /usr/bin/snapper -c root list
+collect secure-boot /usr/sbin/mokutil --sb-state
+collect efi-boot /usr/sbin/efibootmgr -v
+collect flatpak-remotes /usr/bin/flatpak remotes --system --show-details
+collect gnome-version /usr/bin/gnome-shell --version
+collect vega-package /usr/bin/rpm -q vega-gtk
+collect sheliak-package /usr/bin/rpm -q sheliak
+collect fina-package /usr/bin/rpm -q fina
+
+archive_tmp="$(mktemp --tmpdir="$output_dir" .lyra-report.XXXXXX.tar.gz)"
+/usr/bin/tar -C "$work_dir" -czf "$archive_tmp" lyra-report
+/usr/bin/chmod 0600 "$archive_tmp"
+# A hard-link publish is atomic and fails if output appeared after the check
+# above; unlike mv --no-clobber, its exit status reliably reports that race.
+/usr/bin/ln -- "$archive_tmp" "$output"
+/usr/bin/rm -f -- "$archive_tmp"
+archive_tmp=""
+
+printf 'Diagnostic archive created locally: %s\n' "$output"
+printf 'Review its README and contents before sharing it.\n'

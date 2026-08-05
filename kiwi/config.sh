@@ -40,6 +40,12 @@ EOF
 # the KIWI build (fetches flathub.flatpakrepo) - see kiwi/README.md.
 flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
 
+# Compile the image-owned GNOME defaults after KIWI has overlaid root/.
+# This activates the system-installed Sheliak extension for the live account
+# and for users subsequently created by Calamares, while still allowing each
+# user to disable it normally.
+glib-compile-schemas /usr/share/glib-2.0/schemas
+
 # Product identity (PROMPT-LYRA-OS.md: "Lyra OS", not "Lyra Linux" or
 # "Lyra Enterprise Linux" - those are historical/discontinued names).
 # ID_LIKE keeps openSUSE/SUSE tooling that branches on it (package
@@ -52,15 +58,13 @@ flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.f
 # URLs/icon names felt worse than leaving these optional fields out.
 cat > /etc/os-release <<EOF
 NAME="Lyra OS"
-PRETTY_NAME="Lyra OS 1.0 (Odisseia)"
+PRETTY_NAME="Lyra OS Beta 1 (Odisseia)"
 ID=lyra-os
 ID_LIKE="opensuse suse"
-VERSION="1.0 (Odisseia)"
-VERSION_ID="1.0"
+VERSION="Beta 1 (Odisseia)"
+VERSION_ID="1.0-beta1"
 VERSION_CODENAME=odisseia
-CPE_NAME="cpe:/o:rodrigosbrito:lyra_os:1.0"
+CPE_NAME="cpe:/o:rodrigosbrito:lyra_os:1.0-beta1"
 EOF
-
-baseCleanMount
 
 exit 0
