@@ -10,6 +10,13 @@ test -f /.profile && . /.profile
 
 echo "Configuring image: [$kiwi_iname]..."
 
+# Leap's filesystem package does not own /etc/mtab, and a KIWI-built root can
+# therefore leave the path absent.  Snapper still opens /etc/mtab while
+# detecting the filesystem for `create-config`; point it at the kernel's live
+# mount table, as on a normally installed system.  The relative target keeps
+# the link valid both in the live image and in Calamares' target chroot.
+ln -sfn ../proc/self/mounts /etc/mtab
+
 # Networking / firewall - Leap defaults, enabled explicitly for the live boot
 suseInsertService NetworkManager
 suseInsertService firewalld

@@ -6,18 +6,22 @@
 # your own user (needed for KVM access and the GTK display window).
 #
 # Usage:
-#   ./build-and-run-vm.sh                 wipe any previous build/ISO and rebuild, then boot live+disk
-#   ./build-and-run-vm.sh --skip-build    boot with whatever ISO already exists, no rebuild
-#   ./build-and-run-vm.sh --fresh-disk    discard the install-target disk and recreate it
+#   ./build-and-run-vm.sh                 rebuild, then boot live with a fresh install disk
+#   ./build-and-run-vm.sh --skip-build    boot the existing ISO with a fresh install disk
+#   ./build-and-run-vm.sh --fresh-disk    accepted for compatibility; fresh is already the default
 #   ./build-and-run-vm.sh --boot-disk     boot from the installed disk only, no ISO attached
 #   ./build-and-run-vm.sh --secure-boot   use OVMF with Secure Boot and Microsoft keys
 #
-# Every run rebuilds from a clean slate by default (deletes the previous
-# kiwi build dir and ISO first) - pass --skip-build if you just want to
-# re-boot an existing ISO without rebuilding.
+# Every run rebuilds the KIWI tree from a clean slate by default. The current
+# ISO is kept until the replacement is ready and then archived under
+# iso/archive. Every live-ISO run recreates the VM disk and OVMF state so a
+# previous installation cannot silently intercept the boot. Pass --skip-build
+# to re-boot the current ISO without rebuilding it; use --boot-disk only after
+# completing an installation and closing the live VM.
 #
 # All output is logged (with timestamps) below a private per-user directory
-# in /tmp, in addition to your terminal.
+# under kiwi/.kiwi, in addition to your terminal. Set LYRA_TEST_WORK_DIR to
+# use another persistent location.
 
 set -euo pipefail
 
@@ -32,16 +36,22 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 KIWI_DESC="$(dirname "$SCRIPT_DIR")"
 CURRENT_UID="$(id -u)"
-WORK_DIR="/tmp/lyra-os-test-$CURRENT_UID"
+# Keep the large KIWI tree, ISO and VM disk on the persistent filesystem.
+# On many systems /tmp is a small RAM-backed tmpfs and cannot hold a full
+# image build plus an expanding qcow2 installation disk.
+WORK_DIR="${LYRA_TEST_WORK_DIR:-$KIWI_DESC/.kiwi/test-$CURRENT_UID}"
 BUILD_DIR="$WORK_DIR/build"
 ISO_DIR="$WORK_DIR/iso"
+ISO_ARCHIVE_DIR="$ISO_DIR/archive"
 VM_DIR="$WORK_DIR/vm"
 DISK_IMG="$VM_DIR/lyra-os-install.qcow2"
 DISK_SIZE="20G"
 OVMF_VARS_STANDARD="$VM_DIR/ovmf-vars.bin"
 OVMF_VARS_SECURE="$VM_DIR/ovmf-secure-vars.bin"
 LOG="$WORK_DIR/lyra-os-test.log"
-RAM_MB=4096
+# The last locally verified Live + Calamares run used 8 GiB. Keep the VM at
+# that known-good allocation while installer regressions are being isolated.
+RAM_MB=8192
 SMP=4
 
 SKIP_BUILD=0
@@ -89,7 +99,7 @@ for command in qemu-img qemu-system-x86_64; do
 done
 
 if [ "$SKIP_BUILD" -eq 0 ]; then
-  for command in kiwi-ng sudo; do
+  for command in kiwi-ng lsinitrd sudo xorriso; do
     if ! command -v "$command" >/dev/null 2>&1; then
       echo "required build command not found: $command" >&2
       exit 1
@@ -116,9 +126,7 @@ if [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ]; then
 fi
 
 # The build runs partly through sudo. Keep every root-written path below a
-# directory owned by this user and inaccessible to other local users, instead
-# of using predictable shared /tmp directories that can be pre-created or
-# replaced with symlinks.
+# directory owned by this user and inaccessible to other local users.
 if [ -L "$WORK_DIR" ]; then
   echo "Refusing symbolic-link work directory: $WORK_DIR" >&2
   exit 1
@@ -138,6 +146,14 @@ echo "--- using KIWI description: $KIWI_DESC ---"
 
 mkdir -p "$VM_DIR" "$ISO_DIR"
 
+# Never carry a VM installation or firmware state into a live-ISO run. Do
+# this before either reusing an ISO or starting a full build, so even a failed
+# build cannot leave stale VM state waiting for the next test.
+if [ "$BOOT_DISK_ONLY" -eq 0 ]; then
+  echo "--- live ISO run: discarding the previous VM disk and UEFI NVRAM ---"
+  rm -f "$DISK_IMG" "$OVMF_VARS_STANDARD" "$OVMF_VARS_SECURE"
+fi
+
 ISO_PATH=""
 
 if [ "$BOOT_DISK_ONLY" -eq 0 ] && [ "$SKIP_BUILD" -eq 1 ]; then
@@ -155,9 +171,8 @@ if [ "$BOOT_DISK_ONLY" -eq 0 ] && [ "$SKIP_BUILD" -eq 1 ]; then
 fi
 
 if [ "$BOOT_DISK_ONLY" -eq 0 ] && [ "$SKIP_BUILD" -eq 0 ]; then
-  echo "--- wiping any previous build dir and ISO, rebuilding from scratch ---"
+  echo "--- wiping the previous build dir; preserving the current ISO ---"
   sudo rm -rf "$BUILD_DIR"
-  rm -f "$ISO_DIR"/*.iso
   ISO_PATH=""
 
   echo "--- building ISO with kiwi-ng (will prompt for sudo password) ---"
@@ -171,16 +186,72 @@ if [ "$BOOT_DISK_ONLY" -eq 0 ] && [ "$SKIP_BUILD" -eq 0 ]; then
     exit "$BUILD_STATUS"
   fi
 
+  IMAGE_MTAB="$BUILD_DIR/build/image-root/etc/mtab"
+  if [ ! -L "$IMAGE_MTAB" ] || [ "$(readlink "$IMAGE_MTAB")" != "../proc/self/mounts" ]; then
+    echo "!!! built image has no valid /etc/mtab -> ../proc/self/mounts symlink" >&2
+    echo "!!! Snapper cannot detect the installed root filesystem without it" >&2
+    exit 1
+  fi
+
   BUILT_ISO="$(sudo find "$BUILD_DIR" -maxdepth 1 -type f -name '*.iso' -print -quit)"
   if [ -z "$BUILT_ISO" ]; then
     echo "!!! kiwi-ng reported success but no .iso found under $BUILD_DIR"
     exit 1
   fi
 
-  ISO_PATH="$ISO_DIR/$(basename "$BUILT_ISO")"
-  echo "--- copying $BUILT_ISO -> $ISO_PATH ---"
-  sudo cp "$BUILT_ISO" "$ISO_PATH"
-  sudo chown "$(id -u):$(id -g)" "$ISO_PATH"
+  ISO_GRUB_CFG="$WORK_DIR/iso-grub.cfg"
+  ISO_GRUB_THEME="$WORK_DIR/iso-grub-theme.txt"
+  ISO_INITRD="$WORK_DIR/iso-initrd"
+  rm -f "$ISO_GRUB_CFG" "$ISO_GRUB_THEME" "$ISO_INITRD"
+  xorriso -osirrox on -indev "$BUILT_ISO" \
+    -extract /boot/grub2/grub.cfg "$ISO_GRUB_CFG" >/dev/null 2>&1
+  xorriso -osirrox on -indev "$BUILT_ISO" \
+    -extract /boot/grub2/themes/Lyra-Enterprise/theme.txt \
+    "$ISO_GRUB_THEME" >/dev/null 2>&1
+  xorriso -osirrox on -indev "$BUILT_ISO" \
+    -extract /boot/x86_64/loader/initrd "$ISO_INITRD" >/dev/null 2>&1
+
+  if ! grep -F 'set theme=($root)/boot/grub2/themes/Lyra-Enterprise/theme.txt' \
+      "$ISO_GRUB_CFG" >/dev/null; then
+    echo "!!! generated GRUB config does not activate the Lyra-Enterprise theme" >&2
+    exit 1
+  fi
+  if ! grep -F 'desktop-image: "background.png"' "$ISO_GRUB_THEME" >/dev/null; then
+    echo "!!! generated ISO contains an invalid Lyra-Enterprise GRUB theme" >&2
+    exit 1
+  fi
+  if grep -Eq '^[[:space:]]*linux .* (quiet|splash)( |$)' "$ISO_GRUB_CFG"; then
+    echo "!!! live GRUB entry unexpectedly hides boot diagnostics with quiet/splash" >&2
+    exit 1
+  fi
+  if lsinitrd -m "$ISO_INITRD" | grep -Fx 'plymouth' >/dev/null; then
+    echo "!!! Plymouth was included in the generic live initrd" >&2
+    echo "!!! this regresses boot by pulling the complete DRM/firmware set" >&2
+    exit 1
+  fi
+  echo "--- validated live initrd without Plymouth ($(du -h "$ISO_INITRD" | cut -f1)) ---"
+
+  ISO_NAME="$(basename "$BUILT_ISO")"
+  ISO_PATH="$ISO_DIR/$ISO_NAME"
+  ISO_STAGED="$ISO_DIR/.$ISO_NAME.new"
+  rm -f "$ISO_STAGED"
+  echo "--- staging $BUILT_ISO -> $ISO_STAGED ---"
+  sudo cp "$BUILT_ISO" "$ISO_STAGED"
+  sudo chown "$(id -u):$(id -g)" "$ISO_STAGED"
+
+  if [ -f "$ISO_PATH" ]; then
+    mkdir -p "$ISO_ARCHIVE_DIR"
+    ARCHIVE_STAMP="$(date '+%Y%m%d-%H%M%S')"
+    ARCHIVED_ISO="$ISO_ARCHIVE_DIR/${ISO_NAME%.iso}-$ARCHIVE_STAMP.iso"
+    if [ -e "$ARCHIVED_ISO" ]; then
+      ARCHIVED_ISO="$ISO_ARCHIVE_DIR/${ISO_NAME%.iso}-$ARCHIVE_STAMP-$$.iso"
+    fi
+    echo "--- archiving previous ISO -> $ARCHIVED_ISO ---"
+    cp -p "$ISO_PATH" "$ARCHIVED_ISO"
+  fi
+
+  echo "--- promoting new ISO -> $ISO_PATH ---"
+  mv -f "$ISO_STAGED" "$ISO_PATH"
 elif [ "$BOOT_DISK_ONLY" -eq 0 ]; then
   echo "--- skipping build, reusing existing ISO ---"
 fi
@@ -197,11 +268,6 @@ fi
 if [ "$BOOT_DISK_ONLY" -eq 1 ] && [ ! -f "$DISK_IMG" ]; then
   echo "!!! --boot-disk requested, but no installed disk exists at $DISK_IMG" >&2
   exit 1
-fi
-
-if [ "$FRESH_DISK" -eq 1 ]; then
-  echo "--- --fresh-disk: discarding the target disk and its UEFI NVRAM ---"
-  rm -f "$DISK_IMG" "$OVMF_VARS_STANDARD" "$OVMF_VARS_SECURE"
 fi
 
 if [ ! -f "$DISK_IMG" ]; then

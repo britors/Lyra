@@ -99,6 +99,13 @@ available only in the live environment.
 instance, see `settings.conf`) runs, chrooted, **after** `grubcfg` and
 the native Leap UEFI bootloader step:
 
+Before that job can run, `config.sh` provides the conventional
+`/etc/mtab -> ../proc/self/mounts` link. Leap 16's `filesystem` RPM does not
+own that link, so the first built image omitted it; Snapper 0.12.1 then failed
+in `create-config` while opening `/etc/mtab` to detect `/`'s filesystem type.
+The VM build helper now rejects an image whose final root does not contain the
+link.
+
 1. The Lyra helper makes `/@` the initial default Btrfs subvolume and removes
    the root entry's explicit `subvol=/@`, so future rollbacks are not
    overridden by `/etc/fstab`.
@@ -212,12 +219,12 @@ belong on a curated distro that explicitly rules out onboarding wizards.
 Instead, everything actually wanted (Settings, Text Editor, the
 snapshot/camera app, Calculator, a specific hand-picked rest-of-list) is
 added back as individual `<package>` entries - see the comments in
-`config.xml` for the full reasoning, including why `gnome-terminal` is
-explicit (GNOME's own current default is `gnome-console`, not what the
-spec wants) and why `gnome-software` needed adding explicitly too (it's
-only reachable via the separate `sw_management_gnome` pattern, not
-`gnome_basic`/`gnome` at all - would have been silently missing even
-under `plusRecommended`).
+`config.xml` for the full reasoning, including why `gnome-terminal` and
+`gnome-console` are both explicit (Terminal remains the default and Console
+is available as an alternative) and why `gnome-software` needed adding
+explicitly too (it's only reachable via the separate
+`sw_management_gnome` pattern, not `gnome_basic`/`gnome` at all - would
+have been silently missing even under `plusRecommended`).
 
 The same audit made hardware and desktop plumbing explicit:
 `kernel-firmware-all` plus AMD/Intel microcode (the kernel merely recommends
@@ -246,16 +253,18 @@ real [britors/Lyra-Theme](https://github.com/britors/Lyra-Theme) repo -
 its `packaging/opensuse/*.spec` files and `install-rpm.sh` - not assumed
 from the product spec's prose description:
 
-- **GRUB and Plymouth theming need nothing extra here.**
+- **GRUB theming is enabled; Plymouth stays out of the live initrd.**
   `lyra-enterprise-theme`'s own RPM `%post` scriptlet sets `GRUB_THEME` in
   `/etc/default/grub`, runs `grub2-mkconfig`, and runs
   `plymouth-set-default-theme -R Lyra-Enterprise` automatically on
-  install. Since `unpackfs` later copies this whole live root (including
-  those already-updated config files) onto the install target, and
-  Calamares' `dracut`/`grubcfg` plus Lyra's native Leap `shim-install`
-  step regenerate the initramfs/grub.cfg from them afterward, so this
-  carries through correctly
-  without any Calamares-side branding config.
+  install. However, explicitly adding Leap's `plymouth-dracut` to this
+  non-host-only live image makes dracut pull its `drm` dependency, all generic
+  GPU modules and their firmware into the initrd. The resulting 138 MiB
+  archive made GRUB spend a long time at `Loading initial ramdisk` and hid
+  useful diagnostics behind `quiet splash`. The live ISO therefore keeps the
+  Lyra GRUB theme but deliberately omits `plymouth-dracut` and the splash
+  kernel arguments. On the installed system Calamares keeps `gfxterm` output;
+  using `console` there disables `GRUB_THEME`.
 - **Dark/light "both installed, one default" is handled by the package
   itself**, not by anything in this repo: it ships a compiled-in
   `/usr/share/glib-2.0/schemas/99-lyra-enterprise.gschema.override`

@@ -93,8 +93,8 @@ através do Vega.
 - **Vega** (frontend GTK4), **Sheliak** (dock do GNOME) e **Fina**
   pré-instalados na v1. O Lyra Tour segue em validação com usuários de
   teste e **não entra no v1**.
-- **GNOME Terminal** (`gnome-terminal`) como terminal padrão — não
-  Chord/Console/outro
+- **GNOME Terminal** (`gnome-terminal`) como terminal padrão, com o
+  **GNOME Console** (`gnome-console`) também pré-instalado como alternativa
 - **Firefox** como navegador padrão
 - **LibreOffice** pré-instalado como suíte de escritório
 - **CUPS** + drivers comuns, pré-instalado e habilitado (impressão/scanner)
@@ -194,7 +194,7 @@ antiga vibrante azul-safira→violeta):
 - [ ] Flatpak/Flathub configurado como canal de apps de terceiros
 - [ ] Codecs multimídia instaláveis via OBS do Lyra, sem depender do Packman
 - [ ] Vega (GTK4), Sheliak e Fina pré-instalados e funcionais
-- [ ] GNOME Terminal, Firefox, LibreOffice, CUPS pré-instalados
+- [ ] GNOME Terminal, GNOME Console, Firefox, LibreOffice, CUPS pré-instalados
 - [ ] GNOME Software presente e funcional, coexistindo com o Vega
 - [ ] Curadoria de apps GNOME padrão aplicada (lista final documentada)
 - [ ] Nenhum onboarding/wizard de primeiro boot presente
