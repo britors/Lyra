@@ -308,17 +308,21 @@ from the product spec's prose description:
 - GNOME 48+ is required by the theme; confirmed Leap 16.0 actually ships
   GNOME 48.3, so this isn't a live concern.
 
-### Untested
+### Validation status
 
-None of this - Calamares config, KIWI build, Snapper/GRUB bootstrap,
-repos/package selection, branding - has been run through an actual
-`kiwi-ng` build + live install in a VM. Module/package names, YAML keys,
-command flags, and file paths are grounded in Calamares', KIWI's,
-snapper's, grub2's, and the Lyra projects' current upstream/OBS/repodata
-source (checked, not guessed - see above for specific things that check
-actually caught), but a real end-to-end build+install is the only way to
-be sure it all works together, and is the natural next step before
-trusting this.
+The image has been built with `kiwi-ng` and booted in a VM. Those runs exposed
+and guided fixes for the oversized live initrd, the Calamares polkit prompt,
+the missing `/etc/mtab` link needed by Snapper, and other installation-path
+issues described above. The VM helper also performs static checks against the
+generated ISO before replacing the previously known artifact.
+
+A clean end-to-end run after the latest fixes is still pending: rebuild the
+ISO, boot the live session, complete a Calamares installation, boot the target
+disk, and confirm the Snapper recovery entry. Repeat that path with Secure Boot
+enabled before treating the image as release-ready. Package/module choices are
+also grounded in the current Calamares, KIWI, Snapper, GRUB, OBS, and Leap 16
+sources, but source-level verification is not a substitute for that final
+integration test.
 
 ## Notable choices
 
