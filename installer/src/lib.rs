@@ -1,5 +1,6 @@
 //! Domain model shared by the installer UI and the future privileged backend.
 
+pub mod service;
 pub mod storage;
 
 /// Values collected by the unprivileged graphical wizard.

@@ -7,7 +7,7 @@ description = "Rust domain model for the Lyra OS installer"
 repository = "https://github.com/britors/Lyra"
 
 [workspace]
-members = ["src-tauri"]
+members = ["src-tauri", "service"]
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }

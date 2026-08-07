@@ -80,3 +80,31 @@ são disco inteiro, criação ou reaproveitamento de array RAID (mdadm) e
 criação ou reaproveitamento de volume group LVM em cima do alvo bruto. A
 execução real do plano (particionar, criar o array/VG, formatar) continua
 sendo trabalho do `lyra-installer-service` (#37/#40), não deste módulo.
+
+## Serviço privilegiado (issue #37)
+
+`lyra-installer-core::service` e o binário `installer/service`
+(`lyra-installer-service`) já existem, mas só como arcabouço de execução
+segura — ainda sem nenhuma operação real de disco (isso é #40/#41/#42;
+`operation::Operation` fica um enum vazio de propósito até lá). O que já
+funciona: protocolo em JSON lines pelo stdin/stdout, revalidação do plano
+contra um `StorageSnapshot` fresco antes de qualquer escrita (reaproveitando
+o `PlanBuilder` de #39), allow-list de binários no `RealExecutor` (nunca
+shell, nunca concatenação de string), cancelamento entre operações e
+rollback best-effort em ordem reversa quando algo falha no meio.
+
+Diferente do Calamares (`Exec=pkexec /usr/bin/calamares`, a interface
+inteira como root), o `lyra-installer-service` é lançado via
+`pkexec /usr/libexec/lyra-installer-service` só pelo comando Tauri
+`execute_plan`, só durante a execução do plano — nunca a UI inteira. A
+autorização usa o mesmo padrão já comprovado para o Calamares
+(`root/etc/polkit-1/rules.d/00-lyra-live-installer.rules`): uma nova regra
+`01-lyra-installer-service.rules` libera a action `io.lyra.Installer.execute-plan`
+só para `liveuser`, e essa action (declarada em
+`root/usr/share/polkit-1/actions/io.lyra.Installer.policy`) está presa a
+esse binário específico via a annotation
+`org.freedesktop.policykit.exec.path`.
+
+Como o pacote RPM do instalador ainda não existe (#53), nem `lyra-installer`
+nem `lyra-installer-service` estão de fato instalados em nenhuma imagem
+ainda — os arquivos de policy/regra ficam prontos, mas inertes, até lá.

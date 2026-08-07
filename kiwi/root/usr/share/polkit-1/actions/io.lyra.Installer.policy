@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?> <!--*-nxml-*-->
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+        "https://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+
+<!--
+  Lyra OS - Odisseia (v1)
+
+  Declares the action lyra-installer-service is launched under. Action id
+  reuses the "io.lyra.Installer" identifier already assigned in
+  installer/src-tauri/tauri.conf.json, rather than the more conventional
+  all-lowercase polkit style, so the two stay obviously linked.
+
+  Unlike com.github.calamares.calamares.pkexec.run (Calamares' own shipped
+  policy, granted as-is by 00-lyra-live-installer.rules), this action has
+  no upstream RPM to source it from - lyra-installer-service is Lyra's own
+  binary, so the action has to be declared here.
+
+  The org.freedesktop.policykit.exec.path annotation is what ties this
+  action id to one specific binary: pkexec resolves the action for
+  `pkexec /usr/libexec/lyra-installer-service` by matching that path
+  against this annotation, not by trusting whatever path is passed on the
+  command line. Without it, pkexec would fall back to the generic
+  org.freedesktop.policykit.exec.run action, which the live-session rule
+  below does not (and must not) blanket-authorize.
+-->
+
+<policyconfig>
+
+  <vendor>Lyra OS</vendor>
+  <vendor_url>https://github.com/britors/Lyra</vendor_url>
+
+  <action id="io.lyra.Installer.execute-plan">
+    <description xml:lang="pt_BR">Executar o plano de instalação do Lyra OS</description>
+    <description>Execute the Lyra OS install plan</description>
+    <message xml:lang="pt_BR">Autenticação necessária para o Lyra Installer alterar discos</message>
+    <message>Authentication is required for the Lyra Installer to modify disks</message>
+    <icon_name>drive-harddisk</icon_name>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/lyra-installer-service</annotate>
+    <annotate key="org.freedesktop.policykit.exec.allow_gui">true</annotate>
+  </action>
+
+</policyconfig>
