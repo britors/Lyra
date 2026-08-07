@@ -26,9 +26,22 @@ de uma shell nem ser iniciada inteira com `pkexec`.
 e LVM (`pvs`/`vgs`/`lvs`) e a montagem de um plano de instalação declarativo
 em dry-run — só leitura, sem executar nada destrutivo. `cargo test` cobre
 esse módulo com fixtures (disco vazio, ocupado, ESP existente, espaço
-insuficiente, RAID saudável/degradado, RAID+LVM combinados). O comando Tauri
-`discover_storage` expõe essa leitura para a UI; nenhuma tela nova para
-escolher o destino de disco existe ainda.
+insuficiente, RAID saudável/degradado, RAID+LVM combinados). Os comandos
+Tauri `discover_storage` e `plan_disk_install` (este último chama
+`PlanBuilder::build` com a escolha "disco inteiro, layout direto" sobre o
+snapshot já obtido pela UI — continua sendo dry-run, sem I/O) alimentam a
+tela de armazenamento do assistente (`ui/index.html`/`ui/app.js`): lista os
+discos elegíveis com o motivo quando um está bloqueado (mídia live, membro
+de RAID/LVM, já particionado), mostra o resumo destrutivo e os avisos do
+plano do disco selecionado, e só libera "Continuar" quando o plano é válido.
+RAID e LVM como alvo continuam sem tela — só o caminho de disco único
+inteiro está coberto pela UI por enquanto. `window.__TAURI__` precisou ser
+habilitado (`withGlobalTauri: true` em `tauri.conf.json`) porque este
+frontend é HTML/JS estático sem bundler, então não há import de
+`@tauri-apps/api`; comandos definidos no próprio binário (via
+`invoke_handler`) não passam pelo sistema de ACL do Tauri 2, só os das
+plugins, então nenhuma entrada de capability foi necessária para os dois
+comandos.
 
 `service/` já traz o arcabouço de execução segura do plano
 (`lyra-installer-core::service`): protocolo em JSON lines, revalidação do

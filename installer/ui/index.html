@@ -70,13 +70,15 @@
           </section>
 
           <section class="page" data-page="5" aria-labelledby="storage-title">
-            <div class="page-heading"><div class="kicker">DESTINO</div><h1 id="storage-title">Onde o Lyra<br /><em>vai viver?</em></h1><p class="lead">O layout padrão usa Btrfs, Snapper e zram para manter o sistema seguro e recuperável.</p></div>
-            <div class="storage-card"><div class="drive-icon">▣</div><div><strong>Seleção de disco em desenvolvimento</strong><p>Nesta prévia visual nenhuma alteração é feita. O backend privilegiado será integrado após a aprovação do fluxo.</p></div><span class="pill">Btrfs + Snapper</span></div>
-            <div class="safe-note"><span>✓</span> Nenhuma operação destrutiva será executada nesta versão do protótipo.</div>
+            <div class="page-heading"><div class="kicker">DESTINO</div><h1 id="storage-title">Onde o Lyra<br /><em>vai viver?</em></h1><p class="lead">Escolha o disco de destino. O layout padrão usa Btrfs, Snapper e zram para manter o sistema seguro e recuperável.</p></div>
+            <div class="keyboard-toolbar"><span class="keyboard-count" id="disk-count"></span></div>
+            <div class="disk-list" id="disk-list" aria-live="polite"><p class="keyboard-empty">Detectando discos…</p></div>
+            <div class="disk-plan" id="disk-plan" hidden></div>
+            <div class="safe-note"><span>✓</span> Esta etapa apenas lê o estado atual dos discos e calcula um plano — nenhuma operação destrutiva é executada aqui.</div>
           </section>
 
           <section class="page" data-page="6" aria-labelledby="summary-title">
-            <div class="summary-grid"><div class="page-heading"><div class="kicker">QUASE LÁ</div><h1 id="summary-title">Pronto para<br /><em>começar.</em></h1><p class="lead">Revise suas escolhas. A instalação só ficará disponível quando o backend passar pelos testes de VM e Secure Boot.</p><div class="summary-list"><div><span>Idioma</span><strong id="summary-locale">Português (Brasil)</strong></div><div><span>Dispositivo</span><strong id="summary-hostname">lyra-os</strong></div><div><span>Conta</span><strong id="summary-user">Aguardando preenchimento</strong></div></div><button class="disabled-install" disabled>Backend em desenvolvimento</button></div><div class="final-art art-frame"><img src="telas/telafinal-ajustada.png" alt="Paisagem noturna com a constelação de Lyra e a marca Lyra OS." /></div></div>
+            <div class="summary-grid"><div class="page-heading"><div class="kicker">QUASE LÁ</div><h1 id="summary-title">Pronto para<br /><em>começar.</em></h1><p class="lead">Revise suas escolhas. A instalação só ficará disponível quando o backend passar pelos testes de VM e Secure Boot.</p><div class="summary-list"><div><span>Idioma</span><strong id="summary-locale">Português (Brasil)</strong></div><div><span>Dispositivo</span><strong id="summary-hostname">lyra-os</strong></div><div><span>Conta</span><strong id="summary-user">Aguardando preenchimento</strong></div><div><span>Disco</span><strong id="summary-disk">Aguardando seleção</strong></div></div><button class="disabled-install" disabled>Backend em desenvolvimento</button></div><div class="final-art art-frame"><img src="telas/telafinal-ajustada.png" alt="Paisagem noturna com a constelação de Lyra e a marca Lyra OS." /></div></div>
           </section>
         </div>
 

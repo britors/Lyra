@@ -4,7 +4,11 @@ const back=document.querySelector('#back');
 const next=document.querySelector('#next');
 const progress=document.querySelector('#progress-bar');
 const label=document.querySelector('#step-label');
+const {invoke}=window.__TAURI__.core;
 let current=0;
+let storageSnapshot=null;
+let selectedDiskPath=null;
+let selectedPlan=null;
 
 const keyboardLayouts=[
   ['br-abnt2','Português (Brasil)','ABNT2 · Português brasileiro','Português','Q W E R T Y Ç ⌫'],
@@ -71,16 +75,107 @@ function renderKeyboardCards(query=''){
   document.querySelector('#keyboard-count').textContent=`${matches.length} layouts disponíveis`;
 }
 
+const transportLabels={Nvme:'NVMe',Sata:'SATA',Virtio:'VirtIO',Usb:'USB',Unknown:'Transporte desconhecido'};
+
+function formatBytes(bytes){
+  const units=['B','KiB','MiB','GiB','TiB'];
+  let value=bytes,i=0;
+  while(value>=1024&&i<units.length-1){value/=1024;i++;}
+  return `${value.toFixed(i>0&&value<10?1:0)} ${units[i]}`;
+}
+
+function diskIneligibleReason(disk){
+  if(disk.is_live_media) return 'É a mídia de instalação (live) — não pode ser destino';
+  if(disk.role==='RaidMember') return 'Já é membro de um array RAID';
+  if(disk.role==='LvmPhysicalVolume') return 'Já é um physical volume LVM em uso';
+  if(disk.role==='Unsupported') return 'Já contém partições ou dados';
+  return null;
+}
+
+function renderDiskCards(){
+  const list=document.querySelector('#disk-list');
+  const disks=storageSnapshot?.disks||[];
+  if(!disks.length){
+    list.innerHTML='<p class="keyboard-empty">Nenhum disco foi encontrado nesta sessão.</p>';
+    document.querySelector('#disk-count').textContent='';
+    return;
+  }
+  list.innerHTML=disks.map(disk=>{
+    const reason=diskIneligibleReason(disk);
+    const title=disk.model||disk.vendor||disk.kname;
+    const selected=disk.path===selectedDiskPath;
+    return `<label class="disk-card${selected?' selected':''}${reason?' disk-card-disabled':''}">
+      <input type="radio" name="disk" value="${disk.path}" ${selected?'checked':''} ${reason?'disabled':''}/>
+      <span class="disk-top"><strong>${title}</strong><b>✓</b></span>
+      <small>${disk.path} · ${formatBytes(disk.size_bytes)} · ${transportLabels[disk.transport]||disk.transport}</small>
+      <span class="disk-status${reason?' disk-status-blocked':''}">${reason||'Disponível para instalação'}</span>
+    </label>`;
+  }).join('');
+  document.querySelector('#disk-count').textContent=`${disks.length} disco${disks.length===1?'':'s'} detectado${disks.length===1?'':'s'}`;
+}
+
+async function discoverStorage(){
+  try{
+    storageSnapshot=await invoke('discover_storage');
+  }catch(error){
+    storageSnapshot=null;
+    document.querySelector('#disk-list').innerHTML=`<p class="disk-plan-error">${error}</p>`;
+    document.querySelector('#disk-count').textContent='';
+    return;
+  }
+  renderDiskCards();
+}
+
+function renderPlan(plan){
+  const box=document.querySelector('#disk-plan');
+  const esp=plan.esp.Reuse
+    ?`ESP existente reaproveitada em ${plan.esp.Reuse.path}`
+    :`Nova ESP de ${formatBytes(plan.esp.Create.size_bytes)} será criada`;
+  const erased=plan.destructive_summary.erased;
+  box.hidden=false;
+  box.innerHTML=`
+    <div class="plan-row"><span>Partição EFI</span><strong>${esp}</strong></div>
+    <div class="plan-row"><span>Sistema de arquivos</span><strong>Btrfs · ${plan.root_filesystem.Btrfs.subvolumes.length} subvolumes</strong></div>
+    ${erased.length?`<div class="plan-warning"><strong>Dados que serão apagados nesta instalação:</strong><ul>${erased.map(item=>`<li>${item}</li>`).join('')}</ul></div>`:''}
+    ${plan.warnings.length?`<ul class="plan-notes">${plan.warnings.map(item=>`<li>${item}</li>`).join('')}</ul>`:''}
+  `;
+}
+
+async function refreshPlan(){
+  const box=document.querySelector('#disk-plan');
+  selectedPlan=null;
+  if(!selectedDiskPath){
+    box.hidden=true;
+    updateNextButtonState();
+    return;
+  }
+  box.hidden=false;
+  box.innerHTML='<p class="keyboard-empty">Calculando o plano de instalação…</p>';
+  try{
+    selectedPlan=await invoke('plan_disk_install',{snapshot:storageSnapshot,diskPath:selectedDiskPath});
+    renderPlan(selectedPlan);
+  }catch(error){
+    selectedPlan=null;
+    box.innerHTML=`<p class="disk-plan-error">${error}</p>`;
+  }
+  updateNextButtonState();
+}
+
+function updateNextButtonState(){
+  const gated=(current===5&&!selectedPlan)||current===6;
+  next.disabled=gated;
+  next.style.opacity=gated?'.45':'1';
+}
+
 function show(index){
   current=index;
   pages.forEach((page,i)=>page.classList.toggle('page-active',i===index));
   steps.forEach((step,i)=>step.classList.toggle('active',i===index));
   back.disabled=index===0;
   next.innerHTML=index===6?'Backend em desenvolvimento <span>·</span>':'Continuar <span>→</span>';
-  next.disabled=index===6;
-  next.style.opacity=index===6?'.45':'1';
   progress.style.width=`${(index+1)*14.2857}%`;
   label.textContent=`ETAPA 0${index+1} / 07`;
+  updateNextButtonState();
 }
 
 function validate(){
@@ -104,9 +199,10 @@ function updateSummary(){
   document.querySelector('#summary-locale').textContent=locale==='pt_BR.UTF-8'?'Português (Brasil)':'English (United States)';
   document.querySelector('#summary-hostname').textContent=document.querySelector('#hostname').value||'lyra-os';
   document.querySelector('#summary-user').textContent=document.querySelector('#username').value||'Aguardando preenchimento';
+  document.querySelector('#summary-disk').textContent=selectedDiskPath||'Aguardando seleção';
 }
 
-next.addEventListener('click',()=>{if(current===4&&!validate()) return;if(current<6){if(current===5) updateSummary();show(current+1)}});
+next.addEventListener('click',()=>{if(current===4&&!validate()) return;if(current===5&&!selectedPlan) return;if(current<6){if(current===5) updateSummary();show(current+1)}});
 back.addEventListener('click',()=>{if(current>0)show(current-1)});
 steps.forEach(step=>step.addEventListener('click',()=>{const index=Number(step.dataset.step);if(index<=current)show(index)}));
 document.querySelectorAll('.choice input').forEach(input=>input.addEventListener('change',()=>{document.querySelectorAll('.choice').forEach(choice=>choice.classList.toggle('selected',choice.querySelector('input').checked))}));
@@ -114,6 +210,13 @@ document.querySelector('#keyboard-cards').addEventListener('change',event=>{if(e
 document.querySelector('#keyboard-search').addEventListener('input',event=>renderKeyboardCards(event.target.value));
 document.querySelector('#language-cards').addEventListener('change',event=>{if(event.target.matches('input'))document.querySelectorAll('#language-cards .choice').forEach(card=>card.classList.toggle('selected',card.querySelector('input').checked))});
 document.querySelector('#language-search').addEventListener('input',event=>renderLanguageCards(event.target.value));
+document.querySelector('#disk-list').addEventListener('change',event=>{
+  if(!event.target.matches('input')) return;
+  selectedDiskPath=event.target.value;
+  document.querySelectorAll('.disk-card').forEach(card=>card.classList.toggle('selected',card.querySelector('input').checked));
+  refreshPlan();
+});
 renderLanguageCards();
 renderKeyboardCards();
+discoverStorage();
 show(0);
