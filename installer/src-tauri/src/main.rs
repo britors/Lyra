@@ -1,14 +1,10 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::io::{BufRead, BufReader, Write};
-use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
 use lyra_installer_core::service::{ExecutionEvent, ExecutionRequest};
-use lyra_installer_core::storage::{
-    DiscoveryBackend, GuidedChoice, InstallPlan, PlanBuilder, RawTarget, StorageSnapshot,
-    SystemDiscoveryBackend, VolumeLayer,
-};
+use lyra_installer_core::storage::{DiscoveryBackend, GuidedChoice, InstallPlan, PlanBuilder, StorageSnapshot, SystemDiscoveryBackend};
 use lyra_installer_core::InstallConfig;
 
 /// Read-only: lists disks, RAID arrays and LVM volumes currently visible to
@@ -22,25 +18,22 @@ fn discover_storage() -> Result<StorageSnapshot, String> {
 }
 
 /// Dry-run only, same guarantee as `PlanBuilder::build` itself: no I/O, safe
-/// to call from the unprivileged frontend as the user picks a disk on the
-/// storage step. `snapshot` is the one the UI already fetched via
+/// to call from the unprivileged frontend as the user builds a target choice
+/// on the storage step. `snapshot` is the one the UI already fetched via
 /// `discover_storage` rather than a fresh read, so the plan is built against
-/// exactly what the user was shown. Only the guided "whole disk, direct
-/// layout" choice is wired to a screen so far — RAID/LVM targets are
-/// `storage::plan` capabilities without a UI yet.
+/// exactly what the user was shown. Takes the full `GuidedChoice` — both the
+/// "whole disk, direct layout" and "new RAID array, direct layout" screens
+/// send one of these; `volume_layer` stays `Direct` from every screen so
+/// far (no LVM authoring UI), but nothing here assumes that.
 #[tauri::command]
-fn plan_disk_install(snapshot: StorageSnapshot, disk_path: String) -> Result<InstallPlan, String> {
-    let choice = GuidedChoice {
-        raw_target: Some(RawTarget::Disk(PathBuf::from(disk_path))),
-        volume_layer: VolumeLayer::Direct,
-    };
+fn plan_install(snapshot: StorageSnapshot, choice: GuidedChoice) -> Result<InstallPlan, String> {
     PlanBuilder::new(&snapshot)
         .build(&choice)
         .map_err(|error| error.0.join(" · "))
 }
 
 /// Runs the real `InstallConfig::validate()` against whatever the wizard has
-/// collected so far — no I/O, same dry-run guarantee as `plan_disk_install`.
+/// collected so far — no I/O, same dry-run guarantee as `plan_install`.
 /// This is the summary step's own check, not a duplicate of it: page 4's
 /// client-side `validate()` in `app.js` only covers full name/username/
 /// hostname/password, so this is what actually catches an invalid
@@ -98,7 +91,7 @@ fn main() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             discover_storage,
-            plan_disk_install,
+            plan_install,
             validate_install_config,
             execute_plan
         ])

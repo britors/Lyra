@@ -26,16 +26,25 @@ de uma shell nem ser iniciada inteira com `pkexec`.
 e LVM (`pvs`/`vgs`/`lvs`) e a montagem de um plano de instalação declarativo
 em dry-run — só leitura, sem executar nada destrutivo. `cargo test` cobre
 esse módulo com fixtures (disco vazio, ocupado, ESP existente, espaço
-insuficiente, RAID saudável/degradado, RAID+LVM combinados). Os comandos
-Tauri `discover_storage` e `plan_disk_install` (este último chama
-`PlanBuilder::build` com a escolha "disco inteiro, layout direto" sobre o
-snapshot já obtido pela UI — continua sendo dry-run, sem I/O) alimentam a
-tela de armazenamento do assistente (`ui/index.html`/`ui/app.js`): lista os
-discos elegíveis com o motivo quando um está bloqueado (mídia live, membro
-de RAID/LVM, já particionado), mostra o resumo destrutivo e os avisos do
-plano do disco selecionado, e só libera "Continuar" quando o plano é válido.
-RAID e LVM como alvo continuam sem tela — só o caminho de disco único
-inteiro está coberto pela UI por enquanto. `window.__TAURI__` precisou ser
+insuficiente, RAID saudável/degradado, RAID+LVM combinados). O comando
+Tauri `discover_storage` e o novo `plan_install` (recebe o `GuidedChoice`
+inteiro vindo da UI — não mais só um `disk_path` — e chama
+`PlanBuilder::build`; continua dry-run, sem I/O) alimentam a tela de
+armazenamento do assistente (`ui/index.html`/`ui/app.js`): um alternador
+"Disco único"/"Array RAID novo" no topo troca o modo da lista de discos
+entre seleção única (radio) e múltipla (checkbox); no modo RAID, um
+seletor de nível (0/1/5/6/10, com o mínimo de discos de cada um) decide
+o `RaidLevel` enviado. Os dois modos mostram os discos elegíveis com o
+motivo quando um está bloqueado (mídia live, membro de RAID/LVM, já
+particionado), o resumo destrutivo e os avisos do plano, e só liberam
+"Continuar" quando o plano é válido — inclusive o erro real do
+`PlanBuilder` quando menos discos que o mínimo do nível são marcados,
+sem duplicar essa regra em JS. `volume_layer` continua sempre `Direct`
+em ambos os modos: não existe editor de volume group/logical volume na
+UI (fora de escopo por decisão de produto — o assistente é guiado, não
+um particionador manual, ver `docs/installer-architecture.md`), então
+`ExistingRaid` e `NewVolumeGroup`/`ExistingVolumeGroup` continuam sem
+tela. `window.__TAURI__` precisou ser
 habilitado (`withGlobalTauri: true` em `tauri.conf.json`) porque este
 frontend é HTML/JS estático sem bundler, então não há import de
 `@tauri-apps/api`; comandos definidos no próprio binário (via

@@ -71,6 +71,14 @@
 
           <section class="page" data-page="5" aria-labelledby="storage-title">
             <div class="page-heading"><div class="kicker">DESTINO</div><h1 id="storage-title">Onde o Lyra<br /><em>vai viver?</em></h1><p class="lead">Escolha o disco de destino. O layout padrão usa Btrfs, Snapper e zram para manter o sistema seguro e recuperável.</p></div>
+            <div class="storage-mode" id="storage-mode">
+              <button type="button" class="mode-btn selected" data-mode="disk">Disco único</button>
+              <button type="button" class="mode-btn" data-mode="raid">Array RAID novo</button>
+            </div>
+            <div class="raid-level-row" id="raid-level-row" hidden>
+              <span class="raid-level-label">Nível do array</span>
+              <div class="raid-level-options" id="raid-level-options"></div>
+            </div>
             <div class="keyboard-toolbar"><span class="keyboard-count" id="disk-count"></span></div>
             <div class="disk-list" id="disk-list" aria-live="polite"><p class="keyboard-empty">Detectando discos…</p></div>
             <div class="disk-plan" id="disk-plan" hidden></div>
