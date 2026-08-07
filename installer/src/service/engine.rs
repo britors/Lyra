@@ -122,6 +122,7 @@ mod tests {
     use crate::service::executor::ExecutorError;
     use crate::service::operation::{ArgvCommand, OperationError};
     use crate::storage::{DeviceRole, Disk, GuidedChoice, RawTarget, Transport, VolumeLayer};
+    use crate::InstallConfig;
 
     struct FakeOperation {
         name: &'static str,
@@ -187,6 +188,10 @@ mod tests {
                 Ok(String::new())
             }
         }
+
+        fn run_with_stdin(&self, command: &ArgvCommand, _stdin: &str) -> Result<String, ExecutorError> {
+            self.run(command)
+        }
     }
 
     fn disk(kname: &str, size_bytes: u64) -> Disk {
@@ -219,7 +224,14 @@ mod tests {
             volume_layer: VolumeLayer::Direct,
         };
         let plan = PlanBuilder::new(&snapshot).build(&choice).expect("fixture plan should be valid");
-        (snapshot, ExecutionRequest { choice, plan })
+        (
+            snapshot,
+            ExecutionRequest {
+                choice,
+                plan,
+                config: InstallConfig::default(),
+            },
+        )
     }
 
     #[test]

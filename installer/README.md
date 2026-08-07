@@ -52,6 +52,19 @@ porque este ambiente de desenvolvimento não tem privilégio para
 isso — precisa rodar com `sudo`, ainda não foi executado, é o próximo passo
 antes de confiar nesse caminho contra hardware de verdade.
 
+`operations::deploy` implanta o rootfs no target já particionado: extrai o
+squashfs da sessão live, machine-id, locale, teclado (mapeamento fixo por
+locale por enquanto — `InstallConfig` ainda não tem campo próprio),
+hostname, cria o usuário (senha só via stdin do `chpasswd`, nunca em argv),
+`sudoers.d`, initramfs via `chroot` (achei e corrigi um bug real: o
+`dracut.conf` efetivo do Calamares hoje grava o initramfs num nome errado —
+ver `docs/installer-architecture.md`), remove `liveuser` e artefatos da
+sessão live, ajusta prioridade dos repositórios Lyra, copia perfis de rede
+e sincroniza o relógio em UTC. `operations::build(request)` junta
+particionamento + implantação + `sync` final. Fora de escopo por enquanto:
+remover os pacotes do Calamares do target (fica para a auditoria de
+paridade da #44).
+
 O Calamares continua sendo o instalador ativo da imagem de desenvolvimento
 enquanto o serviço Tauri/Rust não implementa e valida todo o pipeline descrito em
 [`../docs/installer-architecture.md`](../docs/installer-architecture.md).

@@ -15,6 +15,8 @@ use crate::storage::{EspPlan, FilesystemPlan, InstallPlan, RawTarget, SubvolumeP
 use super::executor::Executor;
 use super::operation::{ArgvCommand, OperationError, PrivilegedOperation};
 
+mod deploy;
+
 /// Where the target filesystem tree ends up mounted during install — tmpfs,
 /// ephemeral, same convention as the live squashfs's own `/run/overlay/live`.
 pub const TARGET_ROOT: &str = "/run/lyra-installer/target";
@@ -110,8 +112,18 @@ pub fn plan_to_operations(plan: &InstallPlan) -> Result<Vec<Box<dyn PrivilegedOp
         esp_partition,
         subvolumes: subvolumes.clone(),
     }));
-    operations.push(Box::new(SyncAndFinish));
 
+    Ok(operations)
+}
+
+/// Full sequence for one execution: partitioning (this module) + rootfs
+/// deployment (`deploy`, issue #41) + a final `sync`. Kept apart from
+/// `plan_to_operations` so #40's own tests can still check the
+/// partitioning-only sequence without the identity data `deploy` needs.
+pub fn build(request: &super::ExecutionRequest) -> Result<Vec<Box<dyn PrivilegedOperation>>, OperationError> {
+    let mut operations = plan_to_operations(&request.plan)?;
+    operations.extend(deploy::deployment_operations(&request.config));
+    operations.push(Box::new(SyncAndFinish));
     Ok(operations)
 }
 
@@ -448,6 +460,17 @@ mod tests {
                 Ok(String::new())
             }
         }
+
+        fn run_with_stdin(
+            &self,
+            command: &ArgvCommand,
+            stdin: &str,
+        ) -> Result<String, crate::service::executor::ExecutorError> {
+            self.calls
+                .borrow_mut()
+                .push(format!("{} {} <stdin: {stdin}>", command.binary, command.args.join(" ")));
+            Ok(String::new())
+        }
     }
 
     /// Self-cleaning writable directory under `/tmp` — real operations do
@@ -516,9 +539,10 @@ mod tests {
         assert_eq!(describe[1], "formatar ESP em /dev/sda1");
         assert_eq!(describe[2], "formatar Btrfs em /dev/sda2");
         assert_eq!(describe[3], "criar subvolumes Btrfs");
-        assert_eq!(describe.last().unwrap(), "sincronizar dispositivos");
-        assert_eq!(describe[describe.len() - 2], "gerar /etc/fstab");
-        assert_eq!(describe[describe.len() - 3], "montar ESP em /boot/efi");
+        // plan_to_operations covers only partitioning; SyncAndFinish is
+        // appended later by `build`, alongside deployment (#41).
+        assert_eq!(describe.last().unwrap(), "gerar /etc/fstab");
+        assert_eq!(describe[describe.len() - 2], "montar ESP em /boot/efi");
 
         // 21 default subvolumes (see storage::plan::default_subvolumes).
         let mount_count = describe.iter().filter(|d| d.starts_with("montar /@")).count();
@@ -533,6 +557,31 @@ mod tests {
             index_of("montar /@/var/lib/machines em /var/lib/machines")
                 < index_of("montar /@/var/lib/libvirt/images em /var/lib/libvirt/images")
         );
+    }
+
+    #[test]
+    fn build_assembles_partitioning_then_deployment_then_a_final_sync() {
+        let plan = whole_disk_plan_with_new_esp();
+        let request = super::super::ExecutionRequest {
+            choice: GuidedChoice {
+                raw_target: Some(RawTarget::Disk(PathBuf::from("/dev/sda"))),
+                volume_layer: VolumeLayer::Direct,
+            },
+            plan,
+            config: crate::InstallConfig::default(),
+        };
+
+        let operations = build(&request).expect("request should translate");
+        let describe: Vec<String> = operations.iter().map(|op| op.describe()).collect();
+
+        // Partitioning ends with the fstab write (see the test above);
+        // deployment starts right after with the rootfs extraction; the
+        // whole thing ends with the sync that plan_to_operations no longer
+        // includes on its own.
+        let fstab_index = describe.iter().position(|d| d == "gerar /etc/fstab").unwrap();
+        assert_eq!(describe[fstab_index + 1], "extrair rootfs da sessão live");
+        assert_eq!(describe.last().unwrap(), "sincronizar dispositivos");
+        assert!(describe.iter().any(|d| d == "gerar initramfs (dracut)"));
     }
 
     #[test]

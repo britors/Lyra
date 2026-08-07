@@ -3,7 +3,8 @@
 //! data, never strings destined for a shell.
 
 use std::fmt;
-use std::process::Command;
+use std::io::Write;
+use std::process::{Command, Stdio};
 
 use super::operation::{ArgvCommand, ALLOWED_BINARIES};
 
@@ -33,6 +34,13 @@ impl fmt::Display for ExecutorError {
 /// success/failure.
 pub trait Executor {
     fn run(&self, command: &ArgvCommand) -> Result<String, ExecutorError>;
+
+    /// Like [`Executor::run`], but pipes `stdin` to the child rather than
+    /// putting it on argv — the only reason this exists is `chpasswd`,
+    /// which takes `username:password` on stdin specifically so the
+    /// password never appears in argv (visible to any user via `ps`) or in
+    /// a logged `ArgvCommand`.
+    fn run_with_stdin(&self, command: &ArgvCommand, stdin: &str) -> Result<String, ExecutorError>;
 }
 
 /// Spawns the real process via argv — `Command::new(binary).args(args)`,
@@ -49,6 +57,36 @@ impl Executor for RealExecutor {
         let output = Command::new(&command.binary)
             .args(&command.args)
             .output()
+            .map_err(|error| ExecutorError::Spawn(error.to_string()))?;
+
+        if output.status.success() {
+            Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+        } else {
+            Err(ExecutorError::NonZeroExit(output.status.code()))
+        }
+    }
+
+    fn run_with_stdin(&self, command: &ArgvCommand, stdin: &str) -> Result<String, ExecutorError> {
+        if !ALLOWED_BINARIES.contains(&command.binary.as_str()) {
+            return Err(ExecutorError::DisallowedBinary(command.binary.clone()));
+        }
+
+        let mut child = Command::new(&command.binary)
+            .args(&command.args)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .map_err(|error| ExecutorError::Spawn(error.to_string()))?;
+
+        child
+            .stdin
+            .take()
+            .ok_or_else(|| ExecutorError::Spawn("stdin do processo indisponível".to_string()))?
+            .write_all(stdin.as_bytes())
+            .map_err(|error| ExecutorError::Spawn(error.to_string()))?;
+
+        let output = child
+            .wait_with_output()
             .map_err(|error| ExecutorError::Spawn(error.to_string()))?;
 
         if output.status.success() {

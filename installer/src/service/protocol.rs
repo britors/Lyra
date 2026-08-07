@@ -8,15 +8,19 @@
 use serde::{Deserialize, Serialize};
 
 use crate::storage::{GuidedChoice, InstallPlan};
+use crate::InstallConfig;
 
 /// `plan` is carried alongside `choice` (rather than derived from it again)
 /// so the service can compare what it recomputes against exactly what the
 /// user confirmed on screen — any mismatch is treated as staleness, not
-/// silently re-applied.
+/// silently re-applied. `config` is the identity data collected by the
+/// unprivileged wizard (locale, hostname, account) — needed by the
+/// deployment operations (issue #41), which never touch storage.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExecutionRequest {
     pub choice: GuidedChoice,
     pub plan: InstallPlan,
+    pub config: InstallConfig,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

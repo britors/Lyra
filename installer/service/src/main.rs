@@ -13,8 +13,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use lyra_installer_core::service::{
-    execute, plan_to_operations, ExecutionControl, ExecutionEvent, ExecutionOutcome, ExecutionRequest,
-    RealExecutor,
+    build, execute, ExecutionControl, ExecutionEvent, ExecutionOutcome, ExecutionRequest, RealExecutor,
 };
 use lyra_installer_core::storage::{DiscoveryBackend, SystemDiscoveryBackend};
 
@@ -49,7 +48,7 @@ fn main() {
         }
     };
 
-    let operations = match plan_to_operations(&request.plan) {
+    let operations = match build(&request) {
         Ok(operations) => operations,
         Err(error) => {
             emit(ExecutionEvent::Failed {

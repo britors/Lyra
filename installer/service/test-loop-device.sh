@@ -4,10 +4,17 @@
 # devices/imagens descartáveis" docs/installer-architecture.md already lists
 # as a requirement to replace Calamares.
 #
-# NOT run as part of `cargo test`: sgdisk/mkfs/mount/losetup all need root,
-# which the sandbox this was written in doesn't have. Written but never
-# executed in that session — run it yourself, e.g. in the project's own
-# KIWI test VM (kiwi/test/build-and-run-vm.sh), and confirm it end to end.
+# Since service::operations::build() now covers partitioning (#40) AND
+# rootfs deployment (#41), this exercises the whole thing: partition, format,
+# extract the real live squashfs (needs an actual live/build session with
+# /run/overlay/live populated - won't work from an arbitrary dev machine),
+# create a user, chroot for dracut, and more. Meant to run inside the
+# project's own live/KIWI test VM, not an arbitrary host.
+#
+# NOT run as part of `cargo test`: sgdisk/mkfs/mount/losetup/chroot all need
+# root, which the sandbox this was written in doesn't have. Written but
+# never executed in that session — run it yourself, e.g. in the project's
+# own KIWI test VM (kiwi/test/build-and-run-vm.sh), and confirm end to end.
 #
 # Usage: sudo ./test-loop-device.sh
 
@@ -60,9 +67,12 @@ fi
 echo "==> tabela de partições resultante"
 sgdisk -p "$LOOP_DEV"
 
-echo "==> remontando brevemente para conferir o fstab gerado"
+echo "==> remontando brevemente para conferir fstab, usuário e initramfs"
 mount -o subvol=/@ "${LOOP_DEV}p2" /mnt
 cat /mnt/etc/fstab
+grep '^lyra:' /mnt/etc/passwd || echo "FALHA: usuário lyra não encontrado"
+grep '^%wheel' /mnt/etc/sudoers.d/10-installer || echo "FALHA: sudoers não escrito"
+ls /mnt/boot/initramfs-*.img 2>/dev/null || echo "FALHA: initramfs não encontrado com nome correto"
 umount /mnt
 
 echo "==> ok: status=$STATUS"

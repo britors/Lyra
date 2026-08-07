@@ -138,3 +138,49 @@ onde isso foi escrito não tem privilégio para `losetup`/`sgdisk`/`mkfs`.
 uma imagem descartável via `sudo`, mas ainda precisa ser rodado (ex.: na VM
 de teste do KIWI) antes desse caminho ser considerado confirmado na
 prática, só na lógica pura coberta por `cargo test`.
+
+## Implantação do rootfs e configuração do destino (issue #41)
+
+`lyra-installer-core::service::operations::deploy` implanta o sistema no
+target já particionado por #40: extrai `/run/overlay/live/LiveOS/squashfs.img`
+(`unsquashfs -f`, preserva permissões/ACLs/xattrs), depois reproduz — lendo
+o comportamento real do Calamares instalado (incluindo módulos sem
+override no repo, como `machineid.conf`/`locale.conf`/`keyboard.conf`, cujo
+`.conf` efetivo vem do `calamares-branding-upstream`) — a mesma sequência
+que `settings.conf` roda depois do `fstab`: machine-id, locale, teclado,
+hostname, criação do usuário (`useradd -R`/`chpasswd -R`, senha só via
+stdin, nunca argv), `sudoers.d`, initramfs, remoção do `liveuser` e de
+artefatos exclusivos da sessão live, redução de prioridade dos repositórios
+Lyra, cópia dos perfis de rede salvos e relógio de hardware em UTC.
+`operations::build(request)` é o ponto de entrada que junta particionamento
+(#40) + implantação (#41) + `sync` final numa sequência só.
+
+A maioria dos passos usa `--root`/`-R` (`useradd`, `userdel`, `chpasswd`,
+`systemctl`) ou escreve arquivo direto (`std::fs::write`/`std::fs::symlink`)
+sob o target, sem precisar de chroot — o processo já roda como root, então
+gravar um arquivo não passa pela allow-list de spawn de processo, que
+existe para *comandos*, não para E/S direta de um processo já confiável.
+Só o `dracut` precisa de chroot de verdade (inspeciona `/lib/modules` do
+próprio target): três operações `BindMount` (`/proc`, `/sys`, `/dev`) mais
+`chroot <target> dracut -f`, desmontadas pelo mesmo desfazimento
+sempre-executado de #40.
+
+**Achado real, não hipótese**: o `dracut.conf` efetivo hoje (sem override
+Lyra, herdado do `calamares-branding-upstream`) tem
+`initramfsName: /boot/initramfs-freebsd.img` — um valor de exemplo do
+upstream nunca trocado. Isso faz o Calamares atual gravar o initramfs no
+arquivo errado. `kiwi/root/etc/calamares/modules/dracut.conf` (novo)
+corrige isso removendo essa chave; `lyra-installer-service` já roda
+`dracut -f` correto desde o início.
+
+**Fora de escopo, sinalizado**: remover os pacotes `calamares`/
+`calamares-branding-upstream` do target (`packages.conf`'s `try_remove`) —
+mexe com resolução de dependências do zypper sem um target real para
+testar contra; fica para a auditoria de paridade da #44. `InstallConfig`
+também ainda não tem campo de teclado — o layout usado é um mapeamento
+fixo por locale (`pt_BR.UTF-8` → `br`, resto → `us`), assumido e dito
+explicitamente no código, não um seletor de verdade.
+
+Mesma limitação de #40: nada disso foi executado contra root/disco real
+nesta sessão — só a lógica pura, com `FakeExecutor`/diretórios temporários
+graváveis em `/tmp`, está coberta por `cargo test`.

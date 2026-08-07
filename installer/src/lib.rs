@@ -3,8 +3,10 @@
 pub mod service;
 pub mod storage;
 
+use serde::{Deserialize, Serialize};
+
 /// Values collected by the unprivileged graphical wizard.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct InstallConfig {
     pub locale: String,
     pub hostname: String,

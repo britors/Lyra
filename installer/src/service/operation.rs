@@ -37,6 +37,13 @@ pub const ALLOWED_BINARIES: &[&str] = &[
     "umount",
     "btrfs",
     "sync",
+    "unsquashfs",
+    "useradd",
+    "userdel",
+    "chpasswd",
+    "chroot",
+    "systemctl",
+    "hwclock",
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
