@@ -1,0 +1,16 @@
+[package]
+name = "lyra-installer-core"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-only"
+description = "Rust domain model for the Lyra OS installer"
+repository = "https://github.com/britors/Lyra"
+
+[workspace]
+members = ["src-tauri"]
+
+[dependencies]
+
+[profile.release]
+lto = "thin"
+strip = "debuginfo"

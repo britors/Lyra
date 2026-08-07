@@ -21,6 +21,9 @@ rpmbuild/
 *.log
 .DS_Store
 
+# Rust build output
+target/
+
 # Python bytecode cache
 __pycache__/
 *.pyc

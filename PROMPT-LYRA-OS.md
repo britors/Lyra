@@ -50,17 +50,25 @@ explicitamente em vez de assumir.
 
 ## Instalador
 
-- **Calamares customizado** (não usar o Agama, que é o padrão do Leap 16)
+- **Lyra Installer nativo**, desenvolvido em **Rust + Tauri**, com interface
+  HTML/CSS/JavaScript integrada ao WebKitGTK do sistema e ao restante do Lyra
+  OS
+- O frontend gráfico roda como o usuário da sessão live; somente o backend
+  responsável por alterar discos e o sistema-alvo recebe privilégios via
+  polkit. Não executar toda a interface como root
+- Não usar Calamares nem Agama no produto final. O Calamares presente nas
+  imagens atuais é apenas a implementação de transição até o backend nativo
+  atingir paridade e passar pelos testes destrutivos em VM
 - Idioma/região: **pt-BR pré-selecionado** como sugestão inicial, mas
   livremente trocável pelo usuário
 - Hostname padrão sugerido: `lyra-os`
 - Conta de usuário: **root desabilitado**; usuário criado durante a
   instalação recebe privilégios administrativos via sudo (padrão
   desktop moderno)
-- Sem tela de migração/onboarding especial no v1 além do fluxo padrão
-  do Calamares (o assistente de migração do Windows já especificado em
-  PROMPT-CALAMARES-MIGRACAO-WINDOWS.md é um componente separado — não
-  reimplementar aqui, apenas referenciar se necessário)
+- Sem tela de migração/onboarding especial no v1 além do fluxo padrão do
+  Lyra Installer (o assistente de migração do Windows especificado
+  separadamente é outro componente — não reimplementar aqui, apenas
+  referenciar se necessário)
 
 ## Repositórios e canais de pacotes
 
@@ -167,8 +175,10 @@ antiga vibrante azul-safira→violeta):
 
 - Pipeline de CI para refresh mensal da ISO
 - GRUB panic button (reversão via boot menu, ver Snapshots acima)
-- Target de release: 15 de agosto de 2026 (data flexível — priorizar
+- Target de release: 30 de agosto de 2026 (data idealizada e flexível — priorizar
   qualidade sobre prazo; não é um requisito rígido de implementação)
+- Lançamento da versão final: 20 de setembro de 2026; a variante NVIDIA fica
+  para o ciclo pós-release.
 
 ## Fora de escopo nesta fase (não implementar)
 
@@ -185,7 +195,7 @@ antiga vibrante azul-safira→violeta):
 ## Checklist de validação
 
 - [ ] ISO builda via KIWI, base Leap 16, kernel-default, Btrfs+Snapper, zram
-- [ ] Calamares customizado instala com pt-BR pré-selecionado e
+- [ ] Lyra Installer em Rust/Tauri instala com pt-BR pré-selecionado e
       hostname sugerido `lyra-os`
 - [ ] Root desabilitado; usuário criado tem sudo
 - [ ] Repos habilitados por padrão: apenas OSS/Non-OSS/Updates do Leap 16

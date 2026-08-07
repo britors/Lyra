@@ -13,7 +13,9 @@ o instalador da edição **Odisseia Beta 1** para computadores x86_64.
 ## Principais características
 
 - openSUSE Leap 16 com GNOME 48 ou superior;
-- sessão live e instalação gráfica pelo Calamares;
+- sessão live e instalador nativo em Rust/Tauri (com HTML/CSS integrado ao
+  WebKitGTK do sistema; em migração a partir do Calamares usado nas imagens de
+  desenvolvimento atuais);
 - Btrfs com Snapper e snapshots automáticos durante operações do Zypper;
 - recuperação por snapshots no menu do GRUB;
 - inicialização UEFI e suporte ao Secure Boot com o shim do openSUSE;
@@ -29,17 +31,20 @@ prioridade sobre os repositórios OBS do ecossistema Lyra no sistema instalado.
 
 ## Estado atual
 
-A configuração da imagem, a integração do instalador e as validações locais do
-artefato estão implementadas. Builds e testes em VM já identificaram e
-orientaram correções no boot da imagem live, na autorização do Calamares e na
+A configuração da imagem e a integração transitória do Calamares estão
+implementadas. O Lyra Installer nativo já possui o primeiro frontend e o
+modelo de configuração em [`installer/`](installer/); ele só substituirá o
+Calamares na ISO quando o backend privilegiado atingir paridade e passar por
+testes de instalação destrutivos em VM. Builds anteriores já orientaram
+correções no boot da imagem live, na autorização do instalador e na
 configuração do Snapper.
 
 Ainda estão pendentes:
 
 - repetir o teste completo de instalação e boot após as correções mais
   recentes, incluindo o caminho com Secure Boot;
-- substituir as imagens e o slideshow genéricos do Calamares por arte própria
-  do Lyra;
+- concluir o backend privilegiado do Lyra Installer, incluindo discos, Btrfs,
+  cópia da imagem, usuários, Secure Boot e Snapper;
 - publicar codecs multimídia no OBS do Lyra, sem recorrer ao Packman;
 - automatizar o ciclo de CI e publicação da ISO.
 
@@ -117,6 +122,8 @@ imagem.
 | [`kiwi/config.sh`](kiwi/config.sh) | configuração executada dentro da imagem |
 | [`kiwi/root/`](kiwi/root/) | arquivos sobrepostos na raiz da ISO |
 | [`kiwi/test/build-and-run-vm.sh`](kiwi/test/build-and-run-vm.sh) | build, validações e execução no QEMU |
+| [`installer/`](installer/) | frontend Rust/GTK e núcleo do novo Lyra Installer |
+| [`docs/installer-architecture.md`](docs/installer-architecture.md) | arquitetura e critérios da migração do Calamares |
 | [`PROMPT-LYRA-OS.md`](PROMPT-LYRA-OS.md) | especificação de produto da primeira versão |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | preparação da estação e fluxo de contribuição |
 

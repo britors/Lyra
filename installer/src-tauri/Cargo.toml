@@ -1,0 +1,17 @@
+[package]
+name = "lyra-installer"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-only"
+description = "Tauri frontend for the Lyra OS installer"
+
+[build-dependencies]
+tauri-build = { version = "2.6.3", features = [] }
+
+[dependencies]
+lyra-installer-core = { package = "lyra-installer-core", path = ".." }
+tauri = { version = "2.11.5", features = [] }
+
+[profile.release]
+lto = "thin"
+strip = "debuginfo"

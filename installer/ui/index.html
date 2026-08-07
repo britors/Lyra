@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <title>Instalar o Lyra OS</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="shell" aria-labelledby="page-title">
+      <aside class="rail" aria-label="Progresso da instalação">
+        <div class="brand-mark" aria-hidden="true">✦</div>
+        <div class="rail-brand">LYRA <span>OS</span></div>
+        <div class="rail-copy">Harmonia.<br />Performance.<br />Liberdade.</div>
+        <nav class="steps" aria-label="Etapas">
+          <button class="step active" data-step="0"><span>01</span> Boas-vindas</button>
+          <button class="step" data-step="1"><span>02</span> Idioma</button>
+          <button class="step" data-step="2"><span>03</span> Região</button>
+          <button class="step" data-step="3"><span>04</span> Teclado</button>
+          <button class="step" data-step="4"><span>05</span> Sua conta</button>
+          <button class="step" data-step="5"><span>06</span> Armazenamento</button>
+          <button class="step" data-step="6"><span>07</span> Resumo</button>
+        </nav>
+        <div class="rail-footer"><span class="status-dot"></span> Sessão live segura</div>
+      </aside>
+
+      <section class="content">
+        <header class="topbar">
+          <div class="eyebrow" id="step-label">ETAPA 01 / 05</div>
+          <div class="topbar-note">Odisseia <span>Beta 1</span></div>
+        </header>
+
+        <div class="pages">
+          <section class="page page-active" data-page="0" aria-labelledby="page-title">
+            <div class="welcome-grid">
+              <div class="welcome-copy">
+                <div class="kicker">UM NOVO COMEÇO</div>
+                <h1 id="page-title">Instale o<br /><em>Lyra OS.</em></h1>
+                <p class="lead">Uma experiência desktop harmoniosa, segura e feita para acompanhar o seu ritmo.</p>
+                <div class="feature-row"><span class="feature-icon">◈</span><span>Rust no núcleo<br /><small>Seguro por construção</small></span></div>
+                <div class="feature-row"><span class="feature-icon">✦</span><span>GNOME integrado<br /><small>Leve, familiar e elegante</small></span></div>
+              </div>
+              <div class="welcome-art art-frame"><img src="telas/telainicial-ajustada.png" alt="Logotipo do Lyra OS e o lema Harmonia. Performance. Liberdade." /></div>
+            </div>
+          </section>
+
+          <section class="page" data-page="1" aria-labelledby="locale-title">
+            <div class="page-heading"><div class="kicker">PERSONALIZAÇÃO</div><h1 id="locale-title">Fale a sua<br /><em>linguagem.</em></h1><p class="lead">Escolha o idioma inicial do sistema. Você poderá mudar essa opção depois.</p></div>
+            <div class="language-toolbar"><label class="keyboard-search"><span>⌕</span><input id="language-search" type="search" placeholder="Buscar idioma…" autocomplete="off" /></label><span class="keyboard-count" id="language-count"></span></div>
+            <div class="choice-grid language-grid" id="language-cards" aria-live="polite"></div>
+          </section>
+
+          <section class="page" data-page="2" aria-labelledby="region-title">
+            <div class="page-heading"><div class="kicker">LOCALIZAÇÃO</div><h1 id="region-title">Seu lugar<br /><em>no mundo.</em></h1><p class="lead">A região define formatos de data, moeda, números e o fuso horário sugerido para o sistema.</p></div>
+            <div class="region-form"><label>País ou região<select id="region"><option value="BR" selected>🇧🇷  Brasil</option><option value="US">🇺🇸  Estados Unidos</option><option value="PT">🇵🇹  Portugal</option></select></label><label>Fuso horário<select id="timezone"><option selected>America/Sao_Paulo (UTC−03:00)</option><option>America/Manaus (UTC−04:00)</option><option>America/Belem (UTC−03:00)</option><option>UTC (UTC±00:00)</option></select></label></div>
+            <div class="region-preview"><span>Prévia regional</span><strong>07/08/2026&nbsp;&nbsp; · &nbsp;&nbsp;R$ 1.234,56</strong></div>
+          </section>
+
+          <section class="page" data-page="3" aria-labelledby="keyboard-title">
+            <div class="page-heading"><div class="kicker">ENTRADA</div><h1 id="keyboard-title">Cada tecla<br /><em>no lugar.</em></h1><p class="lead">Escolha o layout físico do seu teclado. Você poderá adicionar outros layouts depois nas Configurações.</p></div>
+            <div class="keyboard-toolbar"><label class="keyboard-search"><span>⌕</span><input id="keyboard-search" type="search" placeholder="Buscar idioma, país ou variante…" autocomplete="off" /></label><span class="keyboard-count" id="keyboard-count"></span></div>
+            <div class="keyboard-grid" id="keyboard-cards" aria-live="polite"></div>
+            <p class="keyboard-note"><span>⌨</span> O layout recomendado para teclados físicos vendidos no Brasil é ABNT2.</p>
+          </section>
+
+          <section class="page" data-page="4" aria-labelledby="account-title">
+            <div class="page-heading"><div class="kicker">IDENTIDADE</div><h1 id="account-title">Seu espaço.<br /><em>Seu nome.</em></h1><p class="lead">Crie a conta principal do Lyra OS. Ela terá acesso administrativo via sudo; root permanecerá bloqueado.</p></div>
+            <form class="form-grid" id="account-form"><label>Nome completo<input id="full-name" autocomplete="name" placeholder="Como devemos chamar você?" /></label><label>Nome de usuário<input id="username" autocomplete="username" placeholder="ex.: lyra" /></label><label>Nome do dispositivo<input id="hostname" value="lyra-os" autocomplete="off" /></label><label>Senha<input id="password" type="password" autocomplete="new-password" placeholder="Mínimo de 8 caracteres" /></label><label>Confirmar senha<input id="password-confirm" type="password" autocomplete="new-password" placeholder="Repita a senha" /></label></form><p class="validation" id="validation" role="alert"></p>
+          </section>
+
+          <section class="page" data-page="5" aria-labelledby="storage-title">
+            <div class="page-heading"><div class="kicker">DESTINO</div><h1 id="storage-title">Onde o Lyra<br /><em>vai viver?</em></h1><p class="lead">O layout padrão usa Btrfs, Snapper e zram para manter o sistema seguro e recuperável.</p></div>
+            <div class="storage-card"><div class="drive-icon">▣</div><div><strong>Seleção de disco em desenvolvimento</strong><p>Nesta prévia visual nenhuma alteração é feita. O backend privilegiado será integrado após a aprovação do fluxo.</p></div><span class="pill">Btrfs + Snapper</span></div>
+            <div class="safe-note"><span>✓</span> Nenhuma operação destrutiva será executada nesta versão do protótipo.</div>
+          </section>
+
+          <section class="page" data-page="6" aria-labelledby="summary-title">
+            <div class="summary-grid"><div class="page-heading"><div class="kicker">QUASE LÁ</div><h1 id="summary-title">Pronto para<br /><em>começar.</em></h1><p class="lead">Revise suas escolhas. A instalação só ficará disponível quando o backend passar pelos testes de VM e Secure Boot.</p><div class="summary-list"><div><span>Idioma</span><strong id="summary-locale">Português (Brasil)</strong></div><div><span>Dispositivo</span><strong id="summary-hostname">lyra-os</strong></div><div><span>Conta</span><strong id="summary-user">Aguardando preenchimento</strong></div></div><button class="disabled-install" disabled>Backend em desenvolvimento</button></div><div class="final-art art-frame"><img src="telas/telafinal-ajustada.png" alt="Paisagem noturna com a constelação de Lyra e a marca Lyra OS." /></div></div>
+          </section>
+        </div>
+
+        <footer class="actions"><button class="back" id="back" disabled>← Voltar</button><div class="action-progress"><span id="progress-bar"></span></div><button class="next" id="next">Continuar <span>→</span></button></footer>
+      </section>
+    </main>
+    <script src="app.js"></script>
+  </body>
+</html>

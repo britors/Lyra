@@ -1,0 +1,33 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Lyra Installer",
+  "version": "0.1.0",
+  "identifier": "io.lyra.Installer",
+  "build": {
+    "frontendDist": "../ui"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Instalar o Lyra OS",
+        "width": 1180,
+        "height": 760,
+        "minWidth": 900,
+        "minHeight": 620,
+        "resizable": true,
+        "maximizable": false,
+        "minimizable": false,
+        "center": true,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'"
+    }
+  },
+  "bundle": {
+    "active": false,
+    "targets": "all",
+    "shortDescription": "Instalador nativo do Lyra OS"
+  }
+}
