@@ -153,7 +153,12 @@ fn discover_disks() -> Result<Vec<Disk>, DiscoveryError> {
     Ok(parsed
         .blockdevices
         .into_iter()
-        .filter(|device| device.kind == "disk")
+        // "loop" is included so a disposable image set up via `losetup` can
+        // stand in for a real disk during integration testing (see
+        // installer/service/test-loop-device.sh) - no real install flow
+        // would ever have a live squashfs's own loop device pass the
+        // eligibility checks in storage::plan (occupied/live-media rules).
+        .filter(|device| device.kind == "disk" || device.kind == "loop")
         .map(|device| disk_from_lsblk(device, &live_media))
         .collect())
 }

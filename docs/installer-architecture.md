@@ -84,14 +84,17 @@ sendo trabalho do `lyra-installer-service` (#37/#40), não deste módulo.
 ## Serviço privilegiado (issue #37)
 
 `lyra-installer-core::service` e o binário `installer/service`
-(`lyra-installer-service`) já existem, mas só como arcabouço de execução
-segura — ainda sem nenhuma operação real de disco (isso é #40/#41/#42;
-`operation::Operation` fica um enum vazio de propósito até lá). O que já
-funciona: protocolo em JSON lines pelo stdin/stdout, revalidação do plano
-contra um `StorageSnapshot` fresco antes de qualquer escrita (reaproveitando
-o `PlanBuilder` de #39), allow-list de binários no `RealExecutor` (nunca
-shell, nunca concatenação de string), cancelamento entre operações e
-rollback best-effort em ordem reversa quando algo falha no meio.
+(`lyra-installer-service`) implementam o arcabouço de execução segura:
+protocolo em JSON lines pelo stdin/stdout, revalidação do plano contra um
+`StorageSnapshot` fresco antes de qualquer escrita (reaproveitando o
+`PlanBuilder` de #39), allow-list de binários no `RealExecutor` (nunca
+shell, nunca concatenação de string — escrita de arquivo como `/etc/fstab`
+é `std::fs::write` direto do próprio processo, já root, não passa pela
+allow-list de spawn de processo), cancelamento entre operações e
+desfazimento em ordem reversa de tudo que rodou — **sempre**, sucesso ou
+falha, não só em erro (é assim que o alvo fica desmontado ao final de uma
+instalação bem-sucedida). `operation::PrivilegedOperation` deixou de ser um
+enum vazio com #40 — ver a seção seguinte.
 
 Diferente do Calamares (`Exec=pkexec /usr/bin/calamares`, a interface
 inteira como root), o `lyra-installer-service` é lançado via
@@ -108,3 +111,30 @@ esse binário específico via a annotation
 Como o pacote RPM do instalador ainda não existe (#53), nem `lyra-installer`
 nem `lyra-installer-service` estão de fato instalados em nenhuma imagem
 ainda — os arquivos de policy/regra ficam prontos, mas inertes, até lá.
+
+## Particionamento e layout Btrfs (issue #40)
+
+`lyra-installer-core::service::operations` traduz um `InstallPlan` em
+operações reais para o caso "disco inteiro, layout direto": tabela GPT,
+ESP (criada ou reaproveitada — nunca reformatada se reaproveitada),
+`mkfs.btrfs`, os 21 subvolumes de `storage::plan::default_subvolumes`
+criados e montados em `/run/lyra-installer/target` (mesma convenção
+efêmera do `/run/overlay/live` do squashfs), `/etc/fstab` gerado com UUID
+real via `blkid`, `sync` final. Alvos RAID/LVM (`NewRaid`, `ExistingRaid`,
+`NewVolumeGroup`, `ExistingVolumeGroup`) devolvem
+`OperationError::NotImplemented` explicitamente — ainda não têm tradução
+implementada, isso não é um "faz nada" silencioso.
+
+A ordem de montagem dos subvolumes importa por causa do desfazimento
+sempre-executado descrito acima: montar do mais raso para o mais profundo
+(`/` antes de `/home`, `/var/lib/machines` antes de `/var/lib/libvirt/images`)
+é o que garante que desfazer em ordem reversa desmonte filhos antes dos
+pais — montar um pai por cima de um filho já montado deixaria esse filho
+com o mount preso.
+
+**Não testado contra hardware/disco de verdade nesta sessão**: o ambiente
+onde isso foi escrito não tem privilégio para `losetup`/`sgdisk`/`mkfs`.
+`installer/service/test-loop-device.sh` existe pronto para validar isso com
+uma imagem descartável via `sudo`, mas ainda precisa ser rodado (ex.: na VM
+de teste do KIWI) antes desse caminho ser considerado confirmado na
+prática, só na lógica pura coberta por `cargo test`.

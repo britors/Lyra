@@ -49,7 +49,16 @@ fn main() {
         }
     };
 
-    let operations = plan_to_operations(&request.plan);
+    let operations = match plan_to_operations(&request.plan) {
+        Ok(operations) => operations,
+        Err(error) => {
+            emit(ExecutionEvent::Failed {
+                step: "tradução do plano".to_string(),
+                message: error.to_string(),
+            });
+            std::process::exit(1);
+        }
+    };
     let outcome = execute(&request, &snapshot, &operations, &RealExecutor, &cancel_requested, emit);
 
     std::process::exit(match outcome {

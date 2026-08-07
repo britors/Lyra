@@ -33,13 +33,24 @@ escolher o destino de disco existe ainda.
 `service/` já traz o arcabouço de execução segura do plano
 (`lyra-installer-core::service`): protocolo em JSON lines, revalidação do
 plano contra o estado atual do disco antes de qualquer escrita, allow-list
-de binários (sem shell), cancelamento e rollback em ordem reversa — mas
-ainda nenhuma operação real de particionamento (`Operation` é um enum vazio
-de propósito, ver `docs/installer-architecture.md`). O comando Tauri
-`execute_plan` lança `pkexec service/lyra-installer-service`, autorizado
-pela action `io.lyra.Installer.execute-plan`
+de binários (sem shell), cancelamento e desmontagem em ordem reversa sempre
+ao final (sucesso ou falha). O comando Tauri `execute_plan` lança
+`pkexec service/lyra-installer-service`, autorizado pela action
+`io.lyra.Installer.execute-plan`
 (`kiwi/root/usr/share/polkit-1/actions/io.lyra.Installer.policy` +
 `kiwi/root/etc/polkit-1/rules.d/01-lyra-installer-service.rules`).
+
+`lyra-installer-core::service::operations` já implementa o particionamento
+real (GPT, ESP, Btrfs, os 21 subvolumes de
+`storage::plan::default_subvolumes`, mount, `/etc/fstab` com UUID real) para
+o caso "disco inteiro, layout direto" — RAID e LVM como alvo ainda devolvem
+um erro explícito de "não implementado", não silêncio. `cargo test` cobre a
+lógica pura (ordem das operações, argv exato, nunca formatar uma ESP
+reaproveitada); o que `cargo test` **não** cobre é execução real em disco,
+porque este ambiente de desenvolvimento não tem privilégio para
+`losetup`/`sgdisk`/`mkfs`. `service/test-loop-device.sh` existe pronto para
+isso — precisa rodar com `sudo`, ainda não foi executado, é o próximo passo
+antes de confiar nesse caminho contra hardware de verdade.
 
 O Calamares continua sendo o instalador ativo da imagem de desenvolvimento
 enquanto o serviço Tauri/Rust não implementa e valida todo o pipeline descrito em

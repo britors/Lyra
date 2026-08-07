@@ -28,8 +28,11 @@ impl fmt::Display for ExecutorError {
     }
 }
 
+/// Returns captured, trimmed stdout on success — needed by operations like
+/// `blkid -s UUID -o value` that read a value rather than just check
+/// success/failure.
 pub trait Executor {
-    fn run(&self, command: &ArgvCommand) -> Result<(), ExecutorError>;
+    fn run(&self, command: &ArgvCommand) -> Result<String, ExecutorError>;
 }
 
 /// Spawns the real process via argv — `Command::new(binary).args(args)`,
@@ -38,20 +41,20 @@ pub trait Executor {
 pub struct RealExecutor;
 
 impl Executor for RealExecutor {
-    fn run(&self, command: &ArgvCommand) -> Result<(), ExecutorError> {
+    fn run(&self, command: &ArgvCommand) -> Result<String, ExecutorError> {
         if !ALLOWED_BINARIES.contains(&command.binary.as_str()) {
             return Err(ExecutorError::DisallowedBinary(command.binary.clone()));
         }
 
-        let status = Command::new(&command.binary)
+        let output = Command::new(&command.binary)
             .args(&command.args)
-            .status()
+            .output()
             .map_err(|error| ExecutorError::Spawn(error.to_string()))?;
 
-        if status.success() {
-            Ok(())
+        if output.status.success() {
+            Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
         } else {
-            Err(ExecutorError::NonZeroExit(status.code()))
+            Err(ExecutorError::NonZeroExit(output.status.code()))
         }
     }
 }

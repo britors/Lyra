@@ -1,6 +1,6 @@
 //! Turns a validated [`ExecutionRequest`] into a sequence of executed
 //! operations, with revalidation-before-first-write, cancellation
-//! checkpoints and best-effort rollback on failure.
+//! checkpoints and best-effort unwind of everything that ran.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -20,15 +20,14 @@ pub enum ExecutionOutcome {
 /// `current_snapshot` must be freshly read (not the one the frontend used
 /// to build the plan originally) — that's what makes the revalidation step
 /// meaningful instead of just re-checking the same data twice. `operations`
-/// is normally `plan_to_operations(&request.plan)` (always empty today,
-/// see `operation.rs`); taking it as a parameter rather than deriving it
-/// internally keeps this function's safety rails (revalidation,
-/// cancellation, rollback) testable independently of how a plan gets
-/// translated.
-pub fn execute(
+/// is normally `operations::plan_to_operations(&request.plan)`; taking it
+/// as a parameter rather than deriving it internally keeps this function's
+/// safety rails (revalidation, cancellation, unwind) testable independently
+/// of how a plan gets translated.
+pub fn execute<'a>(
     request: &ExecutionRequest,
     current_snapshot: &StorageSnapshot,
-    operations: &[Box<dyn PrivilegedOperation>],
+    operations: &'a [Box<dyn PrivilegedOperation>],
     executor: &dyn Executor,
     cancel_requested: &AtomicBool,
     mut on_event: impl FnMut(ExecutionEvent),
@@ -53,12 +52,14 @@ pub fn execute(
         Ok(_) => {}
     }
 
-    let mut undo_stack = Vec::new();
+    let mut completed: Vec<&'a dyn PrivilegedOperation> = Vec::new();
+    let mut cancelled = false;
+    let mut failed = false;
 
     for operation in operations {
         if cancel_requested.load(Ordering::SeqCst) {
-            rollback(&undo_stack, executor, &mut on_event);
-            return ExecutionOutcome::Cancelled;
+            cancelled = true;
+            break;
         }
 
         on_event(ExecutionEvent::Step {
@@ -66,39 +67,47 @@ pub fn execute(
             detail: None,
         });
 
-        match executor.run(&operation.command()) {
-            Ok(()) => {
-                if let Some(undo) = operation.undo() {
-                    undo_stack.push(undo);
-                }
-            }
+        match operation.perform(executor) {
+            Ok(()) => completed.push(operation.as_ref()),
             Err(error) => {
                 on_event(ExecutionEvent::Failed {
                     step: operation.describe(),
                     message: error.to_string(),
                 });
-                rollback(&undo_stack, executor, &mut on_event);
-                return ExecutionOutcome::Failed;
+                failed = true;
+                break;
             }
         }
     }
 
-    on_event(ExecutionEvent::Completed);
-    ExecutionOutcome::Completed
+    // Always unwind — not just on failure. Each mount operation's `undo` is
+    // the matching `umount`, so this is also what leaves the target cleanly
+    // unmounted after a *successful* run, satisfying #40's "sincronizar e
+    // desmontar em sucesso ou falha".
+    unwind(&completed, executor, &mut on_event);
+
+    if failed {
+        ExecutionOutcome::Failed
+    } else if cancelled {
+        ExecutionOutcome::Cancelled
+    } else {
+        on_event(ExecutionEvent::Completed);
+        ExecutionOutcome::Completed
+    }
 }
 
 /// Best-effort: undo failures are surfaced as warnings, not escalated —
 /// there is no further fallback if reversing an already-applied step fails,
 /// and refusing to attempt the rest would leave more behind, not less.
-fn rollback(
-    undo_stack: &[super::operation::ArgvCommand],
+fn unwind(
+    completed: &[&dyn PrivilegedOperation],
     executor: &dyn Executor,
     on_event: &mut impl FnMut(ExecutionEvent),
 ) {
-    for command in undo_stack.iter().rev() {
-        if let Err(error) = executor.run(command) {
+    for operation in completed.iter().rev() {
+        if let Err(error) = operation.undo(executor) {
             on_event(ExecutionEvent::Warning {
-                message: format!("falha ao desfazer {}: {error}", command.binary),
+                message: format!("falha ao desfazer {}: {error}", operation.describe()),
             });
         }
     }
@@ -111,7 +120,7 @@ mod tests {
 
     use super::*;
     use crate::service::executor::ExecutorError;
-    use crate::service::operation::ArgvCommand;
+    use crate::service::operation::{ArgvCommand, OperationError};
     use crate::storage::{DeviceRole, Disk, GuidedChoice, RawTarget, Transport, VolumeLayer};
 
     struct FakeOperation {
@@ -123,17 +132,21 @@ mod tests {
         fn describe(&self) -> String {
             self.name.to_string()
         }
-        fn command(&self) -> ArgvCommand {
-            ArgvCommand {
+        fn perform(&self, executor: &dyn Executor) -> Result<(), OperationError> {
+            executor.run(&ArgvCommand {
                 binary: "btrfs".to_string(),
                 args: vec![self.name.to_string()],
-            }
+            })?;
+            Ok(())
         }
-        fn undo(&self) -> Option<ArgvCommand> {
-            self.undo.then(|| ArgvCommand {
-                binary: "btrfs".to_string(),
-                args: vec![format!("undo-{}", self.name)],
-            })
+        fn undo(&self, executor: &dyn Executor) -> Result<(), OperationError> {
+            if self.undo {
+                executor.run(&ArgvCommand {
+                    binary: "btrfs".to_string(),
+                    args: vec![format!("undo-{}", self.name)],
+                })?;
+            }
+            Ok(())
         }
     }
 
@@ -145,7 +158,7 @@ mod tests {
     }
 
     /// Fails on the Nth call (0-indexed); records every command it was
-    /// asked to run, in order, so call/rollback order can be asserted.
+    /// asked to run, in order, so call/unwind order can be asserted.
     struct FakeExecutor {
         fail_at: Option<usize>,
         calls: Mutex<Vec<String>>,
@@ -164,14 +177,14 @@ mod tests {
     }
 
     impl Executor for FakeExecutor {
-        fn run(&self, command: &ArgvCommand) -> Result<(), ExecutorError> {
+        fn run(&self, command: &ArgvCommand) -> Result<String, ExecutorError> {
             let mut calls = self.calls.lock().unwrap();
             let index = calls.len();
             calls.push(command.args.join(","));
             if self.fail_at == Some(index) {
                 Err(ExecutorError::NonZeroExit(Some(1)))
             } else {
-                Ok(())
+                Ok(String::new())
             }
         }
     }
@@ -257,6 +270,23 @@ mod tests {
 
         assert_eq!(outcome, ExecutionOutcome::Failed);
         assert_eq!(executor.calls(), vec!["a", "b", "c", "undo-b", "undo-a"]);
+    }
+
+    #[test]
+    fn a_successful_run_still_unwinds_every_completed_operation() {
+        let (snapshot, request) = valid_request();
+        let executor = FakeExecutor::new(None);
+        let cancel = AtomicBool::new(false);
+        let mut events = Vec::new();
+        let ops = fake_ops(&[("mount-root", true), ("mount-home", true)]);
+
+        let outcome = execute(&request, &snapshot, &ops, &executor, &cancel, |event| events.push(event));
+
+        assert_eq!(outcome, ExecutionOutcome::Completed);
+        assert_eq!(
+            executor.calls(),
+            vec!["mount-root", "mount-home", "undo-mount-home", "undo-mount-root"]
+        );
     }
 
     #[test]
