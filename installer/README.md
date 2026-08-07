@@ -135,11 +135,19 @@ sobre as opções de mount, já conferidas via `mount.conf`) e `unpackfs`/
 `snapshotcfg` (grounding extenso já feito em sessões anteriores, não
 re-verificado agora).
 
-**Lacuna que continua aberta, sem código ainda**: nenhuma tela do
-assistente monta um `InstallConfig` (nem chama `execute_plan`) — então o
-`<select id="timezone">` da tela "Região" segue sem lugar pra onde fluir,
-do mesmo jeito que o teclado da tela 4 também não alimenta o
-`InstallConfig` ainda.
+**Parcialmente resolvido**: a tela de resumo agora monta um `InstallConfig`
+real a partir do que foi preenchido (idioma, fuso, hostname, nome
+completo, usuário, senha) e chama o novo comando Tauri
+`validate_install_config` — que só roda `InstallConfig::validate()` de
+verdade, sem I/O — mostrando qualquer erro (ex.: fuso horário fora das 4
+opções). Isso é o que faltava pro `<select id="timezone">` deixar de ser
+só decorativo. **O que continua faltando, de propósito**: nada chama
+`execute_plan` ainda — o botão "Instalar" segue desabilitado
+("Backend em desenvolvimento"), porque isso dispararia o serviço
+privilegiado fazendo partição/formatação de verdade, e isso só faz
+sentido depois de `service/test-loop-device.sh` rodar validado (ver acima)
+e da matriz de testes do #44. O teclado da tela 4 também não alimenta o
+`InstallConfig` ainda — não tem campo próprio (ver `WriteKeyboard`).
 
 `operations::deploy` implanta o rootfs no target já particionado: extrai o
 squashfs da sessão live, machine-id, fuso horário, teclado, locale

@@ -9,6 +9,7 @@ use lyra_installer_core::storage::{
     DiscoveryBackend, GuidedChoice, InstallPlan, PlanBuilder, RawTarget, StorageSnapshot,
     SystemDiscoveryBackend, VolumeLayer,
 };
+use lyra_installer_core::InstallConfig;
 
 /// Read-only: lists disks, RAID arrays and LVM volumes currently visible to
 /// the live session. Never touches the disk — planning and execution are
@@ -36,6 +37,19 @@ fn plan_disk_install(snapshot: StorageSnapshot, disk_path: String) -> Result<Ins
     PlanBuilder::new(&snapshot)
         .build(&choice)
         .map_err(|error| error.0.join(" · "))
+}
+
+/// Runs the real `InstallConfig::validate()` against whatever the wizard has
+/// collected so far — no I/O, same dry-run guarantee as `plan_disk_install`.
+/// This is the summary step's own check, not a duplicate of it: page 4's
+/// client-side `validate()` in `app.js` only covers full name/username/
+/// hostname/password, so this is what actually catches an invalid
+/// `timezone`/`locale` (there's no client-side rule for those). Errors
+/// still don't cross the privilege boundary — that's `execute_plan`, and
+/// nothing calls it with a wizard-built config yet (see `installer/README.md`).
+#[tauri::command]
+fn validate_install_config(config: InstallConfig) -> Result<(), String> {
+    config.validate().map_err(|errors| errors.join(" · "))
 }
 
 /// Path the polkit action (`io.lyra.Installer.execute-plan`) is scoped to —
@@ -85,6 +99,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             discover_storage,
             plan_disk_install,
+            validate_install_config,
             execute_plan
         ])
         .run(tauri::generate_context!())

@@ -194,15 +194,34 @@ function validate(){
   return errors.length===0;
 }
 
-function updateSummary(){
+function collectInstallConfig(){
+  return {
+    locale: document.querySelector('input[name=locale]:checked').value,
+    timezone: document.querySelector('#timezone').value,
+    hostname: document.querySelector('#hostname').value,
+    full_name: document.querySelector('#full-name').value.trim(),
+    username: document.querySelector('#username').value,
+    password: document.querySelector('#password').value,
+  };
+}
+
+async function updateSummary(){
   const locale=document.querySelector('input[name=locale]:checked').value;
   document.querySelector('#summary-locale').textContent=locale==='pt_BR.UTF-8'?'Português (Brasil)':'English (United States)';
   document.querySelector('#summary-hostname').textContent=document.querySelector('#hostname').value||'lyra-os';
   document.querySelector('#summary-user').textContent=document.querySelector('#username').value||'Aguardando preenchimento';
   document.querySelector('#summary-disk').textContent=selectedDiskPath||'Aguardando seleção';
+
+  const validationBox=document.querySelector('#summary-validation');
+  try{
+    await invoke('validate_install_config',{config:collectInstallConfig()});
+    validationBox.textContent='';
+  }catch(error){
+    validationBox.textContent=error;
+  }
 }
 
-next.addEventListener('click',()=>{if(current===4&&!validate()) return;if(current===5&&!selectedPlan) return;if(current<6){if(current===5) updateSummary();show(current+1)}});
+next.addEventListener('click',async()=>{if(current===4&&!validate()) return;if(current===5&&!selectedPlan) return;if(current<6){if(current===5) await updateSummary();show(current+1)}});
 back.addEventListener('click',()=>{if(current>0)show(current-1)});
 steps.forEach(step=>step.addEventListener('click',()=>{const index=Number(step.dataset.step);if(index<=current)show(index)}));
 document.querySelectorAll('.choice input').forEach(input=>input.addEventListener('change',()=>{document.querySelectorAll('.choice').forEach(choice=>choice.classList.toggle('selected',choice.querySelector('input').checked))}));
