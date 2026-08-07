@@ -9,6 +9,13 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct InstallConfig {
     pub locale: String,
+    /// IANA zone name, e.g. `America/Sao_Paulo` — one of `ui/index.html`'s
+    /// `#timezone` options. Nothing in the wizard UI constructs an
+    /// `InstallConfig` yet (see `installer/README.md`), so this only has a
+    /// real caller once that wiring exists; the field and its validation
+    /// are added now so `WriteTimezone` (issue #44's parity audit) has
+    /// something typed to read.
+    pub timezone: String,
     pub hostname: String,
     pub full_name: String,
     pub username: String,
@@ -19,6 +26,7 @@ impl Default for InstallConfig {
     fn default() -> Self {
         Self {
             locale: "pt_BR.UTF-8".into(),
+            timezone: "America/Sao_Paulo".into(),
             hostname: "lyra-os".into(),
             full_name: String::new(),
             username: String::new(),
@@ -34,6 +42,12 @@ impl InstallConfig {
 
         if !matches!(self.locale.as_str(), "pt_BR.UTF-8" | "en_US.UTF-8") {
             errors.push("idioma não suportado");
+        }
+        if !matches!(
+            self.timezone.as_str(),
+            "America/Sao_Paulo" | "America/Manaus" | "America/Belem" | "UTC"
+        ) {
+            errors.push("fuso horário não suportado");
         }
         if !valid_hostname(&self.hostname) {
             errors.push("nome do dispositivo inválido");
@@ -97,7 +111,16 @@ mod tests {
     fn defaults_follow_product_specification() {
         let config = InstallConfig::default();
         assert_eq!(config.locale, "pt_BR.UTF-8");
+        assert_eq!(config.timezone, "America/Sao_Paulo");
         assert_eq!(config.hostname, "lyra-os");
+    }
+
+    #[test]
+    fn rejects_a_timezone_outside_the_wizards_option_list() {
+        let mut config = valid_config();
+        config.timezone = "Europe/Lisbon".into();
+        let errors = config.validate().unwrap_err();
+        assert!(errors.contains(&"fuso horário não suportado"));
     }
 
     #[test]

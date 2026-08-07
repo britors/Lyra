@@ -65,9 +65,78 @@ porque este ambiente de desenvolvimento não tem privilégio para
 isso — precisa rodar com `sudo`, ainda não foi executado, é o próximo passo
 antes de confiar nesse caminho contra hardware de verdade.
 
+Primeira rodada da auditoria de paridade do #44: comparei `deploy.rs` contra
+os binários/scripts do Calamares realmente instalados num build já feito
+(`kiwi/.kiwi/test-1000/build/build/image-root`), não contra suposição — dava
+pra rodar `strings` nos módulos compilados (`.so`) e ler os `.py` direto.
+Achei e fechei duas lacunas reais: fuso horário (o módulo `locale` real
+grava `/etc/localtime` e `/etc/timezone` no alvo, confirmado via `strings`
+em `libcalamares_viewmodule_locale.so`; `deploy.rs` não tinha nenhuma
+operação equivalente, nem `InstallConfig` tinha campo pra isso) e o
+fallback RTC→ISA do `hwclock` (o `main.py` real tenta `hwclock --systohc
+--utc` e, se falhar, tenta de novo com `--directisa`, sem nunca abortar a
+instalação mesmo se as duas falharem; `SetHardwareClock` só tentava uma vez
+e propagava erro). `InstallConfig` ganhou um campo `timezone` (validado
+contra as 4 opções do `<select id="timezone">` da tela "Região", mesmo
+padrão do allowlist de locale) e `WriteTimezone` roda entre `WriteKeyboard`
+e `WriteLocale` — a ordem real do `settings.conf` é `locale` (fuso) →
+`keyboard` → `localecfg` (nosso `WriteLocale`), então o reordenamento
+também corrige uma inversão que já existia ali.
+
+Segunda rodada da auditoria: conferi `users`/`packages`/`installcleanup`/
+`mount`/`partition`/`grubcfg`/`uefibootloader` contra os `.conf` reais em
+`kiwi/root/etc/calamares/modules/`. `installcleanup` bateu exatamente (os
+dois `const` do Rust — `LIVE_ONLY_ARTIFACTS` + `LYRA_INSTALLER_ARTIFACTS` —
+somados reconstroem os 10 caminhos do `rm -f` real, um a um). `GRUB_DISTRIBUTOR`
+não é bug: já vem copiado do squashfs live pelo `ExtractRootfs` (o
+`grubcfg` real só mescla os poucos campos do seu `defaults:`, que não
+inclui `GRUB_DISTRIBUTOR`, sobre o arquivo já existente no target).
+
+Achei e corrigi mais duas lacunas reais, uma delas séria:
+
+- **`efivarfs` nunca montado no chroot.** `mount.conf`'s `extraMounts`
+  monta `efivarfs` em `/sys/firmware/efi/efivars`, `tmpfs` em `/run` e faz
+  bind de `/run/udev` — `uefibootloader.conf`'s próprio comentário confirma
+  por quê: "grub/shim need it to create the UEFI NVRAM entry from inside
+  the target system". O Rust só fazia bind de `/proc`/`/sys`/`/dev`; um
+  `mount --bind /sys` simples **não** propaga o `efivarfs` já montado
+  dentro de `/sys` no host (precisaria de `--rbind`), então `efibootmgr`
+  (chamado internamente pelo `shim-install` do `InstallShimAndGrub`) não
+  tinha onde escrever a variável UEFI dentro do chroot — a instalação
+  terminava "com sucesso" mas sem entrada NVRAM real, só o fallback
+  removível do shim. Adicionei `MountVirtualFs` (monta `tmpfs`/`efivarfs`,
+  dispositivo == tipo, igual ao `mount.conf` real) e o bind de
+  `/run/udev`, todos antes do `RunDracut`.
+- **`useradd -G` só tinha `wheel`.** `users.conf` real define
+  `defaultGroups: users, lp, video, network, storage, wheel, audio` — o
+  `CreateUser` do Rust só passava `wheel`, deixando a conta sem acesso
+  padrão a vídeo/áudio/mídia removível/impressão. Corrigido para o mesmo
+  conjunto de 7 grupos.
+
+Achados menores, não corrigidos ainda: `networkcfg` real também copia
+config do Netplan (provavelmente irrelevante pra Leap+GNOME, que só usa
+NetworkManager); `keyboard` real também escreve `/etc/default/keyboard`,
+que `WriteKeyboard` não escreve. Ainda não conferidos: `fstab` (módulo
+genérico do Calamares — o Rust já é uma reimplementação própria a partir
+de `storage::plan`, não uma porta do módulo, então "paridade" aqui é mais
+sobre as opções de mount, já conferidas via `mount.conf`) e `unpackfs`/
+`snapshotcfg` (grounding extenso já feito em sessões anteriores, não
+re-verificado agora). `packages.conf`'s `try_remove: [calamares,
+calamares-branding-upstream]` continua **deliberadamente não portado** —
+precisa de `zypper` de verdade contra o target (dependências reais, não
+simulável), e `zypper` nem está na `ALLOWED_BINARIES` allow-list hoje;
+maior escopo que os fixes acima, deixado pro próximo passo do #44 em vez
+de arriscar uma implementação não testada.
+
+**Lacuna que continua aberta, sem código ainda**: nenhuma tela do
+assistente monta um `InstallConfig` (nem chama `execute_plan`) — então o
+`<select id="timezone">` da tela "Região" segue sem lugar pra onde fluir,
+do mesmo jeito que o teclado da tela 4 também não alimenta o
+`InstallConfig` ainda.
+
 `operations::deploy` implanta o rootfs no target já particionado: extrai o
-squashfs da sessão live, machine-id, locale, teclado (mapeamento fixo por
-locale por enquanto — `InstallConfig` ainda não tem campo próprio),
+squashfs da sessão live, machine-id, fuso horário, teclado, locale
+(mapeamento de teclado fixo por locale por enquanto — sem tela própria),
 hostname, cria o usuário (senha só via stdin do `chpasswd`, nunca em argv),
 `sudoers.d`, initramfs via `chroot` (achei e corrigi um bug real: o
 `dracut.conf` efetivo do Calamares hoje grava o initramfs num nome errado —

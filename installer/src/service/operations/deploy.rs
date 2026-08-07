@@ -59,11 +59,18 @@ pub fn deployment_operations(config: &InstallConfig) -> Vec<Box<dyn PrivilegedOp
         Box::new(WriteMachineId {
             target_root: target_root.clone(),
         }),
-        Box::new(WriteLocale {
+        // Real settings.conf order is locale (timezone) -> keyboard ->
+        // localecfg, not locale-then-keyboard with WriteLocale standing in
+        // for localecfg - see WriteTimezone's doc comment.
+        Box::new(WriteTimezone {
+            target_root: target_root.clone(),
+            timezone: config.timezone.clone(),
+        }),
+        Box::new(WriteKeyboard {
             target_root: target_root.clone(),
             locale: config.locale.clone(),
         }),
-        Box::new(WriteKeyboard {
+        Box::new(WriteLocale {
             target_root: target_root.clone(),
             locale: config.locale.clone(),
         }),
@@ -91,6 +98,18 @@ pub fn deployment_operations(config: &InstallConfig) -> Vec<Box<dyn PrivilegedOp
         Box::new(BindMount {
             source: PathBuf::from("/dev"),
             dest: target_root.join("dev"),
+        }),
+        Box::new(MountVirtualFs {
+            fstype: "tmpfs",
+            dest: target_root.join("run"),
+        }),
+        Box::new(BindMount {
+            source: PathBuf::from("/run/udev"),
+            dest: target_root.join("run/udev"),
+        }),
+        Box::new(MountVirtualFs {
+            fstype: "efivarfs",
+            dest: target_root.join("sys/firmware/efi/efivars"),
         }),
         Box::new(RunDracut {
             target_root: target_root.clone(),
@@ -215,6 +234,43 @@ impl PrivilegedOperation for WriteMachineId {
     }
 }
 
+/// Mirrors the real, compiled `locale` view module's exec step — confirmed
+/// via `strings` on the installed `libcalamares_viewmodule_locale.so`
+/// (source isn't available to grep, unlike the Python modules elsewhere in
+/// this file), which references exactly `/etc/localtime`, `/etc/timezone`
+/// and `/usr/share/zoneinfo` and nothing else target-relevant. `/etc/locale.gen`
+/// also shows up in the binary but is a Debian-ism Leap doesn't have, same
+/// as `WriteLocale`'s doc comment already notes for the sibling module.
+/// This is issue #44's parity audit closing a real gap: before this, the
+/// Rust installer never touched the target's timezone at all, and
+/// `InstallConfig` had no field to carry a choice even though `ui/index.html`
+/// already collects one on the "Região" page (that page's value has nowhere
+/// to flow into an `InstallConfig` yet — no screen builds one at all, see
+/// `installer/README.md`).
+struct WriteTimezone {
+    target_root: PathBuf,
+    timezone: String,
+}
+
+impl PrivilegedOperation for WriteTimezone {
+    fn describe(&self) -> String {
+        format!("configurar fuso horário ({})", self.timezone)
+    }
+
+    fn perform(&self, _executor: &dyn Executor) -> Result<(), OperationError> {
+        let etc = self.target_root.join("etc");
+        fs::create_dir_all(&etc).map_err(io_error)?;
+
+        let localtime = etc.join("localtime");
+        let _ = fs::remove_file(&localtime);
+        std::os::unix::fs::symlink(format!("../usr/share/zoneinfo/{}", self.timezone), &localtime)
+            .map_err(io_error)?;
+
+        fs::write(etc.join("timezone"), format!("{}\n", self.timezone)).map_err(io_error)?;
+        Ok(())
+    }
+}
+
 /// Mirrors `localecfg`'s real `main.py`: writes `/etc/locale.conf` (every
 /// `LC_*` category set to the same value as `LANG`, matching its
 /// no-selection-made fallback shape) and `/etc/default/locale` only if
@@ -317,12 +373,21 @@ impl PrivilegedOperation for WriteHostname {
     }
 }
 
-/// `-R`/`-c`/`-G`/`-s` mirror `users.conf`'s `wheel` membership and
-/// `/bin/bash` shell; the password crosses via `chpasswd`'s stdin
-/// (`run_with_stdin`), never argv. Root is never touched here — it's
-/// already locked in the extracted squashfs (`setRootPassword: false`'s
-/// real-world equivalent is simply that no step anywhere sets a root
-/// password).
+/// `-R`/`-c`/`-G`/`-s` mirror `users.conf`'s real `defaultGroups` list —
+/// `users`, `lp`, `video`, `network`, `storage`, `wheel`, `audio` — and
+/// `/bin/bash` shell. Issue #44's parity audit caught this one had drifted
+/// to `-G wheel` alone: without `video`/`audio`/`storage`/`network`/`lp`,
+/// the installed account would be missing standard desktop group access
+/// (GPU/audio devices, removable media, printing) that the Calamares path
+/// grants. `users`/`wheel` carry `must_exist`/`system` flags in the real
+/// config (whether Calamares errors if the group is absent), which doesn't
+/// change what's passed to `useradd -G` here. The password crosses via
+/// `chpasswd`'s stdin (`run_with_stdin`), never argv. Root is never touched
+/// here — it's already locked in the extracted squashfs (`setRootPassword:
+/// false`'s real-world equivalent is simply that no step anywhere sets a
+/// root password).
+const USER_SUPPLEMENTARY_GROUPS: &str = "users,lp,video,network,storage,wheel,audio";
+
 struct CreateUser {
     target_root: PathBuf,
     full_name: String,
@@ -345,7 +410,7 @@ impl PrivilegedOperation for CreateUser {
                 "-c".to_string(),
                 self.full_name.clone(),
                 "-G".to_string(),
-                "wheel".to_string(),
+                USER_SUPPLEMENTARY_GROUPS.to_string(),
                 "-s".to_string(),
                 "/bin/bash".to_string(),
                 self.username.clone(),
@@ -397,6 +462,56 @@ impl PrivilegedOperation for BindMount {
         executor.run(&ArgvCommand {
             binary: "mount".to_string(),
             args: vec!["--bind".to_string(), path_str(&self.source), path_str(&self.dest)],
+        })?;
+        Ok(())
+    }
+
+    fn undo(&self, executor: &dyn Executor) -> Result<(), OperationError> {
+        executor.run(&ArgvCommand {
+            binary: "umount".to_string(),
+            args: vec![path_str(&self.dest)],
+        })?;
+        Ok(())
+    }
+}
+
+/// Mounts a virtual filesystem whose device name is conventionally the same
+/// as its type (`tmpfs`, `efivarfs`) — matches `mount.conf`'s
+/// `extraMounts` entries for `/run` and `/sys/firmware/efi/efivars`.
+///
+/// The `efivarfs` one closes a real gap (issue #44's parity audit): a plain
+/// `mount --bind /sys <target>/sys` (the [`BindMount`] just above) does
+/// *not* carry over `/sys/firmware/efi/efivars` — that's a separate mount
+/// already sitting inside `/sys` on the live host, and non-recursive bind
+/// mounts only capture the directory entries visible at the bind source at
+/// mount time, not filesystems mounted inside it (that needs `--rbind`,
+/// which this deliberately isn't, matching every other bind mount in this
+/// file). `mount.conf`'s own comment says exactly why this matters:
+/// "grub/shim need it to create the UEFI NVRAM entry from inside the
+/// target system" — without it, `efibootmgr` (called internally by
+/// [`InstallShimAndGrub`]'s `shim-install`) has no UEFI variable store to
+/// write to inside the chroot, so the real NVRAM boot entry silently never
+/// gets created even though `shim-install` itself reports success (it
+/// still writes the removable-media fallback path unconditionally, which
+/// is why this wasn't caught by a successful-looking install). Mounted
+/// unconditionally here, not behind a UEFI check, because this codebase has
+/// no BIOS/legacy path anywhere else either (GPT/ESP-only partitioning,
+/// `firmware="uefi"` in `kiwi/config.xml`).
+struct MountVirtualFs {
+    fstype: &'static str,
+    dest: PathBuf,
+}
+
+impl PrivilegedOperation for MountVirtualFs {
+    fn describe(&self) -> String {
+        format!("montar {} em {}", self.fstype, self.dest.display())
+    }
+
+    fn perform(&self, executor: &dyn Executor) -> Result<(), OperationError> {
+        fs::create_dir_all(&self.dest).map_err(io_error)?;
+        executor.run(&ArgvCommand {
+            binary: "mount".to_string(),
+            args: vec!["-t".to_string(), self.fstype.to_string(), self.fstype.to_string(), path_str(&self.dest)],
         })?;
         Ok(())
     }
@@ -562,6 +677,15 @@ impl PrivilegedOperation for CopyNetworkConfig {
 /// chroot (the real `hwclock/main.py` runs chrooted via
 /// `target_env_call`, but writes the same file either way). Always UTC —
 /// `hwclock`'s real module has no local-time branch at all.
+///
+/// The RTC-then-ISA retry and the "never fails the job" ending are both
+/// ported from that real `main.py`, not invented here: it tries plain
+/// `hwclock --systohc --utc` first, and only on a non-zero exit retries with
+/// `--directisa` (relevant on older hardware/some VMs where the RTC method
+/// doesn't work); if *both* fail, the module still just logs and returns
+/// `None` rather than aborting the install (issue #44's parity audit — the
+/// single, non-retried, error-propagating call this replaced was a real gap
+/// against that behaviour).
 struct SetHardwareClock {
     target_root: PathBuf,
 }
@@ -572,11 +696,20 @@ impl PrivilegedOperation for SetHardwareClock {
     }
 
     fn perform(&self, executor: &dyn Executor) -> Result<(), OperationError> {
-        let adjfile = self.target_root.join("etc/adjtime");
-        executor.run(&ArgvCommand {
+        let adjfile_flag = format!("--adjfile={}", path_str(&self.target_root.join("etc/adjtime")));
+
+        let rtc = executor.run(&ArgvCommand {
             binary: "hwclock".to_string(),
-            args: vec!["--systohc".to_string(), "--utc".to_string(), format!("--adjfile={}", path_str(&adjfile))],
-        })?;
+            args: vec!["--systohc".to_string(), "--utc".to_string(), adjfile_flag.clone()],
+        });
+        if rtc.is_ok() {
+            return Ok(());
+        }
+
+        let _ = executor.run(&ArgvCommand {
+            binary: "hwclock".to_string(),
+            args: vec!["--systohc".to_string(), "--utc".to_string(), "--directisa".to_string(), adjfile_flag],
+        });
         Ok(())
     }
 }
@@ -1116,6 +1249,24 @@ mod tests {
     }
 
     #[test]
+    fn write_timezone_symlinks_localtime_and_writes_timezone_file() {
+        let temp = TempRoot::new("timezone");
+        let op = WriteTimezone {
+            target_root: temp.0.clone(),
+            timezone: "America/Sao_Paulo".to_string(),
+        };
+        op.perform(&FakeExecutor::new()).unwrap();
+
+        let localtime = temp.0.join("etc/localtime");
+        assert!(localtime.symlink_metadata().unwrap().file_type().is_symlink());
+        assert_eq!(
+            fs::read_link(&localtime).unwrap(),
+            PathBuf::from("../usr/share/zoneinfo/America/Sao_Paulo")
+        );
+        assert_eq!(fs::read_to_string(temp.0.join("etc/timezone")).unwrap(), "America/Sao_Paulo\n");
+    }
+
+    #[test]
     fn write_keyboard_maps_locale_to_a_layout() {
         let temp = TempRoot::new("keyboard-brazil");
         let op = WriteKeyboard {
@@ -1164,6 +1315,11 @@ mod tests {
         let calls = executor.calls();
         assert!(calls[0].starts_with("useradd -R"));
         assert!(!calls[0].contains("harmonia-2026"), "password must never appear in argv");
+        assert!(
+            calls[0].contains("-G users,lp,video,network,storage,wheel,audio"),
+            "must match users.conf's real defaultGroups list, not just wheel: {}",
+            calls[0]
+        );
         assert_eq!(calls[1], format!("chpasswd -R {} <stdin: lyra:harmonia-2026\n>", temp.0.display()));
     }
 
@@ -1179,6 +1335,23 @@ mod tests {
         assert_eq!(fs::read_to_string(&path).unwrap(), "%wheel ALL=(ALL) ALL\n");
         let mode = fs::metadata(&path).unwrap().permissions().mode() & 0o777;
         assert_eq!(mode, 0o440);
+    }
+
+    #[test]
+    fn mount_virtual_fs_uses_matching_device_and_type_then_unmounts_on_undo() {
+        let temp = TempRoot::new("mount-virtual-fs");
+        let dest = temp.0.join("sys/firmware/efi/efivars");
+        let op = MountVirtualFs {
+            fstype: "efivarfs",
+            dest: dest.clone(),
+        };
+        let executor = FakeExecutor::new();
+        op.perform(&executor).unwrap();
+        assert!(dest.is_dir());
+        assert_eq!(executor.calls(), vec![format!("mount -t efivarfs efivarfs {}", dest.display())]);
+
+        op.undo(&executor).unwrap();
+        assert_eq!(executor.calls().last().unwrap(), &format!("umount {}", dest.display()));
     }
 
     #[test]
@@ -1313,6 +1486,76 @@ mod tests {
             executor.calls(),
             vec!["hwclock --systohc --utc --adjfile=/run/lyra-installer/target/etc/adjtime"]
         );
+    }
+
+    /// Fails every `hwclock` call unless `--directisa` is present, so tests
+    /// can exercise the RTC-then-ISA retry without a real broken RTC.
+    struct RtcBrokenExecutor {
+        calls: RefCell<Vec<String>>,
+    }
+
+    impl RtcBrokenExecutor {
+        fn new() -> Self {
+            Self {
+                calls: RefCell::new(Vec::new()),
+            }
+        }
+        fn calls(&self) -> Vec<String> {
+            self.calls.borrow().clone()
+        }
+    }
+
+    impl Executor for RtcBrokenExecutor {
+        fn run(&self, command: &ArgvCommand) -> Result<String, ExecutorError> {
+            self.calls.borrow_mut().push(format!("{} {}", command.binary, command.args.join(" ")));
+            if command.args.contains(&"--directisa".to_string()) {
+                Ok(String::new())
+            } else {
+                Err(ExecutorError::NonZeroExit(Some(1)))
+            }
+        }
+
+        fn run_with_stdin(&self, _command: &ArgvCommand, _stdin: &str) -> Result<String, ExecutorError> {
+            unreachable!("hwclock never uses stdin")
+        }
+    }
+
+    #[test]
+    fn set_hardware_clock_retries_with_isa_bus_when_rtc_method_fails() {
+        let op = SetHardwareClock {
+            target_root: PathBuf::from("/run/lyra-installer/target"),
+        };
+        let executor = RtcBrokenExecutor::new();
+        op.perform(&executor).expect("must not fail even though the RTC attempt did");
+        assert_eq!(
+            executor.calls(),
+            vec![
+                "hwclock --systohc --utc --adjfile=/run/lyra-installer/target/etc/adjtime",
+                "hwclock --systohc --utc --directisa --adjfile=/run/lyra-installer/target/etc/adjtime",
+            ]
+        );
+    }
+
+    /// Always fails, RTC or ISA — mirrors the real module's "BIOS or Kernel
+    /// BUG" case, which still just logs rather than aborting the install.
+    struct AlwaysFailingExecutor;
+
+    impl Executor for AlwaysFailingExecutor {
+        fn run(&self, _command: &ArgvCommand) -> Result<String, ExecutorError> {
+            Err(ExecutorError::NonZeroExit(Some(1)))
+        }
+
+        fn run_with_stdin(&self, _command: &ArgvCommand, _stdin: &str) -> Result<String, ExecutorError> {
+            unreachable!("hwclock never uses stdin")
+        }
+    }
+
+    #[test]
+    fn set_hardware_clock_never_fails_the_job_even_if_both_methods_fail() {
+        let op = SetHardwareClock {
+            target_root: PathBuf::from("/run/lyra-installer/target"),
+        };
+        op.perform(&AlwaysFailingExecutor).expect("real hwclock module logs and returns None, never aborts");
     }
 
     #[test]
@@ -1514,6 +1757,18 @@ mod tests {
                      UUID=1111 /.snapshots btrfs compress=zstd,subvol=/@/.snapshots 0 0\n";
         let error = add_snapshots_line(fstab).unwrap_err();
         assert!(matches!(error, OperationError::Io(_)));
+    }
+
+    #[test]
+    fn deployment_operations_orders_timezone_before_keyboard_before_locale() {
+        let config = InstallConfig::default();
+        let describe: Vec<String> = deployment_operations(&config).iter().map(|op| op.describe()).collect();
+
+        let timezone_index = describe.iter().position(|d| d.starts_with("configurar fuso horário")).unwrap();
+        let keyboard_index = describe.iter().position(|d| d == "configurar layout de teclado").unwrap();
+        let locale_index = describe.iter().position(|d| d.starts_with("configurar locale")).unwrap();
+        assert!(timezone_index < keyboard_index, "real settings.conf runs locale (timezone) before keyboard");
+        assert!(keyboard_index < locale_index, "real settings.conf runs keyboard before localecfg");
     }
 
     #[test]
