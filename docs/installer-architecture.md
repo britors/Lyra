@@ -68,3 +68,15 @@ logs relevantes para diagnóstico.
 
 Somente depois desse checklist o KIWI troca o pacote, o autostart, a regra de
 polkit e remove `root/etc/calamares/`.
+
+## Descoberta de armazenamento e plano (issue #39)
+
+`lyra-installer-core::storage` já existe: `discovery` lê o estado atual de
+discos/RAID/LVM sem privilégio (via `lsblk`, sysfs e `pvs`/`vgs`/`lvs`,
+todos como leitura) e `plan` transforma isso mais a escolha do usuário em um
+`InstallPlan` declarativo e puro — sem nenhuma chamada de sistema, o que é o
+que garante o dry-run do passo 2 do pipeline acima. Os alvos suportados hoje
+são disco inteiro, criação ou reaproveitamento de array RAID (mdadm) e
+criação ou reaproveitamento de volume group LVM em cima do alvo bruto. A
+execução real do plano (particionar, criar o array/VG, formatar) continua
+sendo trabalho do `lyra-installer-service` (#37/#40), não deste módulo.

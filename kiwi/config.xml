@@ -194,6 +194,18 @@
     <package name="snapper-zypp-plugin"/>
     <package name="grub2-snapper-plugin"/>
 
+    <!--
+      RAID (mdadm) and LVM (pvs/vgs/lvs/vgcreate/lvcreate) support for the
+      Rust installer's storage discovery/plan module (issue #39). RAID
+      arrays already assembled by the kernel/initrd are detected via sysfs
+      alone, but LVM has no sysfs-only equivalent - without lvm2 installed,
+      volume groups/logical volumes are simply invisible to discovery, and
+      neither tool exists yet for the plan-execution step (#40) to actually
+      create an array or a VG.
+    -->
+    <package name="mdadm"/>
+    <package name="lvm2"/>
+
     <!-- Swap: zram only, no swapfile. Config shipped via root/etc/systemd/zram-generator.conf -->
     <package name="zram-generator"/>
 
