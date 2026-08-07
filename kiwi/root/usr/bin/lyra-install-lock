@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# Lyra OS - Odisseia (v1)
+#
+# Both installer launchers (Calamares' desktop file and the experimental
+# Lyra Installer's) run their real Exec= through this wrapper, so at most
+# one installer can ever be running in the live session (issue #43's
+# "impedir execução simultânea dos dois instaladores"). A non-blocking
+# flock: if the lock is already held, this refuses immediately with a
+# desktop notification instead of queuing behind whichever installer
+# already has it - starting a second installer once the first is already
+# partitioning a disk is exactly the scenario this exists to prevent.
+
+set -euo pipefail
+
+lock_file=/run/lock/lyra-install.lock
+exec {lock_fd}>"$lock_file"
+
+if ! flock -n "$lock_fd"; then
+    notify-send --icon=drive-harddisk \
+        "Instalador já em execução" \
+        "Feche o outro instalador do Lyra OS antes de abrir este." \
+        2>/dev/null || true
+    echo "lyra-install-lock: another installer already holds $lock_file" >&2
+    exit 1
+fi
+
+exec "$@"

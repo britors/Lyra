@@ -1,0 +1,101 @@
+#
+# spec file for package lyra-installer
+#
+# Copyright (c) 2026 Rodrigo Brito
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+
+Name:           lyra-installer
+Version:        0.1.0
+Release:        0
+Summary:        Instalador nativo do Lyra OS (experimental)
+License:        GPL-3.0-only
+Group:          System/Boot/Installation
+URL:            https://github.com/britors/Lyra
+Source0:        %{name}-%{version}.tar.zst
+Source1:        vendor.tar.zst
+
+BuildRequires:  appstream-glib
+BuildRequires:  cargo
+BuildRequires:  cargo-packaging
+BuildRequires:  desktop-file-utils
+BuildRequires:  gtk3-devel
+BuildRequires:  libsoup-devel
+BuildRequires:  pkgconfig
+BuildRequires:  rust >= 1.85
+BuildRequires:  webkit2gtk3-devel
+BuildRequires:  zstd
+# polkit ships the action/rule loader this package's .policy/.rules need at
+# runtime; no polkit *library* is linked (lyra-installer-service shells out
+# to pkexec's caller side, not libpolkit).
+Requires:       polkit
+
+%description
+Lyra Installer é o instalador nativo do Lyra OS, escrito em Rust com Tauri
+(interface) e um serviço privilegiado separado autorizado por polkit
+(operações de disco). Durante a Beta 2 é uma opção experimental/opt-in na
+sessão live - o Calamares continua sendo o instalador padrão até o gate de
+paridade da issue #44. Veja docs/installer-architecture.md no repositório
+para a arquitetura completa.
+
+%prep
+# -a1 extracts Source0, then unpacks Source1 (vendor.tar.zst) on top of it.
+# Locally generated vendor tarballs embed the absolute path of the machine
+# that produced them in .cargo/config.toml; rewrite it to a path relative
+# to the extracted source, which is what actually exists on the OBS build
+# worker (same fixup as this project's other Rust packages, e.g. beam).
+%autosetup -a1
+sed -i 's|^directory = .*|directory = "vendor"|' .cargo/config.toml
+test -d vendor
+
+%build
+%{cargo_build}
+
+%install
+install -Dm0755 target/release/lyra-installer \
+    %{buildroot}%{_bindir}/lyra-installer
+install -Dm0755 target/release/lyra-installer-service \
+    %{buildroot}%{_libexecdir}/lyra-installer-service
+install -Dm0644 packaging/org.lyraos.LyraInstaller.desktop \
+    %{buildroot}%{_datadir}/applications/org.lyraos.LyraInstaller.desktop
+install -Dm0644 packaging/io.lyra.Installer.policy \
+    %{buildroot}%{_datadir}/polkit-1/actions/io.lyra.Installer.policy
+install -Dm0644 packaging/01-lyra-installer-service.rules \
+    %{buildroot}%{_sysconfdir}/polkit-1/rules.d/01-lyra-installer-service.rules
+
+desktop-file-validate \
+    %{buildroot}%{_datadir}/applications/org.lyraos.LyraInstaller.desktop
+
+%check
+# The GUI (src-tauri) and privileged service (service/) are thin binaries
+# with no meaningful unit tests of their own; every real test lives in the
+# shared lyra-installer-core library (storage discovery/plan, service
+# engine/executor/operations).
+cargo test --offline -p lyra-installer-core
+
+%post
+%desktop_database_post
+
+%postun
+%desktop_database_postun
+
+%files
+%license LICENSE
+%doc README.md
+%{_bindir}/lyra-installer
+%{_libexecdir}/lyra-installer-service
+%{_datadir}/applications/org.lyraos.LyraInstaller.desktop
+%{_datadir}/polkit-1/actions/io.lyra.Installer.policy
+# The build root's directory-ownership check flagged /etc/polkit-1 and
+# /etc/polkit-1/rules.d as unowned by any package present at build time
+# (unlike /usr/share/polkit-1/actions, apparently already owned wherever
+# polkit itself provides it) - claim them explicitly rather than assume.
+%dir %{_sysconfdir}/polkit-1
+%dir %{_sysconfdir}/polkit-1/rules.d
+%{_sysconfdir}/polkit-1/rules.d/01-lyra-installer-service.rules
+
+%changelog

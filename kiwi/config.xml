@@ -354,6 +354,18 @@
     <package name="fina"/>
 
     <!--
+      Lyra Installer, the native Rust/Tauri installer (issue #43). Ships
+      as an experimental, opt-in launcher in the live session -
+      root/usr/share/applications/calamares.desktop stays the default,
+      and both launchers' Exec= now go through
+      root/usr/bin/lyra-install-lock so only one installer can ever run at
+      once. Package name confirmed against home:rodrigosbrito:lyra's real
+      OBS package list (created for this issue, see
+      installer/packaging/lyra-installer.spec).
+    -->
+    <package name="lyra-installer"/>
+
+    <!--
       Branding (Lyra-Theme, github.com/britors/Lyra-Theme). Package
       names, dependency, and behavior confirmed against that repo's real
       packaging/opensuse/*.spec and install-rpm.sh, not assumed:

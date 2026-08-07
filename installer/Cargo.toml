@@ -8,6 +8,14 @@ repository = "https://github.com/britors/Lyra"
 
 [workspace]
 members = ["src-tauri", "service"]
+# The workspace root is also a real package (lyra-installer-core), so a
+# bare `cargo build`/`cargo test` with no -p/--workspace flag only builds
+# that root package by default - confirmed the hard way when the OBS
+# package's `%{cargo_build}` macro (a plain `cargo auditable build
+# --release`, no --workspace) built lyra-installer-core and silently
+# skipped both binaries. default-members makes bare invocations build
+# everything, matching what --workspace would do explicitly.
+default-members = [".", "src-tauri", "service"]
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }

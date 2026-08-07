@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Lyra Installer (Experimental)
+Name[pt_BR]=Lyra Installer (Experimental)
+Comment=Try the experimental native Lyra OS installer
+Comment[pt_BR]=Experimente o instalador nativo experimental do Lyra OS
+TryExec=/usr/bin/lyra-installer
+Exec=/usr/bin/lyra-install-lock /usr/bin/lyra-installer
+Icon=drive-harddisk
+Terminal=false
+StartupNotify=true
+Categories=System;
+X-AppStream-Ignore=true

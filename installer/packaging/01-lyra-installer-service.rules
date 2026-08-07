@@ -1,0 +1,27 @@
+// Lyra OS - Odisseia (v1)
+//
+// Same reasoning as 00-lyra-live-installer.rules (a KIWI root/ overlay
+// file, kiwi/root/etc/polkit-1/rules.d/): liveuser has a locked password
+// (kiwi/config.sh), so any rule that would fall through to polkit's
+// generic admin-authentication default is an impossible prompt, not a
+// security boundary. This grants exactly one action -
+// io.lyra.Installer.execute-plan, declared in the sibling
+// io.lyra.Installer.policy, which is itself pinned to one binary
+// (/usr/libexec/lyra-installer-service) via that policy's
+// org.freedesktop.policykit.exec.path annotation - and only to the live
+// account.
+//
+// Ships in the lyra-installer RPM (see ../lyra-installer.spec), unlike
+// 00-lyra-live-installer.rules which stays a KIWI overlay file since
+// Calamares' own policy comes from a separate upstream package (issue
+// #43). Numbered 01- purely to sort after that existing Calamares rule;
+// polkit evaluates rules in file order and stops at the first decision,
+// so either ordering would work today since the two actions never
+// overlap, but keeping installer-related rules grouped and ordered by
+// introduction date is easier to audit later.
+polkit.addRule(function(action, subject) {
+    if (action.id == "io.lyra.Installer.execute-plan" &&
+        subject.user == "liveuser") {
+        return polkit.Result.YES;
+    }
+});

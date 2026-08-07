@@ -24,6 +24,10 @@ rpmbuild/
 # Rust build output
 target/
 
+# cargo vendor output (regenerated for OBS packaging, see
+# installer/packaging/lyra-installer.spec - not meant to be committed)
+vendor/
+
 # Python bytecode cache
 __pycache__/
 *.pyc

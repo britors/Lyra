@@ -867,6 +867,25 @@ impl PrivilegedOperation for SnapperCreateFirstSnapshot {
     }
 }
 
+/// Neither installer belongs on the installed system, regardless of which
+/// one the user actually ran (issue #43's "sistema instalado não contém
+/// launchers ou privilégios live de nenhum dos dois"). Calamares' own
+/// live-only files (`calamares.desktop`, its live-session polkit rule,
+/// GDM autologin, its autostart entry) are already handled by
+/// `RemoveLiveOnlyArtifacts`, which mirrors `installcleanup.conf`'s
+/// original list — this only needs the files that list never covered:
+/// `/etc/calamares` itself (config, not just the launcher) and every
+/// artifact belonging to this Rust installer, so the Rust path cleans up
+/// after itself exactly as thoroughly as it cleans up after Calamares.
+const LYRA_INSTALLER_ARTIFACTS: &[&str] = &[
+    "usr/bin/lyra-install-lock",
+    "usr/bin/lyra-installer",
+    "usr/libexec/lyra-installer-service",
+    "usr/share/applications/org.lyraos.LyraInstaller.desktop",
+    "usr/share/polkit-1/actions/io.lyra.Installer.policy",
+    "etc/polkit-1/rules.d/01-lyra-installer-service.rules",
+];
+
 struct RemoveTransitionalInstallerArtifacts {
     target_root: PathBuf,
 }
@@ -879,6 +898,9 @@ impl PrivilegedOperation for RemoveTransitionalInstallerArtifacts {
     fn perform(&self, _executor: &dyn Executor) -> Result<(), OperationError> {
         let _ = fs::remove_dir_all(self.target_root.join("etc/calamares"));
         let _ = fs::remove_file(self.target_root.join("usr/libexec/lyra-configure-btrfs-rollback"));
+        for artifact in LYRA_INSTALLER_ARTIFACTS {
+            let _ = fs::remove_file(self.target_root.join(artifact));
+        }
         Ok(())
     }
 }
@@ -1458,6 +1480,25 @@ mod tests {
         // Missing helper script must not be an error.
         op.perform(&FakeExecutor::new()).expect("missing helper script must not fail");
         assert!(!calamares_dir.exists());
+    }
+
+    #[test]
+    fn remove_transitional_installer_artifacts_removes_its_own_files_too() {
+        let temp = TempRoot::new("remove-transitional-self");
+        for artifact in LYRA_INSTALLER_ARTIFACTS {
+            let path = temp.0.join(artifact);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(&path, "placeholder").unwrap();
+        }
+
+        let op = RemoveTransitionalInstallerArtifacts {
+            target_root: temp.0.clone(),
+        };
+        op.perform(&FakeExecutor::new()).unwrap();
+
+        for artifact in LYRA_INSTALLER_ARTIFACTS {
+            assert!(!temp.0.join(artifact).exists(), "{artifact} should have been removed");
+        }
     }
 
     #[test]
