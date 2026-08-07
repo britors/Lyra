@@ -11,6 +11,8 @@ let storageMode='disk';
 let selectedDiskPath=null;
 let raidLevel='Raid1';
 let selectedRaidMembers=new Set();
+let lvmEnabled=false;
+let logicalVolumes=[{name:'root',mount_point:'/',size:'FillRemaining'}];
 let selectedPlan=null;
 
 const keyboardLayouts=[
@@ -113,6 +115,30 @@ function renderRaidLevelOptions(){
   ).join('');
 }
 
+function renderLvList(){
+  document.querySelector('#lv-list').innerHTML=logicalVolumes.map((lv,i)=>{
+    const fixed=lv.size!=='FillRemaining';
+    return `<div class="lv-row">
+      <input type="text" class="lv-name" data-index="${i}" value="${lv.name}" placeholder="nome" ${i===0?'readonly':''}/>
+      <input type="text" class="lv-mount" data-index="${i}" value="${lv.mount_point}" placeholder="/ponto/de/montagem" ${i===0?'readonly':''}/>
+      <select class="lv-size-mode" data-index="${i}">
+        <option value="fill" ${!fixed?'selected':''}>Preencher restante</option>
+        <option value="fixed" ${fixed?'selected':''}>Tamanho fixo (GiB)</option>
+      </select>
+      <input type="number" class="lv-size-value" data-index="${i}" min="1" value="${fixed?Math.round(lv.size.Fixed/(1024**3)):''}" ${fixed?'':'hidden'}/>
+      ${i>0?`<button type="button" class="lv-remove" data-index="${i}">✕</button>`:'<span></span>'}
+    </div>`;
+  }).join('');
+}
+
+function buildLogicalVolumePlans(){
+  return logicalVolumes.map(lv=>({
+    name:lv.name,
+    mount_point:lv.mount_point,
+    size:lv.size==='FillRemaining'?'FillRemaining':{Fixed:lv.size.Fixed},
+  }));
+}
+
 function renderDiskCards(){
   const list=document.querySelector('#disk-list');
   const disks=storageSnapshot?.disks||[];
@@ -179,12 +205,18 @@ function renderPlan(plan){
 }
 
 function buildGuidedChoice(){
+  let raw_target;
   if(storageMode==='disk'){
     if(!selectedDiskPath) return null;
-    return {raw_target:{Disk:selectedDiskPath},volume_layer:'Direct'};
+    raw_target={Disk:selectedDiskPath};
+  }else{
+    if(selectedRaidMembers.size===0) return null;
+    raw_target={NewRaid:{level:raidLevel,members:[...selectedRaidMembers],name:'md0'}};
   }
-  if(selectedRaidMembers.size===0) return null;
-  return {raw_target:{NewRaid:{level:raidLevel,members:[...selectedRaidMembers],name:'md0'}},volume_layer:'Direct'};
+  const volume_layer=lvmEnabled
+    ?{NewVolumeGroup:{name:'vg-lyra',logical_volumes:buildLogicalVolumePlans()}}
+    :'Direct';
+  return {raw_target,volume_layer};
 }
 
 async function refreshPlan(){
@@ -308,6 +340,44 @@ document.querySelector('#raid-level-options').addEventListener('click',event=>{
   renderDiskCards();
   refreshPlan();
 });
+document.querySelector('#lvm-enabled').addEventListener('change',event=>{
+  lvmEnabled=event.target.checked;
+  document.querySelector('#lvm-editor').hidden=!lvmEnabled;
+  refreshPlan();
+});
+document.querySelector('#lv-add-btn').addEventListener('click',()=>{
+  logicalVolumes.push({name:'',mount_point:'',size:'FillRemaining'});
+  renderLvList();
+  refreshPlan();
+});
+document.querySelector('#lv-list').addEventListener('click',event=>{
+  const btn=event.target.closest('.lv-remove');
+  if(!btn) return;
+  logicalVolumes.splice(Number(btn.dataset.index),1);
+  renderLvList();
+  refreshPlan();
+});
+document.querySelector('#lv-list').addEventListener('input',event=>{
+  const index=Number(event.target.dataset.index);
+  if(Number.isNaN(index)) return;
+  const lv=logicalVolumes[index];
+  if(event.target.matches('.lv-name')) lv.name=event.target.value;
+  else if(event.target.matches('.lv-mount')) lv.mount_point=event.target.value;
+  else if(event.target.matches('.lv-size-value')){
+    const gib=Number(event.target.value)||0;
+    lv.size={Fixed:gib*1024*1024*1024};
+  }
+  refreshPlan();
+});
+document.querySelector('#lv-list').addEventListener('change',event=>{
+  if(!event.target.matches('.lv-size-mode')) return;
+  const index=Number(event.target.dataset.index);
+  const lv=logicalVolumes[index];
+  lv.size=event.target.value==='fixed'?{Fixed:20*1024*1024*1024}:'FillRemaining';
+  renderLvList();
+  refreshPlan();
+});
+renderLvList();
 renderLanguageCards();
 renderKeyboardCards();
 renderRaidLevelOptions();

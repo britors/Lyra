@@ -81,6 +81,11 @@
             </div>
             <div class="keyboard-toolbar"><span class="keyboard-count" id="disk-count"></span></div>
             <div class="disk-list" id="disk-list" aria-live="polite"><p class="keyboard-empty">Detectando discos…</p></div>
+            <div class="lvm-toggle-row"><label class="lvm-toggle"><input type="checkbox" id="lvm-enabled" /> Usar LVM (volume group)</label></div>
+            <div class="lvm-editor" id="lvm-editor" hidden>
+              <div class="lv-list" id="lv-list"></div>
+              <button type="button" class="lv-add-btn" id="lv-add-btn">+ Adicionar logical volume</button>
+            </div>
             <div class="disk-plan" id="disk-plan" hidden></div>
             <div class="safe-note"><span>✓</span> Esta etapa apenas lê o estado atual dos discos e calcula um plano — nenhuma operação destrutiva é executada aqui.</div>
           </section>

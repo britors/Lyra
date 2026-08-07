@@ -39,12 +39,21 @@ motivo quando um está bloqueado (mídia live, membro de RAID/LVM, já
 particionado), o resumo destrutivo e os avisos do plano, e só liberam
 "Continuar" quando o plano é válido — inclusive o erro real do
 `PlanBuilder` quando menos discos que o mínimo do nível são marcados,
-sem duplicar essa regra em JS. `volume_layer` continua sempre `Direct`
-em ambos os modos: não existe editor de volume group/logical volume na
-UI (fora de escopo por decisão de produto — o assistente é guiado, não
-um particionador manual, ver `docs/installer-architecture.md`), então
-`ExistingRaid` e `NewVolumeGroup`/`ExistingVolumeGroup` continuam sem
-tela. `window.__TAURI__` precisou ser
+sem duplicar essa regra em JS.
+
+Um toggle "Usar LVM" (independente do modo disco/RAID, já que
+`storage::plan` valida RAID+LVM combinados) troca `volume_layer` de
+`Direct` para `NewVolumeGroup{name: "vg-lyra", logical_volumes}`. O
+editor de logical volumes começa com uma linha fixa (`root` em `/`,
+`FillRemaining`, não removível — `PlanBuilder` exige uma LV montada em
+`/`) e permite adicionar/remover outras, cada uma com nome, ponto de
+montagem e tamanho fixo (GiB) ou "preencher o restante". Isso volta
+atrás de uma decisão de escopo tomada mais cedo na mesma sessão ("só
+RAID novo, sem editor de LVM, para manter o assistente guiado" — ver
+`docs/installer-architecture.md`); pedido explícito depois. `ExistingRaid`
+(reaproveitar array já existente) continua sem tela.
+
+`window.__TAURI__` precisou ser
 habilitado (`withGlobalTauri: true` em `tauri.conf.json`) porque este
 frontend é HTML/JS estático sem bundler, então não há import de
 `@tauri-apps/api`; comandos definidos no próprio binário (via
