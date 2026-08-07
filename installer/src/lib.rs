@@ -16,17 +16,95 @@ pub struct InstallConfig {
     /// are added now so `WriteTimezone` (issue #44's parity audit) has
     /// something typed to read.
     pub timezone: String,
+    /// One of `ui/app.js`'s `keyboardLayouts` ids (e.g. `br-abnt2`,
+    /// `us-intl`, `dvorak`) — see [`KEYBOARD_LAYOUTS`] for how each maps to
+    /// a real XKB layout/variant.
+    pub keyboard_layout: String,
     pub hostname: String,
     pub full_name: String,
     pub username: String,
     pub password: String,
 }
 
+/// Wizard keyboard-picker id -> real XKB `(layout, variant)`, verified
+/// against a real system's own `/usr/share/X11/xkb/rules/base.lst` (via
+/// `localectl list-x11-keymap-layouts`/`-variants`), not guessed from
+/// familiar-looking codes. `None` means the base layout needs no variant
+/// suffix (e.g. `br` alone already is ABNT2; `ch` alone already is
+/// German-Swiss QWERTZ — neither has a `-abnt2`/`-de` variant on real
+/// xkeyboard-config).
+///
+/// Two ids don't back the language their UI label promises, on purpose,
+/// not by oversight:
+/// - `ua` (Ukrainian) — the wizard used to call this `uk`, but XKB has no
+///   `uk` layout at all (`gb` already owns British English); real code is
+///   `ua`. `ui/app.js` was fixed to match.
+/// - `la` ("Latina"/classical Latin in the UI) is deliberately **not**
+///   backed by XKB's actual `la` code, which is Lao (Laos) — a completely
+///   unrelated language. Classical Latin has no dedicated XKB layout
+///   anywhere upstream and needs nothing beyond the base Latin alphabet,
+///   so this maps to `us` instead of the wrong language.
+///
+/// Several non-Latin entries (`ja`/`ko`/`zh-pinyin`/`th`/`ar`/`fa`/`he`)
+/// only get raw XKB key-level typing this way, not full input-method
+/// conversion (Pinyin→Hanzi, Kana→Kanji, …) — that needs `ibus` engine
+/// packages (e.g. `ibus-libpinyin`), and `kiwi/config.xml` doesn't install
+/// any yet. This is not a regression: Calamares' real `keyboard` module
+/// (confirmed via `strings` on the installed `.so` — no `gsettings`/
+/// `dconf`/`ibus`/`org.gnome` references at all) does not configure a
+/// desktop input method either, on either installer path, today.
+pub const KEYBOARD_LAYOUTS: &[(&str, &str, Option<&str>)] = &[
+    ("br-abnt2", "br", None),
+    ("br", "br", None),
+    ("pt", "pt", None),
+    ("us", "us", None),
+    ("us-intl", "us", Some("intl")),
+    ("gb", "gb", None),
+    ("ca", "ca", Some("multix")),
+    ("ie", "ie", None),
+    ("es", "es", None),
+    ("latam", "latam", None),
+    ("fr", "fr", None),
+    ("be", "be", None),
+    ("de", "de", None),
+    ("ch-de", "ch", None),
+    ("it", "it", None),
+    ("nl", "nl", None),
+    ("se", "se", None),
+    ("no", "no", None),
+    ("dk", "dk", None),
+    ("fi", "fi", None),
+    ("is", "is", None),
+    ("pl", "pl", None),
+    ("cz", "cz", None),
+    ("sk", "sk", None),
+    ("hu", "hu", None),
+    ("ro", "ro", None),
+    ("tr", "tr", None),
+    ("ru", "ru", None),
+    ("ua", "ua", None),
+    ("bg", "bg", Some("phonetic")),
+    ("el", "gr", None),
+    ("he", "il", None),
+    ("ar", "ara", None),
+    ("fa", "ir", None),
+    ("ja", "jp", None),
+    ("ko", "kr", None),
+    ("zh-pinyin", "cn", None),
+    ("th", "th", None),
+    ("in", "in", Some("eng")),
+    ("pk", "pk", None),
+    ("la", "us", None),
+    ("dvorak", "us", Some("dvorak")),
+    ("colemak", "us", Some("colemak")),
+];
+
 impl Default for InstallConfig {
     fn default() -> Self {
         Self {
             locale: "pt_BR.UTF-8".into(),
             timezone: "America/Sao_Paulo".into(),
+            keyboard_layout: "br-abnt2".into(),
             hostname: "lyra-os".into(),
             full_name: String::new(),
             username: String::new(),
@@ -48,6 +126,9 @@ impl InstallConfig {
             "America/Sao_Paulo" | "America/Manaus" | "America/Belem" | "UTC"
         ) {
             errors.push("fuso horário não suportado");
+        }
+        if !KEYBOARD_LAYOUTS.iter().any(|(id, ..)| *id == self.keyboard_layout) {
+            errors.push("layout de teclado não suportado");
         }
         if !valid_hostname(&self.hostname) {
             errors.push("nome do dispositivo inválido");
@@ -112,6 +193,7 @@ mod tests {
         let config = InstallConfig::default();
         assert_eq!(config.locale, "pt_BR.UTF-8");
         assert_eq!(config.timezone, "America/Sao_Paulo");
+        assert_eq!(config.keyboard_layout, "br-abnt2");
         assert_eq!(config.hostname, "lyra-os");
     }
 
@@ -121,6 +203,23 @@ mod tests {
         config.timezone = "Europe/Lisbon".into();
         let errors = config.validate().unwrap_err();
         assert!(errors.contains(&"fuso horário não suportado"));
+    }
+
+    #[test]
+    fn rejects_a_keyboard_layout_outside_the_wizards_option_list() {
+        let mut config = valid_config();
+        config.keyboard_layout = "dvorak-de-nonexistent".into();
+        let errors = config.validate().unwrap_err();
+        assert!(errors.contains(&"layout de teclado não suportado"));
+    }
+
+    #[test]
+    fn every_keyboard_layout_id_is_unique() {
+        let mut ids: Vec<&str> = KEYBOARD_LAYOUTS.iter().map(|(id, ..)| *id).collect();
+        let before = ids.len();
+        ids.sort_unstable();
+        ids.dedup();
+        assert_eq!(ids.len(), before, "duplicate id in KEYBOARD_LAYOUTS");
     }
 
     #[test]

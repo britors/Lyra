@@ -140,14 +140,53 @@ real a partir do que foi preenchido (idioma, fuso, hostname, nome
 completo, usuário, senha) e chama o novo comando Tauri
 `validate_install_config` — que só roda `InstallConfig::validate()` de
 verdade, sem I/O — mostrando qualquer erro (ex.: fuso horário fora das 4
-opções). Isso é o que faltava pro `<select id="timezone">` deixar de ser
-só decorativo. **O que continua faltando, de propósito**: nada chama
-`execute_plan` ainda — o botão "Instalar" segue desabilitado
-("Backend em desenvolvimento"), porque isso dispararia o serviço
-privilegiado fazendo partição/formatação de verdade, e isso só faz
-sentido depois de `service/test-loop-device.sh` rodar validado (ver acima)
-e da matriz de testes do #44. O teclado da tela 4 também não alimenta o
-`InstallConfig` ainda — não tem campo próprio (ver `WriteKeyboard`).
+opções, layout de teclado fora da lista). Isso é o que faltava pro
+`<select id="timezone">` deixar de ser só decorativo.
+
+`InstallConfig` agora também tem `keyboard_layout`, alimentado pelo
+seletor da tela 4 (42 opções). Investigação real (não suposição) revelou
+que o mecanismo antigo do `WriteKeyboard` (escrever
+`/etc/X11/xorg.conf.d/00-keyboard.conf`) nunca teve efeito nenhum na
+sessão real: GNOME 48+ aqui roda em Wayland por padrão, e Wayland não
+consulta config de Xorg — não existe processo Xorg rodando pra ler aquele
+arquivo. O mecanismo certo, confirmado contra a documentação oficial do
+dconf (wiki.gnome.org/Projects/dconf/SystemAdministrators), é um default
+sistêmico via `/etc/dconf/profile/user` + `/etc/dconf/db/local.d/` +
+`dconf update` no chroot, escrevendo `org.gnome.desktop.input-sources`.
+`WriteKeyboard` foi reescrito pra isso; `vconsole.conf` continua sendo
+escrito também (efeito só no TTY via Ctrl+Alt+F3, sem relação com a
+sessão gráfica).
+
+O mapeamento de cada um dos 42 ids do seletor pro layout/variante XKB real
+(`KEYBOARD_LAYOUTS` em `src/lib.rs`) foi conferido contra
+`/usr/share/X11/xkb/rules/base.lst` desta própria máquina, não suposto —
+o que revelou dois ids do próprio seletor que estavam errados, corrigidos
+nesta sessão: `uk` (Ucraniano) não existe como layout XKB, o código real é
+`ua` (`ui/app.js` corrigido); `la` (rotulado "Latina" no wizard) é na
+verdade o código XKB do **Laociano** (`la` = Lao), um idioma completamente
+diferente — como não existe layout XKB de "Latim clássico" em lugar
+nenhum do upstream, mapeado pra `us` em vez do idioma errado. `ch-de` e
+`br-abnt2` também não têm variante com esses nomes — a checagem confirmou
+que os layouts *base* `ch` e `br`, sem variante nenhuma, já são
+alemão-suíço e ABNT2 respectivamente.
+
+**Limitação que não é nova, é pré-existente e compartilhada com o
+Calamares**: idiomas que precisam de método de entrada de verdade
+(japonês, coreano, chinês/pinyin, tailandês, árabe, persa, hebraico)
+só recebem o layout XKB básico — sem `ibus`, não tem conversão
+fonética→ideograma nem composição real. Confirmado via `strings` no
+`.so` real do módulo `keyboard` do Calamares: zero referências a
+`gsettings`/`dconf`/`ibus`/`org.gnome` — o Calamares também nunca
+configurou método de entrada nenhum, em nenhum dos dois caminhos. E
+`kiwi/config.xml` não instala nenhum pacote `ibus-*` hoje — isso é uma
+decisão de conteúdo da imagem, fora do escopo do `installer/`.
+
+**O que continua faltando, de propósito**: nada chama `execute_plan`
+ainda — o botão "Instalar" segue desabilitado ("Backend em
+desenvolvimento"), porque isso dispararia o serviço privilegiado fazendo
+partição/formatação de verdade, e isso só faz sentido depois de
+`service/test-loop-device.sh` rodar validado (ver acima) e da matriz de
+testes do #44.
 
 `operations::deploy` implanta o rootfs no target já particionado: extrai o
 squashfs da sessão live, machine-id, fuso horário, teclado, locale

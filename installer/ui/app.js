@@ -39,7 +39,7 @@ const keyboardLayouts=[
   ['ro','Română','Romênia · standard','Europa','Q W E R T Y Ă ⌫'],
   ['tr','Türkçe','Turquia · QWERTY','Europa','Q W E R T Y Ş ⌫'],
   ['ru','Русский','Russo · ЙЦУКЕН','Cirílico','Й Ц У К Е Н Г Ш ⌫'],
-  ['uk','Українська','Ucraniano · ЙЦУКЕН','Cirílico','Й Ц У К Е Н І Ї ⌫'],
+  ['ua','Українська','Ucraniano · ЙЦУКЕН','Cirílico','Й Ц У К Е Н І Ї ⌫'],
   ['bg','Български','Búlgaro · fonético','Cirílico','Я В Е Р Т Ъ У И ⌫'],
   ['el','Ελληνικά','Grego · QWERTY','Cirílico','; ς Ε Ρ Τ Υ Θ ⌫'],
   ['he','עברית','Hebraico · IL','Oriente Médio','/ ק ר א ט י ו ⌫'],
@@ -198,6 +198,7 @@ function collectInstallConfig(){
   return {
     locale: document.querySelector('input[name=locale]:checked').value,
     timezone: document.querySelector('#timezone').value,
+    keyboard_layout: document.querySelector('input[name=keyboard]:checked').value,
     hostname: document.querySelector('#hostname').value,
     full_name: document.querySelector('#full-name').value.trim(),
     username: document.querySelector('#username').value,

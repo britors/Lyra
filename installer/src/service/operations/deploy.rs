@@ -68,7 +68,7 @@ pub fn deployment_operations(config: &InstallConfig) -> Vec<Box<dyn PrivilegedOp
         }),
         Box::new(WriteKeyboard {
             target_root: target_root.clone(),
-            locale: config.locale.clone(),
+            keyboard_layout: config.keyboard_layout.clone(),
         }),
         Box::new(WriteLocale {
             target_root: target_root.clone(),
@@ -321,14 +321,33 @@ impl PrivilegedOperation for WriteLocale {
     }
 }
 
-/// `InstallConfig` has no keyboard field yet — `keyboard.conf`'s real
-/// module is compiled C++, so its exact target-writing behaviour can't be
-/// grepped either. This is a placeholder mapping tied to locale until a
-/// real keyboard picker exists; said so here and in
-/// `docs/installer-architecture.md`, not left implicit.
+/// Writes the target's keyboard layout two ways, deliberately not the way
+/// the previous, locale-inferred placeholder did:
+///
+/// - `/etc/vconsole.conf` `KEYMAP=` — still just best-effort (console
+///   keymap names are a different namespace from XKB, `kbd` package, not
+///   `xkeyboard-config`; the resolved XKB layout id is reused verbatim
+///   since it happens to also be a valid console keymap for most of
+///   [`KEYBOARD_LAYOUTS`]'s Latin-script entries), covers TTY access only
+///   (Ctrl+Alt+F3), unrelated to the desktop session.
+/// - a GNOME systemwide `dconf` default for
+///   `org.gnome.desktop.input-sources` — the mechanism that actually
+///   controls the real GNOME/Wayland desktop session (GNOME 48+ here is
+///   Wayland by default). The previous version instead wrote
+///   `/etc/X11/xorg.conf.d/00-keyboard.conf`, which is Xorg-server-only
+///   config: no Xorg process runs under a Wayland session at all, so that
+///   file had zero effect on the actual desktop keyboard layout unless a
+///   user manually picked a "GNOME on Xorg" fallback session at the GDM
+///   login screen. Confirmed via GNOME's own dconf system-administrator
+///   docs (wiki.gnome.org/Projects/dconf/SystemAdministrators): a
+///   `/etc/dconf/profile/user` naming the `local` system database, plus a
+///   keyfile under `/etc/dconf/db/local.d/`, plus `dconf update` to
+///   compile the binary database. No lock file — the point is a *default*,
+///   not enforcement; the installed user can still change it later in
+///   Settings.
 struct WriteKeyboard {
     target_root: PathBuf,
-    locale: String,
+    keyboard_layout: String,
 }
 
 impl PrivilegedOperation for WriteKeyboard {
@@ -336,19 +355,36 @@ impl PrivilegedOperation for WriteKeyboard {
         "configurar layout de teclado".to_string()
     }
 
-    fn perform(&self, _executor: &dyn Executor) -> Result<(), OperationError> {
-        let layout = if self.locale.starts_with("pt_BR") { "br" } else { "us" };
+    fn perform(&self, executor: &dyn Executor) -> Result<(), OperationError> {
+        let (_, xkb_layout, xkb_variant) = crate::KEYBOARD_LAYOUTS
+            .iter()
+            .find(|(id, ..)| *id == self.keyboard_layout)
+            .ok_or_else(|| OperationError::Io(format!("layout de teclado desconhecido: {}", self.keyboard_layout)))?;
 
         let etc = self.target_root.join("etc");
         fs::create_dir_all(&etc).map_err(io_error)?;
-        fs::write(etc.join("vconsole.conf"), format!("KEYMAP={layout}\n")).map_err(io_error)?;
+        fs::write(etc.join("vconsole.conf"), format!("KEYMAP={xkb_layout}\n")).map_err(io_error)?;
 
-        let xorg_dir = etc.join("X11/xorg.conf.d");
-        fs::create_dir_all(&xorg_dir).map_err(io_error)?;
-        let content = format!(
-            "Section \"InputClass\"\n    Identifier \"system-keyboard\"\n    MatchIsKeyboard \"on\"\n    Option \"XkbLayout\" \"{layout}\"\nEndSection\n"
-        );
-        fs::write(xorg_dir.join("00-keyboard.conf"), content).map_err(io_error)?;
+        let dconf_profile_dir = etc.join("dconf/profile");
+        fs::create_dir_all(&dconf_profile_dir).map_err(io_error)?;
+        fs::write(dconf_profile_dir.join("user"), "user-db:user\nsystem-db:local\n").map_err(io_error)?;
+
+        let dconf_db_dir = etc.join("dconf/db/local.d");
+        fs::create_dir_all(&dconf_db_dir).map_err(io_error)?;
+        let xkb_source = match xkb_variant {
+            Some(variant) => format!("{xkb_layout}+{variant}"),
+            None => xkb_layout.to_string(),
+        };
+        fs::write(
+            dconf_db_dir.join("00-keyboard"),
+            format!("[org/gnome/desktop/input-sources]\nsources=[('xkb', '{xkb_source}')]\n"),
+        )
+        .map_err(io_error)?;
+
+        executor.run(&ArgvCommand {
+            binary: "chroot".to_string(),
+            args: vec![path_str(&self.target_root), "dconf".to_string(), "update".to_string()],
+        })?;
         Ok(())
     }
 }
@@ -1315,25 +1351,49 @@ mod tests {
     }
 
     #[test]
-    fn write_keyboard_maps_locale_to_a_layout() {
+    fn write_keyboard_writes_vconsole_and_a_dconf_default_then_updates_it() {
         let temp = TempRoot::new("keyboard-brazil");
         let op = WriteKeyboard {
             target_root: temp.0.clone(),
-            locale: "pt_BR.UTF-8".to_string(),
+            keyboard_layout: "br-abnt2".to_string(),
+        };
+        let executor = FakeExecutor::new();
+        op.perform(&executor).unwrap();
+
+        assert_eq!(fs::read_to_string(temp.0.join("etc/vconsole.conf")).unwrap(), "KEYMAP=br\n");
+        assert_eq!(
+            fs::read_to_string(temp.0.join("etc/dconf/profile/user")).unwrap(),
+            "user-db:user\nsystem-db:local\n"
+        );
+        assert_eq!(
+            fs::read_to_string(temp.0.join("etc/dconf/db/local.d/00-keyboard")).unwrap(),
+            "[org/gnome/desktop/input-sources]\nsources=[('xkb', 'br')]\n"
+        );
+        assert_eq!(executor.calls(), vec![format!("chroot {} dconf update", temp.0.display())]);
+    }
+
+    #[test]
+    fn write_keyboard_combines_layout_and_variant_for_sources_with_a_variant() {
+        let temp = TempRoot::new("keyboard-us-intl");
+        let op = WriteKeyboard {
+            target_root: temp.0.clone(),
+            keyboard_layout: "us-intl".to_string(),
         };
         op.perform(&FakeExecutor::new()).unwrap();
-        assert_eq!(fs::read_to_string(temp.0.join("etc/vconsole.conf")).unwrap(), "KEYMAP=br\n");
-        assert!(fs::read_to_string(temp.0.join("etc/X11/xorg.conf.d/00-keyboard.conf"))
-            .unwrap()
-            .contains("\"br\""));
+        assert_eq!(
+            fs::read_to_string(temp.0.join("etc/dconf/db/local.d/00-keyboard")).unwrap(),
+            "[org/gnome/desktop/input-sources]\nsources=[('xkb', 'us+intl')]\n"
+        );
+    }
 
-        let temp2 = TempRoot::new("keyboard-us");
-        let op2 = WriteKeyboard {
-            target_root: temp2.0.clone(),
-            locale: "en_US.UTF-8".to_string(),
+    #[test]
+    fn write_keyboard_rejects_an_unknown_layout_id() {
+        let op = WriteKeyboard {
+            target_root: PathBuf::from("/run/lyra-installer/target"),
+            keyboard_layout: "does-not-exist".to_string(),
         };
-        op2.perform(&FakeExecutor::new()).unwrap();
-        assert_eq!(fs::read_to_string(temp2.0.join("etc/vconsole.conf")).unwrap(), "KEYMAP=us\n");
+        let error = op.perform(&FakeExecutor::new()).unwrap_err();
+        assert!(matches!(error, OperationError::Io(_)));
     }
 
     #[test]
