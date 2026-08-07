@@ -365,6 +365,25 @@ impl PrivilegedOperation for WriteKeyboard {
         fs::create_dir_all(&etc).map_err(io_error)?;
         fs::write(etc.join("vconsole.conf"), format!("KEYMAP={xkb_layout}\n")).map_err(io_error)?;
 
+        // Real module also writes /etc/default/keyboard, only when
+        // /etc/default already exists (confirmed via strings: its own
+        // failure message says "existing /etc/default directory", same
+        // conditional WriteLocale already mirrors for /etc/default/locale)
+        // - not dead code here: /usr/bin/setupcon (present on this image)
+        // reads exactly this file. XKBMODEL="pc105" is the module's own
+        // literal default (also found via strings), used for every layout
+        // since there's no model picker in the wizard.
+        if etc.join("default").is_dir() {
+            let variant = xkb_variant.unwrap_or("");
+            fs::write(
+                etc.join("default/keyboard"),
+                format!(
+                    "XKBMODEL=\"pc105\"\nXKBLAYOUT=\"{xkb_layout}\"\nXKBVARIANT=\"{variant}\"\nXKBOPTIONS=\"\"\nBACKSPACE=\"guess\"\n"
+                ),
+            )
+            .map_err(io_error)?;
+        }
+
         let dconf_profile_dir = etc.join("dconf/profile");
         fs::create_dir_all(&dconf_profile_dir).map_err(io_error)?;
         fs::write(dconf_profile_dir.join("user"), "user-db:user\nsystem-db:local\n").map_err(io_error)?;
@@ -1370,6 +1389,24 @@ mod tests {
             "[org/gnome/desktop/input-sources]\nsources=[('xkb', 'br')]\n"
         );
         assert_eq!(executor.calls(), vec![format!("chroot {} dconf update", temp.0.display())]);
+        assert!(!temp.0.join("etc/default/keyboard").exists(), "no /etc/default dir here, nothing to write into");
+    }
+
+    #[test]
+    fn write_keyboard_writes_etc_default_keyboard_only_if_the_dir_exists() {
+        let temp = TempRoot::new("keyboard-defaults-dir");
+        fs::create_dir_all(temp.0.join("etc/default")).unwrap();
+        let op = WriteKeyboard {
+            target_root: temp.0.clone(),
+            keyboard_layout: "us-intl".to_string(),
+        };
+        op.perform(&FakeExecutor::new()).unwrap();
+
+        let content = fs::read_to_string(temp.0.join("etc/default/keyboard")).unwrap();
+        assert!(content.contains("XKBMODEL=\"pc105\""));
+        assert!(content.contains("XKBLAYOUT=\"us\""));
+        assert!(content.contains("XKBVARIANT=\"intl\""));
+        assert!(content.contains("BACKSPACE=\"guess\""));
     }
 
     #[test]

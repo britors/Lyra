@@ -134,15 +134,25 @@ porta isso literalmente, inclusive a tolerância por pacote. Precisou
 adicionar `zypper` à `ALLOWED_BINARIES` (única finalidade: remover
 exatamente esses dois pacotes, nunca com nome vindo de plano/usuário).
 
-Achados menores, não corrigidos: `networkcfg` real também copia config do
-Netplan (provavelmente irrelevante pra Leap+GNOME, que só usa
-NetworkManager); `keyboard` real também escreve `/etc/default/keyboard`,
-que `WriteKeyboard` não escreve. Ainda não conferidos: `fstab` (módulo
-genérico do Calamares — o Rust já é uma reimplementação própria a partir
-de `storage::plan`, não uma porta do módulo, então "paridade" aqui é mais
-sobre as opções de mount, já conferidas via `mount.conf`) e `unpackfs`/
-`snapshotcfg` (grounding extenso já feito em sessões anteriores, não
-re-verificado agora).
+Quarta rodada: fechei o `/etc/default/keyboard` e conferi o Netplan de
+verdade em vez de deixar como "achado menor". `WriteKeyboard` agora
+escreve `/etc/default/keyboard` (`XKBMODEL="pc105"` — valor literal do
+próprio módulo real, sem seletor de modelo no wizard — mais
+`XKBLAYOUT`/`XKBVARIANT`/`BACKSPACE="guess"`), condicionado a
+`/etc/default` já existir, igual ao `WriteLocale`. Não é código morto:
+`/usr/bin/setupcon` está presente na imagem e lê exatamente esse
+arquivo. Já o Netplan em `networkcfg` **não foi portado, de propósito,
+verificado**: `/etc/netplan` não existe em lugar nenhum da imagem
+construída, nem o pacote `netplan` — o bloco correspondente do módulo
+real nunca executaria aqui (`if os.path.exists(source_netplan) and
+os.path.exists(target_netplan)`), então portar seria código morto sem
+nenhum ganho, não uma lacuna real.
+
+Ainda não conferidos: `fstab` (módulo genérico do Calamares — o Rust já
+é uma reimplementação própria a partir de `storage::plan`, não uma
+porta do módulo, então "paridade" aqui é mais sobre as opções de mount,
+já conferidas via `mount.conf`) e `unpackfs`/`snapshotcfg` (grounding
+extenso já feito em sessões anteriores, não re-verificado agora).
 
 **Parcialmente resolvido**: a tela de resumo agora monta um `InstallConfig`
 real a partir do que foi preenchido (idioma, fuso, hostname, nome
