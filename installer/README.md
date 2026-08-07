@@ -157,11 +157,26 @@ real nunca executaria aqui (`if os.path.exists(source_netplan) and
 os.path.exists(target_netplan)`), então portar seria código morto sem
 nenhum ganho, não uma lacuna real.
 
-Ainda não conferidos: `fstab` (módulo genérico do Calamares — o Rust já
-é uma reimplementação própria a partir de `storage::plan`, não uma
-porta do módulo, então "paridade" aqui é mais sobre as opções de mount,
-já conferidas via `mount.conf`) e `unpackfs`/`snapshotcfg` (grounding
-extenso já feito em sessões anteriores, não re-verificado agora).
+Quinta rodada: reconferi `fstab`, `unpackfs` e `snapshotcfg` (grounding
+anterior existia, mas não tinha sido re-auditado nesta série de
+sessões). `fstab` sem achado novo — é uma reimplementação própria do
+Rust a partir de `storage::plan`, as opções de mount já batiam via
+`mount.conf`. `unpackfs`: descobri que o módulo real **não** usa um
+`unsquashfs -f -d` simples — ele monta o squashfs e copia arquivo por
+arquivo em Python, com uma correção explícita (`repair_root_permissions`)
+pra um bug conhecido do squashfs que deixa a raiz extraída com permissão
+`777`. Tentei reproduzir localmente com um squashfs de teste feito na
+hora e não consegui (`unsquashfs -f -d` preservou 755 corretamente) —
+então pode ser um gatilho específico de versão/flags que não bati nesse
+teste. Portei a correção mesmo assim (`repair_root_permissions` em
+`deploy.rs`): é barata, só age exatamente em `777`, e replica um
+workaround real do upstream, não uma suposição. `snapshotcfg`: reli
+`lyra-configure-btrfs-rollback` (o script bash que `PrepareBtrfsRollback`/
+`MountSnapshotsSubvolume` portam) linha por linha contra a lógica awk do
+Rust — confere exatamente, só duas diferenças cosméticas sem efeito
+real (tab vs espaço nas linhas reescritas do fstab; um fallback de campo
+vazio vs `"0"` que nunca dispara porque o próprio `WriteFstab` do Rust
+sempre escreve as 6 colunas).
 
 **Parcialmente resolvido**: a tela de resumo agora monta um `InstallConfig`
 real a partir do que foi preenchido (idioma, fuso, hostname, nome

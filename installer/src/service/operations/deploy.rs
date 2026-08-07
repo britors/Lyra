@@ -21,7 +21,7 @@
 use std::fs;
 use std::io::Read;
 use std::os::unix::fs::PermissionsExt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::InstallConfig;
 
@@ -200,8 +200,27 @@ impl PrivilegedOperation for ExtractRootfs {
             binary: "unsquashfs".to_string(),
             args: vec!["-f".to_string(), "-d".to_string(), path_str(&self.target_root), LIVE_SQUASHFS.to_string()],
         })?;
+        repair_root_permissions(&self.target_root)?;
         Ok(())
     }
+}
+
+/// Ports `unpackfs/main.py`'s `repair_root_permissions` exactly: squashfs
+/// has a known, real quirk of leaving the extracted root at mode 777
+/// (confirmed by the real module's own docstring, not guessed); anything
+/// else is left untouched. Couldn't reproduce 777 with a hand-built test
+/// squashfs against this machine's `unsquashfs` (got the expected 755), so
+/// this may be a version- or build-flag-specific trigger this session
+/// didn't hit — ported anyway since the fix is cheap, narrowly scoped
+/// (only acts on exactly 777), and mirrors a real, deliberate upstream
+/// workaround rather than a guess.
+fn repair_root_permissions(target_root: &Path) -> Result<(), OperationError> {
+    let metadata = fs::metadata(target_root).map_err(io_error)?;
+    let mode = metadata.permissions().mode() & 0o777;
+    if mode == 0o777 {
+        fs::set_permissions(target_root, fs::Permissions::from_mode(0o755)).map_err(io_error)?;
+    }
+    Ok(())
 }
 
 /// Mirrors `machineid.conf`'s active keys: `systemd-style: uuid`,
@@ -1290,14 +1309,35 @@ mod tests {
 
     #[test]
     fn extract_rootfs_runs_unsquashfs_with_force_and_the_live_squashfs_source() {
+        // A real directory: FakeExecutor doesn't actually run unsquashfs, but
+        // repair_root_permissions still stats target_root for real afterwards,
+        // same as it would against unsquashfs's own freshly-extracted target.
+        let temp = TempRoot::new("extract-rootfs");
         let op = ExtractRootfs {
-            target_root: PathBuf::from("/run/lyra-installer/target"),
+            target_root: temp.0.clone(),
         };
         let executor = FakeExecutor::new();
         op.perform(&executor).unwrap();
         assert_eq!(
             executor.calls(),
-            vec!["unsquashfs -f -d /run/lyra-installer/target /run/overlay/live/LiveOS/squashfs.img"]
+            vec![format!("unsquashfs -f -d {} /run/overlay/live/LiveOS/squashfs.img", temp.0.display())]
+        );
+    }
+
+    #[test]
+    fn repair_root_permissions_fixes_exactly_777_and_leaves_other_modes_alone() {
+        let temp = TempRoot::new("repair-permissions-777");
+        fs::set_permissions(&temp.0, fs::Permissions::from_mode(0o777)).unwrap();
+        repair_root_permissions(&temp.0).unwrap();
+        assert_eq!(fs::metadata(&temp.0).unwrap().permissions().mode() & 0o777, 0o755);
+
+        let temp2 = TempRoot::new("repair-permissions-700");
+        fs::set_permissions(&temp2.0, fs::Permissions::from_mode(0o700)).unwrap();
+        repair_root_permissions(&temp2.0).unwrap();
+        assert_eq!(
+            fs::metadata(&temp2.0).unwrap().permissions().mode() & 0o777,
+            0o700,
+            "only exactly 777 should ever be touched"
         );
     }
 
