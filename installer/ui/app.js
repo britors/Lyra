@@ -159,7 +159,8 @@ function renderDiskCards(){
         <span class="disk-status${reason?' disk-status-blocked':''}">${reason||'Disponível para instalação'}</span>
       </label>`;
     }).join('');
-    document.querySelector('#disk-count').textContent=`${disks.length} disco${disks.length===1?'':'s'} detectado${disks.length===1?'':'s'}`;
+    const manualNote=selectedDiskPath&&!disks.some(d=>d.path===selectedDiskPath)?` · caminho manual selecionado: ${selectedDiskPath}`:'';
+    document.querySelector('#disk-count').textContent=`${disks.length} disco${disks.length===1?'':'s'} detectado${disks.length===1?'':'s'}${manualNote}`;
   }else{
     list.innerHTML=disks.map(disk=>{
       const reason=diskIneligibleReason(disk);
@@ -173,7 +174,9 @@ function renderDiskCards(){
       </label>`;
     }).join('');
     const [,,,minMembers]=raidLevelInfo(raidLevel);
-    document.querySelector('#disk-count').textContent=`${selectedRaidMembers.size} de ${disks.length} selecionados · mínimo ${minMembers} para ${raidLevel.replace('Raid','RAID ')}`;
+    const manualMembers=[...selectedRaidMembers].filter(p=>!disks.some(d=>d.path===p));
+    const manualNote=manualMembers.length?` · caminhos manuais: ${manualMembers.join(', ')}`:'';
+    document.querySelector('#disk-count').textContent=`${selectedRaidMembers.size} de ${disks.length} selecionados · mínimo ${minMembers} para ${raidLevel.replace('Raid','RAID ')}${manualNote}`;
   }
 }
 
@@ -339,6 +342,23 @@ document.querySelector('#raid-level-options').addEventListener('click',event=>{
   renderRaidLevelOptions();
   renderDiskCards();
   refreshPlan();
+});
+function addManualPath(){
+  const input=document.querySelector('#manual-disk-path');
+  const path=input.value.trim();
+  if(!path) return;
+  if(storageMode==='disk'){
+    selectedDiskPath=path;
+  }else{
+    selectedRaidMembers.add(path);
+  }
+  input.value='';
+  renderDiskCards();
+  refreshPlan();
+}
+document.querySelector('#manual-disk-add').addEventListener('click',addManualPath);
+document.querySelector('#manual-disk-path').addEventListener('keydown',event=>{
+  if(event.key==='Enter'){event.preventDefault();addManualPath();}
 });
 document.querySelector('#lvm-enabled').addEventListener('change',event=>{
   lvmEnabled=event.target.checked;

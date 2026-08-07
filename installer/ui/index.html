@@ -81,6 +81,10 @@
             </div>
             <div class="keyboard-toolbar"><span class="keyboard-count" id="disk-count"></span></div>
             <div class="disk-list" id="disk-list" aria-live="polite"><p class="keyboard-empty">Detectando discos…</p></div>
+            <div class="manual-entry-row">
+              <input type="text" id="manual-disk-path" placeholder="Avançado: digite o caminho manualmente (ex.: /dev/sdb)" autocomplete="off" />
+              <button type="button" id="manual-disk-add">Usar este caminho</button>
+            </div>
             <div class="lvm-toggle-row"><label class="lvm-toggle"><input type="checkbox" id="lvm-enabled" /> Usar LVM (volume group)</label></div>
             <div class="lvm-editor" id="lvm-editor" hidden>
               <div class="lv-list" id="lv-list"></div>

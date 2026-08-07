@@ -53,6 +53,18 @@ RAID novo, sem editor de LVM, para manter o assistente guiado" — ver
 `docs/installer-architecture.md`); pedido explícito depois. `ExistingRaid`
 (reaproveitar array já existente) continua sem tela.
 
+Como o toggle de LVM é ortogonal ao modo disco/RAID, as 4 combinações
+pedidas já são alcançáveis sem código adicional: sem RAID/sem LVM (o
+fluxo original), com RAID/sem LVM, com RAID/com LVM, e sem RAID/com LVM
+(LVM direto sobre um disco único). Além dos cards de disco descobertos,
+um campo de texto ("Avançado: digite o caminho manualmente") deixa o
+usuário avançado digitar um caminho de disco (`/dev/sdX`) direto, tanto
+no modo disco único quanto adicionando membros no modo RAID — sem
+nenhuma validação nova em JS: se o caminho digitado não estiver no
+snapshot descoberto, o próprio `PlanBuilder` real devolve "disco não
+encontrado" no resumo do plano, igual a qualquer outro erro de
+validação já mostrado.
+
 `window.__TAURI__` precisou ser
 habilitado (`withGlobalTauri: true` em `tauri.conf.json`) porque este
 frontend é HTML/JS estático sem bundler, então não há import de
