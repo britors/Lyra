@@ -44,6 +44,9 @@ pub const ALLOWED_BINARIES: &[&str] = &[
     "chroot",
     "systemctl",
     "hwclock",
+    "grub2-mkconfig",
+    "shim-install",
+    "snapper",
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq)]

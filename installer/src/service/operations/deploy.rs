@@ -112,7 +112,45 @@ pub fn deployment_operations(config: &InstallConfig) -> Vec<Box<dyn PrivilegedOp
         Box::new(SetHardwareClock {
             target_root: target_root.clone(),
         }),
-        Box::new(EnableServices { target_root }),
+        Box::new(EnableServices {
+            target_root: target_root.clone(),
+        }),
+        // GRUB/Snapper come last, mirroring settings.conf's real order
+        // (grubcfg -> uefibootloader -> snapshotcfg run right before
+        // umount, after installcleanup/networkcfg/hwclock/services-systemd
+        // above) - the first snapshot below must be taken after liveuser
+        // and live-only artifacts are already gone, or it would capture
+        // them. /proc, /sys, /dev are still bind-mounted from RunDracut
+        // above (the engine only unwinds at the very end of the whole
+        // run), so every chrooted step here reuses that same chroot.
+        Box::new(WriteGrubDefaults {
+            target_root: target_root.clone(),
+        }),
+        Box::new(GenerateGrubConfig {
+            target_root: target_root.clone(),
+        }),
+        Box::new(InstallShimAndGrub {
+            target_root: target_root.clone(),
+        }),
+        Box::new(PrepareBtrfsRollback {
+            target_root: target_root.clone(),
+        }),
+        Box::new(SnapperCreateConfig {
+            target_root: target_root.clone(),
+        }),
+        Box::new(MountSnapshotsSubvolume {
+            target_root: target_root.clone(),
+        }),
+        Box::new(RegenerateInitramfsWithFstab {
+            target_root: target_root.clone(),
+        }),
+        Box::new(SnapperCreateFirstSnapshot {
+            target_root: target_root.clone(),
+        }),
+        Box::new(GenerateGrubConfig {
+            target_root: target_root.clone(),
+        }),
+        Box::new(RemoveTransitionalInstallerArtifacts { target_root }),
     ]
 }
 
@@ -563,6 +601,375 @@ impl PrivilegedOperation for EnableServices {
     }
 }
 
+// --- GRUB, shim (Secure Boot) and Snapper rollback (issue #42) ------------
+//
+// Mirrors settings.conf's real grubcfg -> uefibootloader -> snapshotcfg
+// sequence, read from the actually-installed modules (grubcfg's main.py,
+// /usr/sbin/shim-install from the shim package, and
+// lyra-configure-btrfs-rollback) rather than guessed. All chrooted steps
+// reuse the /proc,/sys,/dev bind mounts RunDracut set up above - the
+// engine only unwinds them at the very end of the whole run.
+
+/// Real `grubcfg` merges into an existing `/etc/default/grub` rather than
+/// overwriting it (`overwrite: false`, file already shipped by the `grub2`
+/// package), uncommenting/replacing managed keys in place and appending
+/// any that aren't already present. Deliberately does NOT reproduce a real
+/// bug in that module: it separately auto-detects `plymouth` in the target
+/// and appends `"splash"` again on top of an already-`"splash"`-containing
+/// `kernel_params`, producing `'quiet splash splash'`. This writes the
+/// correct value once; `kiwi/root/etc/calamares/modules/grubcfg.conf` also
+/// drops `"splash"` from its own `kernel_params` so Calamares' still-active
+/// path stops duplicating it too (the plymouth auto-detect alone still
+/// adds it back exactly once).
+const GRUB_DEFAULT_KEYS: &[(&str, &str)] = &[
+    ("GRUB_TIMEOUT", "5"),
+    ("GRUB_DEFAULT", "saved"),
+    ("GRUB_DISABLE_SUBMENU", "true"),
+    ("GRUB_TERMINAL_OUTPUT", "gfxterm"),
+    ("GRUB_DISABLE_RECOVERY", "true"),
+    ("SUSE_BTRFS_SNAPSHOT_BOOTING", "true"),
+    ("GRUB_CMDLINE_LINUX_DEFAULT", "\"quiet splash\""),
+    ("GRUB_DISTRIBUTOR", "\"Lyra OS\""),
+];
+
+struct WriteGrubDefaults {
+    target_root: PathBuf,
+}
+
+impl PrivilegedOperation for WriteGrubDefaults {
+    fn describe(&self) -> String {
+        "configurar /etc/default/grub".to_string()
+    }
+
+    fn perform(&self, _executor: &dyn Executor) -> Result<(), OperationError> {
+        let path = self.target_root.join("etc/default/grub");
+        let existing = fs::read_to_string(&path).unwrap_or_default();
+        let mut remaining: Vec<(&str, &str)> = GRUB_DEFAULT_KEYS.to_vec();
+        let mut lines: Vec<String> = Vec::new();
+
+        for line in existing.lines() {
+            if line.contains('=') {
+                let key = line.trim_start().trim_start_matches('#').trim_start().split('=').next().unwrap_or("").trim();
+                if let Some(pos) = remaining.iter().position(|(k, _)| *k == key) {
+                    let (k, v) = remaining.remove(pos);
+                    lines.push(format!("{k}={v}"));
+                    continue;
+                }
+            }
+            lines.push(line.to_string());
+        }
+        for (k, v) in remaining {
+            lines.push(format!("{k}={v}"));
+        }
+
+        let mut content = lines.join("\n");
+        content.push('\n');
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).map_err(io_error)?;
+        }
+        fs::write(&path, content).map_err(io_error)?;
+        Ok(())
+    }
+}
+
+struct GenerateGrubConfig {
+    target_root: PathBuf,
+}
+
+impl PrivilegedOperation for GenerateGrubConfig {
+    fn describe(&self) -> String {
+        "gerar configuração do GRUB".to_string()
+    }
+
+    fn perform(&self, executor: &dyn Executor) -> Result<(), OperationError> {
+        executor.run(&ArgvCommand {
+            binary: "chroot".to_string(),
+            args: vec![
+                path_str(&self.target_root),
+                "grub2-mkconfig".to_string(),
+                "-o".to_string(),
+                "/boot/grub2/grub.cfg".to_string(),
+            ],
+        })?;
+        Ok(())
+    }
+}
+
+/// Native Leap `shim-install`, not a generic Calamares bootloader job.
+/// Confirmed by reading the real script (package `shim`): it writes the
+/// fallback `/boot/efi/EFI/boot/bootx64.efi` itself whenever that path is
+/// missing or belongs to another distro's CA, and creates the NVRAM boot
+/// entry via `efibootmgr` internally - none of that needs reimplementing
+/// here, just invoking the real tool the same way Calamares does.
+struct InstallShimAndGrub {
+    target_root: PathBuf,
+}
+
+impl PrivilegedOperation for InstallShimAndGrub {
+    fn describe(&self) -> String {
+        "instalar shim e GRUB (Secure Boot)".to_string()
+    }
+
+    fn perform(&self, executor: &dyn Executor) -> Result<(), OperationError> {
+        executor.run(&ArgvCommand {
+            binary: "chroot".to_string(),
+            args: vec![
+                path_str(&self.target_root),
+                "shim-install".to_string(),
+                "--efi-directory=/boot/efi".to_string(),
+                "--config-file=/boot/grub2/grub.cfg".to_string(),
+            ],
+        })?;
+        Ok(())
+    }
+}
+
+/// Ports `lyra-configure-btrfs-rollback prepare-root`'s awk logic directly
+/// rather than shelling out to the bash script. `btrfs subvolume
+/// set-default` doesn't need a chroot: it's a plain path argument, and
+/// `target_root` is already visible to this process without entering it.
+struct PrepareBtrfsRollback {
+    target_root: PathBuf,
+}
+
+impl PrivilegedOperation for PrepareBtrfsRollback {
+    fn describe(&self) -> String {
+        "definir /@ como subvolume padrão".to_string()
+    }
+
+    fn perform(&self, executor: &dyn Executor) -> Result<(), OperationError> {
+        executor.run(&ArgvCommand {
+            binary: "btrfs".to_string(),
+            args: vec!["subvolume".to_string(), "set-default".to_string(), path_str(&self.target_root)],
+        })?;
+
+        let fstab_path = self.target_root.join("etc/fstab");
+        let content = fs::read_to_string(&fstab_path).map_err(io_error)?;
+        let rewritten = strip_root_subvol_option(&content)?;
+        fs::write(&fstab_path, rewritten).map_err(io_error)?;
+        Ok(())
+    }
+}
+
+/// `snapper create-config` writes to `/etc/snapper/configs/` relative to
+/// whatever root *it* sees — unlike `useradd`/`systemctl`, it has no
+/// `--root` equivalent, so this genuinely needs the chroot (otherwise it
+/// would configure the live session's own `/etc`, not the target's).
+struct SnapperCreateConfig {
+    target_root: PathBuf,
+}
+
+impl PrivilegedOperation for SnapperCreateConfig {
+    fn describe(&self) -> String {
+        "criar configuração do Snapper".to_string()
+    }
+
+    fn perform(&self, executor: &dyn Executor) -> Result<(), OperationError> {
+        executor.run(&ArgvCommand {
+            binary: "chroot".to_string(),
+            args: vec![
+                path_str(&self.target_root),
+                "snapper".to_string(),
+                "--no-dbus".to_string(),
+                "-c".to_string(),
+                "root".to_string(),
+                "create-config".to_string(),
+                "/".to_string(),
+            ],
+        })?;
+        Ok(())
+    }
+}
+
+/// Ports `mount-snapshots`'s awk logic. `/.snapshots` must already exist
+/// (created by `SnapperCreateConfig` just before this) - checked via
+/// `btrfs subvolume show`, output discarded, same as the original script.
+struct MountSnapshotsSubvolume {
+    target_root: PathBuf,
+}
+
+impl PrivilegedOperation for MountSnapshotsSubvolume {
+    fn describe(&self) -> String {
+        "adicionar /.snapshots ao fstab".to_string()
+    }
+
+    fn perform(&self, executor: &dyn Executor) -> Result<(), OperationError> {
+        executor.run(&ArgvCommand {
+            binary: "btrfs".to_string(),
+            args: vec!["subvolume".to_string(), "show".to_string(), path_str(&self.target_root.join(".snapshots"))],
+        })?;
+
+        let fstab_path = self.target_root.join("etc/fstab");
+        let content = fs::read_to_string(&fstab_path).map_err(io_error)?;
+        let rewritten = add_snapshots_line(&content)?;
+        fs::write(&fstab_path, rewritten).map_err(io_error)?;
+        Ok(())
+    }
+}
+
+/// Separate from #41's `RunDracut` (`dracut -f`): the real sequence runs
+/// dracut *again* here specifically so the initramfs picks up the fstab
+/// with `subvol=/@` already stripped by `PrepareBtrfsRollback`.
+struct RegenerateInitramfsWithFstab {
+    target_root: PathBuf,
+}
+
+impl PrivilegedOperation for RegenerateInitramfsWithFstab {
+    fn describe(&self) -> String {
+        "regenerar initramfs com fstab atualizado".to_string()
+    }
+
+    fn perform(&self, executor: &dyn Executor) -> Result<(), OperationError> {
+        executor.run(&ArgvCommand {
+            binary: "chroot".to_string(),
+            args: vec![path_str(&self.target_root), "dracut".to_string(), "--force".to_string(), "--fstab".to_string()],
+        })?;
+        Ok(())
+    }
+}
+
+/// `--read-only` is load-bearing, not cosmetic: `grub2-snapper-plugin`
+/// skips writable snapshots when building the GRUB rollback submenu. Runs
+/// after #41's liveuser/live-artifact cleanup (earlier in
+/// `deployment_operations`), so this snapshot is clean by construction —
+/// no extra filtering logic needed here.
+struct SnapperCreateFirstSnapshot {
+    target_root: PathBuf,
+}
+
+impl PrivilegedOperation for SnapperCreateFirstSnapshot {
+    fn describe(&self) -> String {
+        "criar primeiro snapshot somente leitura".to_string()
+    }
+
+    fn perform(&self, executor: &dyn Executor) -> Result<(), OperationError> {
+        executor.run(&ArgvCommand {
+            binary: "chroot".to_string(),
+            args: vec![
+                path_str(&self.target_root),
+                "snapper".to_string(),
+                "--no-dbus".to_string(),
+                "-c".to_string(),
+                "root".to_string(),
+                "create".to_string(),
+                "--read-only".to_string(),
+                "--type".to_string(),
+                "single".to_string(),
+                "--cleanup-algorithm".to_string(),
+                "number".to_string(),
+                "--description".to_string(),
+                "first root filesystem".to_string(),
+                "--userdata".to_string(),
+                "important=yes".to_string(),
+            ],
+        })?;
+        Ok(())
+    }
+}
+
+struct RemoveTransitionalInstallerArtifacts {
+    target_root: PathBuf,
+}
+
+impl PrivilegedOperation for RemoveTransitionalInstallerArtifacts {
+    fn describe(&self) -> String {
+        "remover artefatos transitórios do instalador".to_string()
+    }
+
+    fn perform(&self, _executor: &dyn Executor) -> Result<(), OperationError> {
+        let _ = fs::remove_dir_all(self.target_root.join("etc/calamares"));
+        let _ = fs::remove_file(self.target_root.join("usr/libexec/lyra-configure-btrfs-rollback"));
+        Ok(())
+    }
+}
+
+/// Ports `lyra-configure-btrfs-rollback prepare-root`'s awk program:
+/// strips only `subvol=`/`subvolid=` from the root Btrfs entry's options,
+/// keeping every other option and every other line untouched. Errors
+/// (mirroring the original's `exit 42`) if there isn't exactly one root
+/// Btrfs line.
+fn strip_root_subvol_option(fstab: &str) -> Result<String, OperationError> {
+    let mut found = 0;
+    let mut lines = Vec::new();
+
+    for line in fstab.lines() {
+        let trimmed = line.trim_start();
+        let fields: Vec<&str> = line.split_whitespace().collect();
+        if trimmed.starts_with('#') || fields.len() < 4 {
+            lines.push(line.to_string());
+            continue;
+        }
+        if fields[1] == "/" && fields[2] == "btrfs" {
+            found += 1;
+            let options: Vec<&str> = fields[3]
+                .split(',')
+                .filter(|opt| !opt.starts_with("subvol=") && !opt.starts_with("subvolid="))
+                .collect();
+            let options = if options.is_empty() { "defaults".to_string() } else { options.join(",") };
+            let dump = fields.get(4).copied().unwrap_or("0");
+            let pass = fields.get(5).copied().unwrap_or("0");
+            lines.push(format!("{} {} {} {} {} {}", fields[0], fields[1], fields[2], options, dump, pass));
+        } else {
+            lines.push(line.to_string());
+        }
+    }
+
+    if found != 1 {
+        return Err(OperationError::Io(format!(
+            "esperava exatamente 1 linha raiz Btrfs no fstab, encontrei {found}"
+        )));
+    }
+
+    let mut content = lines.join("\n");
+    content.push('\n');
+    Ok(content)
+}
+
+/// Ports `mount-snapshots`'s awk program: drops any existing `/.snapshots`
+/// line (at most one tolerated, mirroring the original) and appends a
+/// fresh one using the root entry's own source device and options plus
+/// `subvol=/@/.snapshots`.
+fn add_snapshots_line(fstab: &str) -> Result<String, OperationError> {
+    let mut root_count = 0;
+    let mut snapshots_count = 0;
+    let mut source = String::new();
+    let mut options = String::new();
+    let mut lines = Vec::new();
+
+    for line in fstab.lines() {
+        let trimmed = line.trim_start();
+        let fields: Vec<&str> = line.split_whitespace().collect();
+        if trimmed.starts_with('#') || fields.len() < 4 {
+            lines.push(line.to_string());
+            continue;
+        }
+        if fields[1] == "/.snapshots" {
+            snapshots_count += 1;
+            continue;
+        }
+        if fields[1] == "/" && fields[2] == "btrfs" {
+            root_count += 1;
+            source = fields[0].to_string();
+            options = fields[3].to_string();
+        }
+        lines.push(line.to_string());
+    }
+
+    if root_count != 1 || snapshots_count > 1 {
+        return Err(OperationError::Io(format!(
+            "fstab inconsistente: {root_count} linha(s) raiz Btrfs, {snapshots_count} linha(s) /.snapshots"
+        )));
+    }
+    if options.is_empty() || options == "-" {
+        options = "defaults".to_string();
+    }
+
+    lines.push(format!("{source} /.snapshots btrfs {options},subvol=/@/.snapshots 0 0"));
+    let mut content = lines.join("\n");
+    content.push('\n');
+    Ok(content)
+}
+
 #[cfg(test)]
 mod tests {
     use std::cell::RefCell;
@@ -897,5 +1304,197 @@ mod tests {
             executor.calls(),
             vec!["systemctl --root=/run/lyra-installer/target enable NetworkManager.service firewalld.service gdm.service cups.service"]
         );
+    }
+
+    #[test]
+    fn write_grub_defaults_uncomments_replaces_and_appends_missing_keys() {
+        let temp = TempRoot::new("grub-defaults");
+        let grub_dir = temp.0.join("etc/default");
+        fs::create_dir_all(&grub_dir).unwrap();
+        fs::write(
+            grub_dir.join("grub"),
+            "GRUB_TIMEOUT=10\n#GRUB_DISABLE_RECOVERY=false\nGRUB_ENABLE_CRYPTODISK=n\n",
+        )
+        .unwrap();
+
+        let op = WriteGrubDefaults {
+            target_root: temp.0.clone(),
+        };
+        op.perform(&FakeExecutor::new()).unwrap();
+
+        let content = fs::read_to_string(grub_dir.join("grub")).unwrap();
+        assert!(content.contains("GRUB_TIMEOUT=5"), "existing key should be replaced, not duplicated");
+        assert!(!content.contains("GRUB_TIMEOUT=10"));
+        assert!(content.contains("GRUB_DISABLE_RECOVERY=true"), "commented key should be uncommented and replaced");
+        assert!(!content.contains("#GRUB_DISABLE_RECOVERY"));
+        assert!(content.contains("GRUB_ENABLE_CRYPTODISK=n"), "unmanaged key must be left untouched");
+        assert!(content.contains("GRUB_DEFAULT=saved"), "missing managed key should be appended");
+        // The real grubcfg module's plymouth auto-detect bug would produce
+        // "quiet splash splash" - confirm we never do that.
+        assert_eq!(content.matches("splash").count(), 1);
+    }
+
+    #[test]
+    fn generate_grub_config_chroots_and_writes_the_right_output_path() {
+        let op = GenerateGrubConfig {
+            target_root: PathBuf::from("/run/lyra-installer/target"),
+        };
+        let executor = FakeExecutor::new();
+        op.perform(&executor).unwrap();
+        assert_eq!(
+            executor.calls(),
+            vec!["chroot /run/lyra-installer/target grub2-mkconfig -o /boot/grub2/grub.cfg"]
+        );
+    }
+
+    #[test]
+    fn install_shim_and_grub_argv_is_exact() {
+        let op = InstallShimAndGrub {
+            target_root: PathBuf::from("/run/lyra-installer/target"),
+        };
+        let executor = FakeExecutor::new();
+        op.perform(&executor).unwrap();
+        assert_eq!(
+            executor.calls(),
+            vec!["chroot /run/lyra-installer/target shim-install --efi-directory=/boot/efi --config-file=/boot/grub2/grub.cfg"]
+        );
+    }
+
+    #[test]
+    fn prepare_btrfs_rollback_sets_default_subvolume_and_strips_fstab_options() {
+        let temp = TempRoot::new("prepare-rollback");
+        let etc = temp.0.join("etc");
+        fs::create_dir_all(&etc).unwrap();
+        fs::write(
+            etc.join("fstab"),
+            "UUID=1111 / btrfs subvol=/@,compress=zstd 0 0\n\
+             UUID=2222 /boot/efi vfat defaults,umask=0077 0 2\n",
+        )
+        .unwrap();
+
+        let op = PrepareBtrfsRollback {
+            target_root: temp.0.clone(),
+        };
+        let executor = FakeExecutor::new();
+        op.perform(&executor).unwrap();
+
+        assert_eq!(
+            executor.calls(),
+            vec![format!("btrfs subvolume set-default {}", temp.0.display())]
+        );
+        let fstab = fs::read_to_string(etc.join("fstab")).unwrap();
+        assert!(fstab.contains("UUID=1111 / btrfs compress=zstd 0 0"));
+        assert!(!fstab.contains("subvol=/@"));
+        assert!(fstab.contains("UUID=2222 /boot/efi vfat defaults,umask=0077 0 2"), "other lines untouched");
+    }
+
+    #[test]
+    fn mount_snapshots_subvolume_checks_and_appends_the_snapshots_line() {
+        let temp = TempRoot::new("mount-snapshots");
+        let etc = temp.0.join("etc");
+        fs::create_dir_all(&etc).unwrap();
+        fs::create_dir_all(temp.0.join(".snapshots")).unwrap();
+        fs::write(&etc.join("fstab"), "UUID=1111 / btrfs compress=zstd 0 0\n").unwrap();
+
+        let op = MountSnapshotsSubvolume {
+            target_root: temp.0.clone(),
+        };
+        let executor = FakeExecutor::new();
+        op.perform(&executor).unwrap();
+
+        assert_eq!(
+            executor.calls(),
+            vec![format!("btrfs subvolume show {}", temp.0.join(".snapshots").display())]
+        );
+        let fstab = fs::read_to_string(etc.join("fstab")).unwrap();
+        assert!(fstab.contains("UUID=1111 /.snapshots btrfs compress=zstd,subvol=/@/.snapshots 0 0"));
+    }
+
+    #[test]
+    fn regenerate_initramfs_with_fstab_uses_force_and_fstab_flags() {
+        let op = RegenerateInitramfsWithFstab {
+            target_root: PathBuf::from("/run/lyra-installer/target"),
+        };
+        let executor = FakeExecutor::new();
+        op.perform(&executor).unwrap();
+        assert_eq!(executor.calls(), vec!["chroot /run/lyra-installer/target dracut --force --fstab"]);
+    }
+
+    #[test]
+    fn snapper_create_config_and_first_snapshot_argv_is_exact() {
+        let config_op = SnapperCreateConfig {
+            target_root: PathBuf::from("/run/lyra-installer/target"),
+        };
+        let executor = FakeExecutor::new();
+        config_op.perform(&executor).unwrap();
+        assert_eq!(
+            executor.calls(),
+            vec!["chroot /run/lyra-installer/target snapper --no-dbus -c root create-config /"]
+        );
+
+        let snapshot_op = SnapperCreateFirstSnapshot {
+            target_root: PathBuf::from("/run/lyra-installer/target"),
+        };
+        let executor2 = FakeExecutor::new();
+        snapshot_op.perform(&executor2).unwrap();
+        assert_eq!(
+            executor2.calls(),
+            vec![
+                "chroot /run/lyra-installer/target snapper --no-dbus -c root create --read-only --type single --cleanup-algorithm number --description first root filesystem --userdata important=yes"
+            ]
+        );
+    }
+
+    #[test]
+    fn remove_transitional_installer_artifacts_is_best_effort() {
+        let temp = TempRoot::new("remove-transitional");
+        let calamares_dir = temp.0.join("etc/calamares");
+        fs::create_dir_all(&calamares_dir).unwrap();
+        fs::write(calamares_dir.join("settings.conf"), "---\n").unwrap();
+
+        let op = RemoveTransitionalInstallerArtifacts {
+            target_root: temp.0.clone(),
+        };
+        // Missing helper script must not be an error.
+        op.perform(&FakeExecutor::new()).expect("missing helper script must not fail");
+        assert!(!calamares_dir.exists());
+    }
+
+    #[test]
+    fn strip_root_subvol_option_rejects_a_fstab_without_exactly_one_root_line() {
+        let error = strip_root_subvol_option("UUID=1111 /home btrfs subvol=/@/home 0 0\n").unwrap_err();
+        assert!(matches!(error, OperationError::Io(_)));
+    }
+
+    #[test]
+    fn add_snapshots_line_rejects_more_than_one_existing_snapshots_line() {
+        let fstab = "UUID=1111 / btrfs compress=zstd 0 0\n\
+                     UUID=1111 /.snapshots btrfs compress=zstd,subvol=/@/.snapshots 0 0\n\
+                     UUID=1111 /.snapshots btrfs compress=zstd,subvol=/@/.snapshots 0 0\n";
+        let error = add_snapshots_line(fstab).unwrap_err();
+        assert!(matches!(error, OperationError::Io(_)));
+    }
+
+    #[test]
+    fn deployment_operations_runs_grub_and_snapper_after_liveuser_cleanup() {
+        let config = InstallConfig::default();
+        let describe: Vec<String> = deployment_operations(&config).iter().map(|op| op.describe()).collect();
+
+        let cleanup_index = describe.iter().position(|d| d == "remover conta liveuser").unwrap();
+        let first_snapshot_index = describe.iter().position(|d| d == "criar primeiro snapshot somente leitura").unwrap();
+        assert!(
+            cleanup_index < first_snapshot_index,
+            "the first snapshot must be taken after liveuser cleanup, or it would capture it"
+        );
+
+        // grub2-mkconfig runs twice: once before shim-install, once again
+        // after the first snapshot exists (so it shows up in the rollback
+        // submenu).
+        let grub_indexes: Vec<usize> =
+            describe.iter().enumerate().filter(|(_, d)| *d == "gerar configuração do GRUB").map(|(i, _)| i).collect();
+        assert_eq!(grub_indexes.len(), 2);
+        assert!(grub_indexes[1] > first_snapshot_index);
+
+        assert_eq!(describe.last().unwrap(), "remover artefatos transitórios do instalador");
     }
 }

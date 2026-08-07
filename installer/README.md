@@ -60,10 +60,23 @@ hostname, cria o usuário (senha só via stdin do `chpasswd`, nunca em argv),
 `dracut.conf` efetivo do Calamares hoje grava o initramfs num nome errado —
 ver `docs/installer-architecture.md`), remove `liveuser` e artefatos da
 sessão live, ajusta prioridade dos repositórios Lyra, copia perfis de rede
-e sincroniza o relógio em UTC. `operations::build(request)` junta
-particionamento + implantação + `sync` final. Fora de escopo por enquanto:
-remover os pacotes do Calamares do target (fica para a auditoria de
-paridade da #44).
+e sincroniza o relógio em UTC. Por último (depois da limpeza do
+`liveuser`, de propósito): `/etc/default/grub` do target, `grub2-mkconfig`,
+`shim-install` (Secure Boot nativo do Leap — o fallback EFI e a entrada
+NVRAM já saem de graça dessa ferramenta, não precisei reimplementar),
+`btrfs subvolume set-default` + fstab sem `subvol=` (porta do
+`lyra-configure-btrfs-rollback` real), `snapper create-config`, fstab com
+`/.snapshots`, `dracut --force --fstab` de novo, primeiro snapshot
+somente-leitura do Snapper, e `grub2-mkconfig` mais uma vez pro submenu de
+rollback aparecer. Achei e corrigi outro bug real de quebra: o `grubcfg`
+duplicava `"splash"` em `GRUB_CMDLINE_LINUX_DEFAULT` (detecção automática
+de plymouth somada ao valor já configurado) — ver
+`docs/installer-architecture.md`. `operations::build(request)` junta
+particionamento + implantação (incluindo bootloader/Snapper) + `sync`
+final. Fora de escopo por enquanto: remover os pacotes do Calamares do
+target (fica para a auditoria de paridade da #44); rollback e Secure Boot
+continuam sem confirmação de boot real — `kiwi/test/build-and-run-vm.sh
+--secure-boot`/`--boot-disk --secure-boot` já existem prontos pra isso.
 
 O Calamares continua sendo o instalador ativo da imagem de desenvolvimento
 enquanto o serviço Tauri/Rust não implementa e valida todo o pipeline descrito em

@@ -184,3 +184,58 @@ explicitamente no código, não um seletor de verdade.
 Mesma limitação de #40: nada disso foi executado contra root/disco real
 nesta sessão — só a lógica pura, com `FakeExecutor`/diretórios temporários
 graváveis em `/tmp`, está coberta por `cargo test`.
+
+## GRUB, shim (Secure Boot) e rollback via Snapper (issue #42)
+
+Últimas operações de `deployment_operations()`, depois da limpeza do
+`liveuser` e dos artefatos live — de propósito, porque o primeiro snapshot
+do Snapper precisa nascer já sem isso. Reaproveita os bind mounts de
+`/proc`/`/sys`/`/dev` que `RunDracut` (#41) já deixou de pé: como o
+desfazimento do engine só roda no fim de toda a execução, o chroot
+continua disponível para todas as operações abaixo sem montar nada de
+novo. Li o código de verdade de novo em vez de assumir: o `main.py` real
+do módulo `grubcfg` (compilado do pacote `calamares`), o
+`/usr/sbin/shim-install` real (pacote `shim`) e o helper
+`lyra-configure-btrfs-rollback` inteiro.
+
+Sequência: grava `/etc/default/grub` do target (mesma lógica de merge do
+`update_existing_config` real — descomenta/substitui chaves gerenciadas,
+acrescenta as que faltam, nunca reescreve o arquivo inteiro) → `chroot
+grub2-mkconfig` → `chroot shim-install --efi-directory=/boot/efi
+--config-file=/boot/grub2/grub.cfg` → `btrfs subvolume set-default` no
+target (sem chroot — é só um argumento de caminho) + remove `subvol=`/
+`subvolid=` da linha raiz do fstab (porta direta do awk do
+`prepare-root` real) → `chroot snapper create-config` → confere
+`/.snapshots` e acrescenta a linha dele no fstab (porta do `mount-snapshots`
+real) → `chroot dracut --force --fstab` (chamada separada da de #41,
+pra reincorporar o fstab sem `subvol=`) → `chroot snapper create
+--read-only ...` (primeiro snapshot) → `grub2-mkconfig` de novo (pro
+submenu de rollback aparecer) → remove `/etc/calamares` e o helper bash do
+target.
+
+**Achado real #2**: o `grubcfg` de verdade duplica `"splash"` —
+`kernel_params: ["quiet","splash"]` do YAML mais a própria detecção
+automática de `plymouth` do módulo (plymouth está instalado no target)
+somam duas entradas, produzindo `GRUB_CMDLINE_LINUX_DEFAULT='quiet splash
+splash'`. `lyra-installer-service` calcula o valor certo direto;
+`kiwi/root/etc/calamares/modules/grubcfg.conf` também teve `"splash"`
+removido de `kernel_params` (fica só `["quiet"]`), corrigindo o Calamares
+ainda ativo pelo mesmo mecanismo — a detecção automática sozinha já
+reintroduz `splash` uma vez, sem duplicar.
+
+**`shim-install` real já resolve o fallback EFI sozinho**: sem
+`--removable`, ele mesmo escreve `/boot/efi/EFI/boot/bootx64.efi` sempre
+que esse caminho não existir ou pertencer a outra distro, e cria a entrada
+NVRAM via `efibootmgr` internamente — não precisei reimplementar nada
+disso, só invocar a ferramenta real do mesmo jeito que o Calamares já
+invoca.
+
+**O que continua sem confirmação, e por quê**: "Snapper lista/cria
+snapshots após o primeiro boot", "rollback testado em VM" e "Secure Boot
+ligado/desligado" exigem boot real, que este ambiente não tem como fazer.
+A parte boa: **já existe tooling pronto pra isso** —
+`kiwi/test/build-and-run-vm.sh --secure-boot` usa OVMF com chaves
+Microsoft pré-inscritas, e `--boot-disk --secure-boot` reinicia um disco
+já instalado preservando o NVRAM. `kiwi/README.md` já registra esse gap
+("Validation status") — continua exatamente onde estava, não é novidade
+desta sessão.
