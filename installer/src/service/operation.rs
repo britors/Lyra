@@ -47,6 +47,10 @@ pub const ALLOWED_BINARIES: &[&str] = &[
     "grub2-mkconfig",
     "shim-install",
     "snapper",
+    // Only ever invoked, chrooted, to remove the two Calamares packages
+    // from the installed target (real packages.conf's `try_remove`) -
+    // never with plan-derived or user-derived package names.
+    "zypper",
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq)]

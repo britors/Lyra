@@ -123,6 +123,9 @@ pub fn deployment_operations(config: &InstallConfig) -> Vec<Box<dyn PrivilegedOp
         Box::new(RemoveLiveOnlyArtifacts {
             target_root: target_root.clone(),
         }),
+        Box::new(RemoveCalamaresPackages {
+            target_root: target_root.clone(),
+        }),
         Box::new(CopyNetworkConfig {
             target_root: target_root.clone(),
             source_dir: PathBuf::from(LIVE_NM_CONNECTIONS),
@@ -617,6 +620,51 @@ impl PrivilegedOperation for RemoveLiveOnlyArtifacts {
             // to clean up (e.g. Calamares' own desktop entry, once the Rust
             // installer is what actually shipped this install).
             let _ = fs::remove_file(self.target_root.join(artifact));
+        }
+        Ok(())
+    }
+}
+
+/// Ports the real `packages` module's `zypp` backend (`packages.conf`'s
+/// `try_remove: [calamares, calamares-branding-upstream]`) — read straight
+/// from the installed `main.py`: `PMZypp.remove()` runs, per package,
+/// `zypper --non-interactive remove <pkg>` inside the target chroot
+/// (`check_target_env_call`), and `operation_try_remove()` removes packages
+/// **one at a time**, catching `subprocess.CalledProcessError` per package
+/// rather than aborting the whole operation — the whole point of
+/// `try_remove` over plain `remove` is that a renamed branding package
+/// doesn't fail an otherwise-successful install. This was issue #44's last
+/// documented gap in `deploy.rs` (`RemoveLiveOnlyArtifacts`/
+/// `LowerLyraRepoPriorities` above only ever touched files directly, never
+/// the RPM database) — closing it needed `zypper` added to
+/// `ALLOWED_BINARIES`, since nothing here ran it before.
+const CALAMARES_PACKAGES: &[&str] = &["calamares", "calamares-branding-upstream"];
+
+struct RemoveCalamaresPackages {
+    target_root: PathBuf,
+}
+
+impl PrivilegedOperation for RemoveCalamaresPackages {
+    fn describe(&self) -> String {
+        "remover pacotes do Calamares do sistema instalado".to_string()
+    }
+
+    fn perform(&self, executor: &dyn Executor) -> Result<(), OperationError> {
+        for package in CALAMARES_PACKAGES {
+            // try_remove: one package's failure (already-gone, renamed,
+            // dependency snag) must never block the other or abort the
+            // install - mirrors operation_try_remove's per-package
+            // try/except exactly.
+            let _ = executor.run(&ArgvCommand {
+                binary: "chroot".to_string(),
+                args: vec![
+                    path_str(&self.target_root),
+                    "zypper".to_string(),
+                    "--non-interactive".to_string(),
+                    "remove".to_string(),
+                    package.to_string(),
+                ],
+            });
         }
         Ok(())
     }
@@ -1442,6 +1490,30 @@ mod tests {
         };
         op.perform(&FakeExecutor::new()).unwrap();
         assert!(!path.exists());
+    }
+
+    #[test]
+    fn remove_calamares_packages_removes_both_chrooted_via_zypper() {
+        let op = RemoveCalamaresPackages {
+            target_root: PathBuf::from("/run/lyra-installer/target"),
+        };
+        let executor = FakeExecutor::new();
+        op.perform(&executor).unwrap();
+        assert_eq!(
+            executor.calls(),
+            vec![
+                "chroot /run/lyra-installer/target zypper --non-interactive remove calamares",
+                "chroot /run/lyra-installer/target zypper --non-interactive remove calamares-branding-upstream",
+            ]
+        );
+    }
+
+    #[test]
+    fn remove_calamares_packages_tries_both_even_if_the_first_fails() {
+        let op = RemoveCalamaresPackages {
+            target_root: PathBuf::from("/run/lyra-installer/target"),
+        };
+        op.perform(&AlwaysFailingExecutor).expect("try_remove must never abort the install");
     }
 
     #[test]

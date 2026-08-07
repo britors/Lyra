@@ -113,20 +113,27 @@ Achei e corrigi mais duas lacunas reais, uma delas séria:
   padrão a vídeo/áudio/mídia removível/impressão. Corrigido para o mesmo
   conjunto de 7 grupos.
 
-Achados menores, não corrigidos ainda: `networkcfg` real também copia
-config do Netplan (provavelmente irrelevante pra Leap+GNOME, que só usa
+Terceira rodada: portei o último item que tinha ficado deliberadamente de
+fora — `packages.conf`'s `try_remove: [calamares,
+calamares-branding-upstream]`. Lido direto do `main.py` real: o backend
+`zypp` roda, por pacote, `zypper --non-interactive remove <pkg>` dentro do
+chroot do target, e `operation_try_remove` remove **um pacote de cada
+vez**, engolindo a falha de cada um individualmente — é por isso que
+`try_remove` existe (uma mudança de nome do pacote de branding não pode
+derrubar uma instalação que, fora isso, terminou certa). `RemoveCalamaresPackages`
+porta isso literalmente, inclusive a tolerância por pacote. Precisou
+adicionar `zypper` à `ALLOWED_BINARIES` (única finalidade: remover
+exatamente esses dois pacotes, nunca com nome vindo de plano/usuário).
+
+Achados menores, não corrigidos: `networkcfg` real também copia config do
+Netplan (provavelmente irrelevante pra Leap+GNOME, que só usa
 NetworkManager); `keyboard` real também escreve `/etc/default/keyboard`,
 que `WriteKeyboard` não escreve. Ainda não conferidos: `fstab` (módulo
 genérico do Calamares — o Rust já é uma reimplementação própria a partir
 de `storage::plan`, não uma porta do módulo, então "paridade" aqui é mais
 sobre as opções de mount, já conferidas via `mount.conf`) e `unpackfs`/
 `snapshotcfg` (grounding extenso já feito em sessões anteriores, não
-re-verificado agora). `packages.conf`'s `try_remove: [calamares,
-calamares-branding-upstream]` continua **deliberadamente não portado** —
-precisa de `zypper` de verdade contra o target (dependências reais, não
-simulável), e `zypper` nem está na `ALLOWED_BINARIES` allow-list hoje;
-maior escopo que os fixes acima, deixado pro próximo passo do #44 em vez
-de arriscar uma implementação não testada.
+re-verificado agora).
 
 **Lacuna que continua aberta, sem código ainda**: nenhuma tela do
 assistente monta um `InstallConfig` (nem chama `execute_plan`) — então o
