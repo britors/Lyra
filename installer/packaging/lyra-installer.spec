@@ -18,6 +18,7 @@ Group:          System/Boot/Installation
 URL:            https://github.com/britors/Lyra
 Source0:        %{name}-%{version}.tar.zst
 Source1:        vendor.tar.zst
+Source2:        build-source.txt
 
 BuildRequires:  appstream-glib
 BuildRequires:  cargo
@@ -51,8 +52,11 @@ para a arquitetura completa.
 %autosetup -a1
 sed -i 's|^directory = .*|directory = "vendor"|' .cargo/config.toml
 test -d vendor
+test -s %{SOURCE2}
 
 %build
+export LYRA_SOURCE_COMMIT="$(sed -n 's/^commit=//p' %{SOURCE2})"
+test -n "$LYRA_SOURCE_COMMIT"
 %{cargo_build}
 
 %install
@@ -64,6 +68,8 @@ install -Dm0644 packaging/org.lyraos.LyraInstaller.desktop \
     %{buildroot}%{_datadir}/applications/org.lyraos.LyraInstaller.desktop
 install -Dm0644 src-tauri/icons/256x256.png \
     %{buildroot}%{_datadir}/icons/hicolor/256x256/apps/org.lyraos.LyraInstaller.png
+install -Dm0644 %{SOURCE2} \
+    %{buildroot}%{_datadir}/lyra-installer/build-source.txt
 install -Dm0644 packaging/io.lyra.Installer.policy \
     %{buildroot}%{_datadir}/polkit-1/actions/io.lyra.Installer.policy
 install -Dm0644 packaging/01-lyra-installer-service.rules \
@@ -92,6 +98,8 @@ cargo test --offline -p lyra-installer-core
 %{_libexecdir}/lyra-installer-service
 %{_datadir}/applications/org.lyraos.LyraInstaller.desktop
 %{_datadir}/icons/hicolor/256x256/apps/org.lyraos.LyraInstaller.png
+%dir %{_datadir}/lyra-installer
+%{_datadir}/lyra-installer/build-source.txt
 %{_datadir}/polkit-1/actions/io.lyra.Installer.policy
 # The build root's directory-ownership check flagged /etc/polkit-1 and
 # /etc/polkit-1/rules.d as unowned by any package present at build time
