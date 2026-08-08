@@ -204,7 +204,11 @@ mod tests {
             let index = calls.len();
             calls.push(command.args.join(","));
             if self.fail_at == Some(index) {
-                Err(ExecutorError::NonZeroExit(Some(1)))
+                Err(ExecutorError::NonZeroExit {
+                    binary: command.binary.clone(),
+                    code: Some(1),
+                    stderr: String::new(),
+                })
             } else {
                 Ok(String::new())
             }

@@ -34,8 +34,15 @@ fn system_binary_path(binary: &str) -> Option<PathBuf> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExecutorError {
     DisallowedBinary(String),
-    Spawn { binary: String, reason: String },
-    NonZeroExit(Option<i32>),
+    Spawn {
+        binary: String,
+        reason: String,
+    },
+    NonZeroExit {
+        binary: String,
+        code: Option<i32>,
+        stderr: String,
+    },
 }
 
 impl fmt::Display for ExecutorError {
@@ -47,8 +54,16 @@ impl fmt::Display for ExecutorError {
             ExecutorError::Spawn { binary, reason } => {
                 write!(f, "falha ao iniciar o processo {binary}: {reason}")
             }
-            ExecutorError::NonZeroExit(code) => {
-                write!(f, "processo terminou com código {code:?}")
+            ExecutorError::NonZeroExit {
+                binary,
+                code,
+                stderr,
+            } => {
+                write!(f, "{binary} terminou com código {code:?}")?;
+                if !stderr.is_empty() {
+                    write!(f, ": {stderr}")?;
+                }
+                Ok(())
             }
         }
     }
@@ -96,7 +111,11 @@ impl Executor for RealExecutor {
         if output.status.success() {
             Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
         } else {
-            Err(ExecutorError::NonZeroExit(output.status.code()))
+            Err(ExecutorError::NonZeroExit {
+                binary: command.binary.clone(),
+                code: output.status.code(),
+                stderr: String::from_utf8_lossy(&output.stderr).trim().to_string(),
+            })
         }
     }
 
@@ -115,6 +134,7 @@ impl Executor for RealExecutor {
             .args(&command.args)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
             .spawn()
             .map_err(|error| ExecutorError::Spawn {
                 binary: command.binary.clone(),
@@ -144,7 +164,11 @@ impl Executor for RealExecutor {
         if output.status.success() {
             Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
         } else {
-            Err(ExecutorError::NonZeroExit(output.status.code()))
+            Err(ExecutorError::NonZeroExit {
+                binary: command.binary.clone(),
+                code: output.status.code(),
+                stderr: String::from_utf8_lossy(&output.stderr).trim().to_string(),
+            })
         }
     }
 }
@@ -184,6 +208,19 @@ mod tests {
         assert_eq!(
             error.to_string(),
             "falha ao iniciar o processo mkfs.vfat: No such file or directory (os error 2)"
+        );
+    }
+
+    #[test]
+    fn non_zero_error_includes_the_binary_and_stderr() {
+        let error = ExecutorError::NonZeroExit {
+            binary: "useradd".to_string(),
+            code: Some(6),
+            stderr: "group 'storage' does not exist".to_string(),
+        };
+        assert_eq!(
+            error.to_string(),
+            "useradd terminou com código Some(6): group 'storage' does not exist"
         );
     }
 }

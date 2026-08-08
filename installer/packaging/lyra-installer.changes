@@ -1,4 +1,11 @@
 -------------------------------------------------------------------
+Sat Aug  8 20:21:55 UTC 2026 - Rodrigo Brito <rodrigo@w3ti.com.br>
+
+- Skip optional desktop groups absent from the extracted Leap system.
+- Preserve users and wheel as mandatory account groups.
+- Include the failed executable and stderr in installation traces.
+
+-------------------------------------------------------------------
 Sat Aug  8 19:00:00 UTC 2026 - Rodrigo Brito <rodrigo@w3ti.com.br>
 
 - Require every command used by the privileged installation backend.

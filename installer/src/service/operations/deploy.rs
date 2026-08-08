@@ -466,18 +466,48 @@ impl PrivilegedOperation for WriteHostname {
 
 /// `-R`/`-c`/`-G`/`-s` mirror `users.conf`'s real `defaultGroups` list —
 /// `users`, `lp`, `video`, `network`, `storage`, `wheel`, `audio` — and
-/// `/bin/bash` shell. Issue #44's parity audit caught this one had drifted
-/// to `-G wheel` alone: without `video`/`audio`/`storage`/`network`/`lp`,
-/// the installed account would be missing standard desktop group access
-/// (GPU/audio devices, removable media, printing) that the Calamares path
-/// grants. `users`/`wheel` carry `must_exist`/`system` flags in the real
-/// config (whether Calamares errors if the group is absent), which doesn't
-/// change what's passed to `useradd -G` here. The password crosses via
+/// `/bin/bash` shell. `users` and `wheel` carry `must_exist` in that config;
+/// the other groups are optional and must be filtered against the extracted
+/// target's `/etc/group`. Leap 16 no longer creates `network` or `storage`,
+/// and passing either blindly to one `useradd -G` makes the entire account
+/// creation fail with exit code 6. The password crosses via
 /// `chpasswd`'s stdin (`run_with_stdin`), never argv. Root is never touched
 /// here — it's already locked in the extracted squashfs (`setRootPassword:
 /// false`'s real-world equivalent is simply that no step anywhere sets a
 /// root password).
-const USER_SUPPLEMENTARY_GROUPS: &str = "users,lp,video,network,storage,wheel,audio";
+const USER_SUPPLEMENTARY_GROUPS: &[&str] = &[
+    "users", "lp", "video", "network", "storage", "wheel", "audio",
+];
+const REQUIRED_USER_GROUPS: &[&str] = &["users", "wheel"];
+
+fn available_user_groups(target_root: &Path) -> Result<String, OperationError> {
+    let group_path = target_root.join("etc/group");
+    let group_file = fs::read_to_string(&group_path).map_err(io_error)?;
+    let available: Vec<&str> = group_file
+        .lines()
+        .filter_map(|line| line.split_once(':').map(|(name, _)| name))
+        .collect();
+
+    let missing_required: Vec<&str> = REQUIRED_USER_GROUPS
+        .iter()
+        .copied()
+        .filter(|group| !available.contains(group))
+        .collect();
+    if !missing_required.is_empty() {
+        return Err(OperationError::Io(format!(
+            "grupos obrigatórios ausentes em {}: {}",
+            group_path.display(),
+            missing_required.join(", ")
+        )));
+    }
+
+    Ok(USER_SUPPLEMENTARY_GROUPS
+        .iter()
+        .copied()
+        .filter(|group| available.contains(group))
+        .collect::<Vec<_>>()
+        .join(","))
+}
 
 struct CreateUser {
     target_root: PathBuf,
@@ -492,6 +522,7 @@ impl PrivilegedOperation for CreateUser {
     }
 
     fn perform(&self, executor: &dyn Executor) -> Result<(), OperationError> {
+        let supplementary_groups = available_user_groups(&self.target_root)?;
         executor.run(&ArgvCommand {
             binary: "useradd".to_string(),
             args: vec![
@@ -501,7 +532,7 @@ impl PrivilegedOperation for CreateUser {
                 "-c".to_string(),
                 self.full_name.clone(),
                 "-G".to_string(),
-                USER_SUPPLEMENTARY_GROUPS.to_string(),
+                supplementary_groups,
                 "-s".to_string(),
                 "/bin/bash".to_string(),
                 self.username.clone(),
@@ -1343,6 +1374,17 @@ mod tests {
         }
     }
 
+    fn write_group_fixture(root: &Path, groups: &[&str]) {
+        let etc = root.join("etc");
+        fs::create_dir_all(&etc).unwrap();
+        let content = groups
+            .iter()
+            .enumerate()
+            .map(|(index, group)| format!("{group}:x:{}:\n", 100 + index))
+            .collect::<String>();
+        fs::write(etc.join("group"), content).unwrap();
+    }
+
     #[test]
     fn extract_rootfs_runs_unsquashfs_with_force_and_the_live_squashfs_source() {
         // A real directory: FakeExecutor doesn't actually run unsquashfs, but
@@ -1564,6 +1606,7 @@ mod tests {
     #[test]
     fn create_user_sends_the_password_via_stdin_never_as_an_argument() {
         let temp = TempRoot::new("create-user");
+        write_group_fixture(&temp.0, USER_SUPPLEMENTARY_GROUPS);
         let op = CreateUser {
             target_root: temp.0.clone(),
             full_name: "Lyra User".to_string(),
@@ -1591,6 +1634,43 @@ mod tests {
                 temp.0.display()
             )
         );
+    }
+
+    #[test]
+    fn create_user_skips_optional_groups_absent_from_the_target() {
+        let temp = TempRoot::new("create-user-optional-groups");
+        write_group_fixture(&temp.0, &["users", "lp", "video", "wheel", "audio"]);
+        let op = CreateUser {
+            target_root: temp.0.clone(),
+            full_name: "Lyra User".to_string(),
+            username: "lyra".to_string(),
+            password: "harmonia-2026".to_string(),
+        };
+        let executor = FakeExecutor::new();
+        op.perform(&executor).unwrap();
+
+        assert!(
+            executor.calls()[0].contains("-G users,lp,video,wheel,audio"),
+            "network and storage must be omitted when Leap does not provide them"
+        );
+    }
+
+    #[test]
+    fn create_user_rejects_a_target_without_required_groups_before_useradd() {
+        let temp = TempRoot::new("create-user-required-groups");
+        write_group_fixture(&temp.0, &["users", "lp", "video", "audio"]);
+        let op = CreateUser {
+            target_root: temp.0.clone(),
+            full_name: "Lyra User".to_string(),
+            username: "lyra".to_string(),
+            password: "harmonia-2026".to_string(),
+        };
+        let executor = FakeExecutor::new();
+        let error = op.perform(&executor).unwrap_err();
+
+        assert!(error.to_string().contains("grupos obrigatórios ausentes"));
+        assert!(error.to_string().contains("wheel"));
+        assert!(executor.calls().is_empty());
     }
 
     #[test]
@@ -1820,7 +1900,11 @@ mod tests {
             if command.args.contains(&"--directisa".to_string()) {
                 Ok(String::new())
             } else {
-                Err(ExecutorError::NonZeroExit(Some(1)))
+                Err(ExecutorError::NonZeroExit {
+                    binary: command.binary.clone(),
+                    code: Some(1),
+                    stderr: String::new(),
+                })
             }
         }
 
@@ -1855,8 +1939,12 @@ mod tests {
     struct AlwaysFailingExecutor;
 
     impl Executor for AlwaysFailingExecutor {
-        fn run(&self, _command: &ArgvCommand) -> Result<String, ExecutorError> {
-            Err(ExecutorError::NonZeroExit(Some(1)))
+        fn run(&self, command: &ArgvCommand) -> Result<String, ExecutorError> {
+            Err(ExecutorError::NonZeroExit {
+                binary: command.binary.clone(),
+                code: Some(1),
+                stderr: String::new(),
+            })
         }
 
         fn run_with_stdin(
