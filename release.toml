@@ -1,0 +1,8 @@
+[release]
+calendar_version = "2026.08"
+stage = "beta"
+iteration = 2
+codename = "Odisseia"
+codename_id = "odisseia"
+image_name = "lyra-os"
+architecture = "x86_64"

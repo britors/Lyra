@@ -3,7 +3,7 @@
 Lyra OS é uma distribuição Linux desktop baseada no openSUSE Leap 16,
 voltada a uma experiência GNOME simples, estável e integrada ao ecossistema
 Lyra. Este repositório contém a descrição KIWI usada para gerar a ISO live e
-o instalador da edição **Odisseia Beta 1** para computadores x86_64.
+o instalador da edição **Odisseia Beta 2** para computadores x86_64.
 
 > [!IMPORTANT]
 > O projeto ainda está em desenvolvimento. A ISO não deve ser considerada uma
@@ -106,13 +106,15 @@ discos e logs ficam em `kiwi/.kiwi/test-<uid>/` e não são versionados. Use
 Também é possível executar somente o build do KIWI:
 
 ```bash
+./scripts/release.py check
 sudo kiwi-ng system build \
   --description kiwi \
   --target-dir /tmp/lyra-os-build
 ```
 
 O build precisa de acesso à rede para baixar pacotes e registrar o Flathub na
-imagem.
+imagem. O helper recomendado também gera, ao lado da ISO, um manifesto
+`*.iso.manifest.json` com versão, commit, data, estado da árvore e SHA-256.
 
 ## Estrutura do repositório
 
@@ -122,6 +124,9 @@ imagem.
 | [`kiwi/config.sh`](kiwi/config.sh) | configuração executada dentro da imagem |
 | [`kiwi/root/`](kiwi/root/) | arquivos sobrepostos na raiz da ISO |
 | [`kiwi/test/build-and-run-vm.sh`](kiwi/test/build-and-run-vm.sh) | build, validações e execução no QEMU |
+| [`release.toml`](release.toml) | fonte única da versão e do nome dos artefatos |
+| [`docs/release-versioning.md`](docs/release-versioning.md) | convenção para Beta, RC, release, tags e notas |
+| [`docs/diagnostics.md`](docs/diagnostics.md) | coleta, anonimização, revisão e compartilhamento de diagnósticos |
 | [`installer/`](installer/) | frontend Rust/GTK e núcleo do novo Lyra Installer |
 | [`docs/installer-architecture.md`](docs/installer-architecture.md) | arquitetura e critérios da migração do Calamares |
 | [`PROMPT-LYRA-OS.md`](PROMPT-LYRA-OS.md) | especificação de produto da primeira versão |
@@ -131,8 +136,9 @@ imagem.
 
 O Lyra OS não implementa telemetria automática. A ferramenta `lyra-report` só
 é executada por solicitação do usuário, cria um arquivo local com permissão
-restrita e nunca envia o relatório. Como logs podem conter nomes, caminhos e
-outros dados pessoais, o conteúdo deve ser revisado antes de ser compartilhado.
+restrita, anonimiza a coleta e nunca envia o relatório. O conteúdo saneado é
+mostrado antes da confirmação; ainda assim, deve ser revisado antes de ser
+compartilhado. Consulte o [guia de diagnóstico](docs/diagnostics.md).
 
 ## Contribuindo
 

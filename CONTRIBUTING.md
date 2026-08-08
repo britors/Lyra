@@ -187,10 +187,15 @@ Build da imagem:
 
 ```bash
 cd ~/Git/Lyra
+./scripts/release.py check
 sudo kiwi-ng system build \
   --description kiwi \
   --target-dir kiwi-build
 ```
+
+A versão da imagem é definida somente em `release.toml`. Consulte
+[`docs/release-versioning.md`](docs/release-versioning.md) antes de iniciar
+uma Beta, RC ou release final.
 
 Boot de teste com disco novo:
 

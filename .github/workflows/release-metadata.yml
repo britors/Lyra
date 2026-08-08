@@ -1,0 +1,20 @@
+name: Beta 2 foundations
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Verify generated release metadata
+        run: ./scripts/release.py check
+      - name: Test release conventions and traceability
+        run: python3 -m unittest discover -s tests -v
+      - name: Validate shell syntax
+        run: bash -n kiwi/config.sh kiwi/test/build-and-run-vm.sh kiwi/root/usr/bin/lyra-report

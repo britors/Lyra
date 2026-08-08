@@ -10,6 +10,19 @@ test -f /.profile && . /.profile
 
 echo "Configuring image: [$kiwi_iname]..."
 
+RELEASE_METADATA=/usr/lib/lyra-os/release
+if [ ! -r "$RELEASE_METADATA" ]; then
+    echo "Missing generated release metadata: $RELEASE_METADATA" >&2
+    exit 1
+fi
+# shellcheck source=/dev/null
+. "$RELEASE_METADATA"
+
+if [ "$kiwi_iversion" != "$LYRA_VERSION_ID" ]; then
+    echo "KIWI version $kiwi_iversion does not match $LYRA_VERSION_ID" >&2
+    exit 1
+fi
+
 # Leap's filesystem package does not own /etc/mtab, and a KIWI-built root can
 # therefore leave the path absent.  Snapper still opens /etc/mtab while
 # detecting the filesystem for `create-config`; point it at the kernel's live
@@ -65,13 +78,16 @@ glib-compile-schemas /usr/share/glib-2.0/schemas
 # URLs/icon names felt worse than leaving these optional fields out.
 cat > /etc/os-release <<EOF
 NAME="Lyra OS"
-PRETTY_NAME="Lyra OS Beta 1 (Odisseia)"
+PRETTY_NAME="$LYRA_PRETTY_NAME"
 ID=lyra-os
 ID_LIKE="opensuse suse"
-VERSION="Beta 1 (Odisseia)"
-VERSION_ID="1.0-beta1"
-VERSION_CODENAME=odisseia
-CPE_NAME="cpe:/o:rodrigosbrito:lyra_os:1.0-beta1"
+VERSION="$LYRA_VERSION_NAME"
+VERSION_ID="$LYRA_VERSION_ID"
+VERSION_CODENAME="$LYRA_CODENAME_ID"
+BUILD_ID="$LYRA_VERSION_ID"
+IMAGE_ID="$LYRA_IMAGE_NAME"
+IMAGE_VERSION="$LYRA_VERSION_ID"
+CPE_NAME="cpe:/o:rodrigosbrito:lyra_os:$LYRA_VERSION_ID"
 EOF
 
 exit 0

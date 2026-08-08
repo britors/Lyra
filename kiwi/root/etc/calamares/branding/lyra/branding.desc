@@ -23,10 +23,10 @@ navigation: widget
 strings:
     productName:         Lyra OS
     shortProductName:    Lyra OS
-    version:              Odisseia Beta 1
-    shortVersion:        Beta 1
-    versionedName:       Lyra OS Odisseia Beta 1
-    shortVersionedName:  Lyra OS Beta 1
+    version:             Odisseia Beta 2
+    shortVersion:        Beta 2
+    versionedName:       Lyra OS Odisseia Beta 2
+    shortVersionedName:  Lyra OS Beta 2
     bootloaderEntryName: Lyra OS
 
 images:

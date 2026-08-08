@@ -1,21 +1,67 @@
 #!/usr/bin/env bash
-# Generate a local, user-requested Lyra OS diagnostic archive. Nothing is sent.
+# Generate a local, redacted Lyra OS diagnostic archive. Nothing is sent.
 
 set -euo pipefail
 umask 077
+
+usage() {
+    cat <<'EOF'
+usage: lyra-report [--yes] [--no-pager] [--output FILE]
+       lyra-report [FILE]
+
+Collect and redact diagnostics locally, show them for review, and create a
+mode-0600 archive only after confirmation. --yes is intended for explicitly
+approved non-interactive collection and skips the review prompt.
+EOF
+}
 
 if [ "$(id -u)" -eq 0 ]; then
     echo "Run lyra-report as your regular user, not as root." >&2
     exit 1
 fi
 
-if [ "$#" -gt 1 ]; then
-    echo "usage: lyra-report [output.tar.gz]" >&2
-    exit 2
-fi
+assume_yes=0
+no_pager=0
+output=""
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --yes)
+            assume_yes=1
+            ;;
+        --no-pager)
+            no_pager=1
+            ;;
+        --output)
+            shift
+            if [ "$#" -eq 0 ]; then
+                echo "--output requires a file" >&2
+                exit 2
+            fi
+            output=$1
+            ;;
+        --help|-h)
+            usage
+            exit 0
+            ;;
+        --*)
+            echo "unknown option: $1" >&2
+            usage >&2
+            exit 2
+            ;;
+        *)
+            if [ -n "$output" ]; then
+                echo "only one output file may be specified" >&2
+                exit 2
+            fi
+            output=$1
+            ;;
+    esac
+    shift
+done
 
 timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
-output="${1:-lyra-report-$timestamp.tar.gz}"
+output="${output:-lyra-report-$timestamp.tar.gz}"
 output_dir="$(dirname -- "$output")"
 
 if [ ! -d "$output_dir" ] || [ ! -w "$output_dir" ]; then
@@ -28,7 +74,10 @@ if [ -e "$output" ] || [ -L "$output" ]; then
 fi
 
 work_dir="$(mktemp -d /tmp/lyra-report.XXXXXX)"
+raw_dir="$work_dir/raw"
 report_dir="$work_dir/lyra-report"
+review_file="$work_dir/review.txt"
+network_names_file="$work_dir/network-names.txt"
 archive_tmp=""
 
 cleanup() {
@@ -39,7 +88,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-mkdir -p "$report_dir"
+mkdir -p "$raw_dir"
 
 collect() {
     local name=$1
@@ -54,46 +103,145 @@ collect() {
             status=$?
             printf '\n[command exited with status %s]\n' "$status"
         fi
-    } > "$report_dir/$name" 2>&1
+    } > "$raw_dir/$name.txt" 2>&1
 }
 
-cat > "$report_dir/README.txt" <<'EOF'
+collect_file() {
+    local name=$1
+    local path=$2
+    if [ -r "$path" ]; then
+        collect "$name" /usr/bin/cat "$path"
+    else
+        printf 'File is absent or unreadable: %s\n' "$path" > "$raw_dir/$name.txt"
+    fi
+}
+
+detect_context() {
+    local root_fstype
+    root_fstype="$(/usr/bin/findmnt -n -o FSTYPE / 2>/dev/null || true)"
+    if [[ "$root_fstype" == overlay* || "$root_fstype" == squashfs* ]] || \
+       { /usr/bin/getent passwd liveuser >/dev/null 2>&1 && [ -e /etc/gdm/custom.conf ]; }; then
+        printf 'live\n'
+    elif [ -r /etc/os-release ]; then
+        printf 'installed\n'
+    else
+        printf 'unknown\n'
+    fi
+}
+
+{
+    printf 'collected_at_utc=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    printf 'context=%s\n' "$(detect_context)"
+    printf 'calamares_available=%s\n' "$(command -v calamares >/dev/null 2>&1 && printf yes || printf no)"
+    printf 'rust_installer_available=%s\n' "$(command -v lyra-installer >/dev/null 2>&1 && printf yes || printf no)"
+} > "$raw_dir/context.txt"
+
+cat > "$raw_dir/README.txt" <<'EOF'
 This archive was generated locally and was not uploaded or transmitted.
 
-It can contain host names, user names, mounted paths, package/repository data,
-and recent warning/error log messages. Review its contents before sharing it.
+Every collected text file passed through the Lyra redactor before this archive
+was created. Automated redaction reduces risk but cannot guarantee that every
+personal value was recognized. Review all contents before sharing the archive.
 EOF
 
-collect os-release /usr/bin/cat /etc/os-release
+collect_file os-release /etc/os-release
+collect_file lyra-release /usr/lib/lyra-os/release
 collect kernel /usr/bin/uname -a
 collect cpu /usr/bin/lscpu
 collect memory /usr/bin/free -h
-collect block-devices /usr/bin/lsblk --output NAME,TYPE,SIZE,FSTYPE,FSVER,MOUNTPOINTS
+collect block-devices /usr/bin/lsblk --output NAME,KNAME,TYPE,SIZE,FSTYPE,FSVER,TRAN,VENDOR,MODEL,MOUNTPOINTS
+collect pci /usr/bin/lspci -nnk
+collect usb /usr/bin/lsusb
 collect mounts /usr/bin/findmnt --real
+collect fstab /usr/bin/cat /etc/fstab
 collect failed-units /usr/bin/systemctl --failed --no-pager
+collect boot-time /usr/bin/systemd-analyze
 collect journal-warnings /usr/bin/journalctl -b -p warning..alert --no-pager \
     --output=short-monotonic --lines=2000
+collect network-devices /usr/bin/nmcli --terse --fields DEVICE,TYPE,STATE device status
+collect network-addresses /usr/sbin/ip --brief address
+collect network-routes /usr/sbin/ip route show
 collect repositories /usr/bin/zypper --no-refresh repos --details
 collect packages /usr/bin/rpm -qa --queryformat \
     '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n'
+collect btrfs-filesystems /usr/sbin/btrfs filesystem show
+collect btrfs-root-usage /usr/sbin/btrfs filesystem usage /
 collect snapper-configs /usr/bin/snapper list-configs
 collect snapper-root /usr/bin/snapper -c root list
-collect secure-boot /usr/sbin/mokutil --sb-state
+collect_file grub-defaults /etc/default/grub
+collect grub-environment /usr/bin/grub2-editenv list
+collect initramfs-modules /usr/bin/lsinitrd -m
+collect secure-boot /usr/bin/mokutil --sb-state
 collect efi-boot /usr/sbin/efibootmgr -v
 collect flatpak-remotes /usr/bin/flatpak remotes --system --show-details
 collect gnome-version /usr/bin/gnome-shell --version
-collect vega-package /usr/bin/rpm -q vega-gtk
-collect sheliak-package /usr/bin/rpm -q sheliak
-collect fina-package /usr/bin/rpm -q fina
+collect lyra-packages /usr/bin/rpm -q vega-gtk sheliak fina lyra-installer
+collect_file calamares-log /var/log/Calamares.log
+collect_file lyra-installer-log /var/log/lyra-installer.log
+
+# Connection names and SSIDs can occur in journal messages. They are supplied
+# only to the redactor and are deleted with the raw collection before review.
+{
+    /usr/bin/nmcli --get-values NAME connection show 2>/dev/null || true
+    /usr/bin/nmcli --get-values 802-11-wireless.ssid connection show 2>/dev/null || true
+} | awk 'NF && !seen[$0]++' > "$network_names_file"
+
+redactor="${LYRA_REPORT_REDACTOR:-/usr/libexec/lyra-report-redact}"
+if [ ! -x "$redactor" ]; then
+    echo "Diagnostic redactor is missing or not executable: $redactor" >&2
+    exit 1
+fi
+"$redactor" \
+    --input "$raw_dir" \
+    --output "$report_dir" \
+    --username "$(id -un)" \
+    --hostname "$(hostname)" \
+    --sensitive-file "$network_names_file"
+
+# Raw diagnostics never enter the archive and are removed before review.
+/usr/bin/rm -rf -- "$raw_dir"
+/usr/bin/rm -f -- "$network_names_file"
+
+{
+    for file in "$report_dir"/*; do
+        [ -f "$file" ] || continue
+        printf '\n===== %s =====\n\n' "$(basename "$file")"
+        /usr/bin/cat "$file"
+    done
+} > "$review_file"
+
+printf 'Collected and redacted %s files (%s).\n' \
+    "$(find "$report_dir" -type f | wc -l)" \
+    "$(du -h -s "$report_dir" | cut -f1)"
+
+if [ "$assume_yes" -eq 0 ]; then
+    if [ ! -t 0 ]; then
+        echo "Interactive review is required; rerun with --yes only after explicit approval." >&2
+        exit 3
+    fi
+    if [ "$no_pager" -eq 1 ] || ! command -v less >/dev/null 2>&1; then
+        /usr/bin/cat "$review_file"
+    else
+        less "$review_file"
+    fi
+    printf 'Create the local diagnostic archive shown above? [y/N] '
+    read -r answer
+    case "$answer" in
+        y|Y|yes|YES|sim|SIM) ;;
+        *)
+            echo "Cancelled; no diagnostic archive was created."
+            exit 0
+            ;;
+    esac
+fi
 
 archive_tmp="$(mktemp --tmpdir="$output_dir" .lyra-report.XXXXXX.tar.gz)"
 /usr/bin/tar -C "$work_dir" -czf "$archive_tmp" lyra-report
 /usr/bin/chmod 0600 "$archive_tmp"
-# A hard-link publish is atomic and fails if output appeared after the check
-# above; unlike mv --no-clobber, its exit status reliably reports that race.
+# A hard-link publish is atomic and fails if output appeared after the check.
 /usr/bin/ln -- "$archive_tmp" "$output"
 /usr/bin/rm -f -- "$archive_tmp"
 archive_tmp=""
 
 printf 'Diagnostic archive created locally: %s\n' "$output"
-printf 'Review its README and contents before sharing it.\n'
+printf 'Nothing was uploaded. Review the archive again before attaching it.\n'

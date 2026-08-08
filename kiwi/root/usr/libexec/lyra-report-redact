@@ -1,0 +1,215 @@
+#!/usr/bin/env python3
+"""Redact secrets and personal identifiers from a Lyra diagnostic tree."""
+
+from __future__ import annotations
+
+import argparse
+import collections
+import ipaddress
+import re
+import shutil
+import sys
+from pathlib import Path
+
+
+class Redactor:
+    def __init__(self, username: str, hostname: str, sensitive_values: tuple[str, ...] = ()) -> None:
+        self.username = username if len(username) >= 2 else ""
+        self.hostname = hostname if len(hostname) >= 2 else ""
+        self.sensitive_values = tuple(value for value in sensitive_values if len(value) >= 3)
+        self.values: dict[str, dict[str, str]] = collections.defaultdict(dict)
+        self.counts: collections.Counter[str] = collections.Counter()
+
+    def token(self, category: str, value: str) -> str:
+        normalized = value.casefold()
+        known = self.values[category]
+        if normalized not in known:
+            known[normalized] = f"<{category}-{len(known) + 1}>"
+        self.counts[category] += 1
+        return known[normalized]
+
+    def substitute(self, text: str, pattern: str, category: str, flags: int = 0) -> str:
+        return re.sub(pattern, lambda match: self.token(category, match.group(0)), text, flags=flags)
+
+    def redact(self, text: str) -> str:
+        for value in self.sensitive_values:
+            text = re.sub(
+                re.escape(value),
+                lambda match: self.token("network-name", match.group(0)),
+                text,
+                flags=re.IGNORECASE,
+            )
+        text = re.sub(
+            r"-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----.*?"
+            r"-----END (?:[A-Z0-9 ]+ )?PRIVATE KEY-----",
+            lambda match: self.token("private-key", match.group(0)),
+            text,
+            flags=re.DOTALL,
+        )
+        text = re.sub(
+            r"(?i)(\bAuthorization\s*[:=]\s*(?:Bearer|Basic)\s+)\S+",
+            lambda match: match.group(1) + self.token("credential", match.group(0)[len(match.group(1)) :]),
+            text,
+        )
+        text = re.sub(
+            r"(?i)(\b(?:password|passwd|passphrase|token|access[_-]?token|"
+            r"refresh[_-]?token|api[_-]?token|secret|api[_-]?key|client[_-]?secret|psk|"
+            r"private[_-]?key|cookie)\b\s*[:=]\s*)([^\s,;]+)",
+            lambda match: match.group(1) + self.token("credential", match.group(2)),
+            text,
+        )
+        text = re.sub(
+            r"(?i)(\b(?:ssid|802-11-wireless\.ssid)\b\s*[:=]\s*)([^\r\n]+)",
+            lambda match: match.group(1) + self.token("ssid", match.group(2).strip()),
+            text,
+        )
+        text = re.sub(
+            r"\b([a-zA-Z][a-zA-Z0-9+.-]*://)([^/@\s:]+):([^/@\s]+)@",
+            lambda match: match.group(1) + self.token("url-credential", match.group(2) + ":" + match.group(3)) + "@",
+            text,
+        )
+        text = self.substitute(
+            text,
+            r"(?i)\b(?:gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,})\b",
+            "token",
+        )
+        text = self.substitute(
+            text,
+            r"\b[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b",
+            "token",
+        )
+        text = self.substitute(
+            text,
+            r"(?i)\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b",
+            "uuid",
+        )
+        text = self.substitute(text, r"(?i)(?<![0-9a-f])(?:[0-9a-f]{2}:){5}[0-9a-f]{2}(?![0-9a-f])", "mac")
+        text = self._redact_ips(text)
+        text = self.substitute(
+            text,
+            r"(?i)\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b",
+            "email",
+        )
+        text = re.sub(
+            r"(?<![A-Za-z0-9_-])/home/([A-Za-z0-9._-]+)",
+            lambda match: "/home/" + self.token("user", match.group(1)),
+            text,
+        )
+        if self.username:
+            text = re.sub(
+                rf"(?<![A-Za-z0-9_-]){re.escape(self.username)}(?![A-Za-z0-9_-])",
+                lambda match: self.token("user", match.group(0)),
+                text,
+                flags=re.IGNORECASE,
+            )
+        if self.hostname:
+            text = re.sub(
+                rf"(?<![A-Za-z0-9_-]){re.escape(self.hostname)}(?![A-Za-z0-9_-])",
+                lambda match: self.token("hostname", match.group(0)),
+                text,
+                flags=re.IGNORECASE,
+            )
+        return text
+
+    def _redact_ips(self, text: str) -> str:
+        def replace_ipv4(match: re.Match[str]) -> str:
+            candidate = match.group(0)
+            address, separator, prefix = candidate.partition("/")
+            try:
+                ipaddress.IPv4Address(address)
+            except ipaddress.AddressValueError:
+                return candidate
+            token = self.token("ipv4", address)
+            return token + (separator + prefix if separator else "")
+
+        text = re.sub(
+            r"(?<![\w.])(?:\d{1,3}\.){3}\d{1,3}(?:/\d{1,2})?(?![\w.])",
+            replace_ipv4,
+            text,
+        )
+
+        def replace_ipv6(match: re.Match[str]) -> str:
+            candidate = match.group(0)
+            address, separator, prefix = candidate.partition("/")
+            try:
+                ipaddress.IPv6Address(address)
+            except ipaddress.AddressValueError:
+                return candidate
+            token = self.token("ipv6", address)
+            return token + (separator + prefix if separator else "")
+
+        return re.sub(
+            r"(?<![0-9A-Fa-f:])(?:[0-9A-Fa-f]{0,4}:){2,7}[0-9A-Fa-f]{0,4}"
+            r"(?:/\d{1,3})?(?![0-9A-Fa-f:])",
+            replace_ipv6,
+            text,
+        )
+
+
+def redact_tree(source: Path, destination: Path, redactor: Redactor) -> None:
+    if not source.is_dir():
+        raise ValueError(f"input is not a directory: {source}")
+    if destination.exists():
+        raise ValueError(f"output already exists: {destination}")
+    destination.mkdir(mode=0o700, parents=True)
+    for path in sorted(source.rglob("*")):
+        if path.is_symlink() or not path.is_file():
+            continue
+        relative = path.relative_to(source)
+        target = destination / relative
+        target.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        content = path.read_text(encoding="utf-8", errors="replace")
+        target.write_text(redactor.redact(content), encoding="utf-8")
+        target.chmod(0o600)
+
+
+def write_summary(destination: Path, redactor: Redactor) -> None:
+    summary = destination / "redaction-summary.txt"
+    lines = [
+        "Lyra report redaction summary",
+        "",
+        "The counts below contain no original values.",
+    ]
+    if redactor.counts:
+        lines.extend(f"{category}: {redactor.counts[category]}" for category in sorted(redactor.counts))
+    else:
+        lines.append("No sensitive patterns were detected.")
+    lines.append("")
+    summary.write_text("\n".join(lines), encoding="utf-8")
+    summary.chmod(0o600)
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--input", required=True, type=Path)
+    parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--username", default="")
+    parser.add_argument("--hostname", default="")
+    parser.add_argument("--sensitive-file", action="append", default=[], type=Path)
+    return parser.parse_args()
+
+
+def main() -> int:
+    args = parse_args()
+    output_existed = args.output.exists() or args.output.is_symlink()
+    try:
+        sensitive_values: list[str] = []
+        for path in args.sensitive_file:
+            sensitive_values.extend(
+                line.strip()
+                for line in path.read_text(encoding="utf-8", errors="replace").splitlines()
+                if line.strip()
+            )
+        redactor = Redactor(args.username, args.hostname, tuple(sensitive_values))
+        redact_tree(args.input, args.output, redactor)
+        write_summary(args.output, redactor)
+        return 0
+    except (OSError, ValueError) as error:
+        print(f"lyra-report redaction failed: {error}", file=sys.stderr)
+        if not output_existed and args.output.is_dir() and not args.output.is_symlink():
+            shutil.rmtree(args.output)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

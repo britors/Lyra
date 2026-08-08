@@ -35,6 +35,8 @@ fi
 
 SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 KIWI_DESC="$(dirname "$SCRIPT_DIR")"
+REPO_ROOT="$(dirname "$KIWI_DESC")"
+RELEASE_TOOL="$REPO_ROOT/scripts/release.py"
 CURRENT_UID="$(id -u)"
 # Keep the large KIWI tree, ISO and VM disk on the persistent filesystem.
 # On many systems /tmp is a small RAM-backed tmpfs and cannot hold a full
@@ -77,6 +79,15 @@ fi
 # Booting an already-installed disk never needs to build or locate an ISO.
 if [ "$BOOT_DISK_ONLY" -eq 1 ]; then
   SKIP_BUILD=1
+fi
+
+if [ "$BOOT_DISK_ONLY" -eq 0 ]; then
+  if [ ! -x "$RELEASE_TOOL" ]; then
+    echo "release metadata tool is missing or not executable: $RELEASE_TOOL" >&2
+    exit 1
+  fi
+  "$RELEASE_TOOL" check
+  EXPECTED_ISO_NAME="$("$RELEASE_TOOL" field iso_filename)"
 fi
 
 if [ "$SECURE_BOOT" -eq 1 ]; then
@@ -167,6 +178,12 @@ if [ "$BOOT_DISK_ONLY" -eq 0 ] && [ "$SKIP_BUILD" -eq 1 ]; then
     exit 1
   elif [ "${#ISO_CANDIDATES[@]}" -eq 1 ]; then
     ISO_PATH="${ISO_CANDIDATES[0]}"
+    if [ "$(basename "$ISO_PATH")" != "$EXPECTED_ISO_NAME" ]; then
+      echo "!!! cached ISO does not match release.toml:" >&2
+      echo "  expected: $EXPECTED_ISO_NAME" >&2
+      echo "  found:    $(basename "$ISO_PATH")" >&2
+      exit 1
+    fi
   fi
 fi
 
@@ -193,9 +210,22 @@ if [ "$BOOT_DISK_ONLY" -eq 0 ] && [ "$SKIP_BUILD" -eq 0 ]; then
     exit 1
   fi
 
+  IMAGE_OS_RELEASE="$BUILD_DIR/build/image-root/etc/os-release"
+  if ! grep -Fx "VERSION_ID=\"$("$RELEASE_TOOL" field version_id)\"" \
+      "$IMAGE_OS_RELEASE" >/dev/null; then
+    echo "!!! built image /etc/os-release does not match release.toml" >&2
+    exit 1
+  fi
+
   BUILT_ISO="$(sudo find "$BUILD_DIR" -maxdepth 1 -type f -name '*.iso' -print -quit)"
   if [ -z "$BUILT_ISO" ]; then
     echo "!!! kiwi-ng reported success but no .iso found under $BUILD_DIR"
+    exit 1
+  fi
+  if [ "$(basename "$BUILT_ISO")" != "$EXPECTED_ISO_NAME" ]; then
+    echo "!!! KIWI generated an unexpected ISO name:" >&2
+    echo "  expected: $EXPECTED_ISO_NAME" >&2
+    echo "  found:    $(basename "$BUILT_ISO")" >&2
     exit 1
   fi
 
@@ -239,19 +269,29 @@ if [ "$BOOT_DISK_ONLY" -eq 0 ] && [ "$SKIP_BUILD" -eq 0 ]; then
   sudo cp "$BUILT_ISO" "$ISO_STAGED"
   sudo chown "$(id -u):$(id -g)" "$ISO_STAGED"
 
-  if [ -f "$ISO_PATH" ]; then
+  EXISTING_ISOS=()
+  mapfile -d '' -t EXISTING_ISOS < <(
+    find "$ISO_DIR" -maxdepth 1 -type f -name '*.iso' -print0 2>/dev/null
+  )
+  for EXISTING_ISO in "${EXISTING_ISOS[@]}"; do
     mkdir -p "$ISO_ARCHIVE_DIR"
     ARCHIVE_STAMP="$(date '+%Y%m%d-%H%M%S')"
-    ARCHIVED_ISO="$ISO_ARCHIVE_DIR/${ISO_NAME%.iso}-$ARCHIVE_STAMP.iso"
+    EXISTING_NAME="$(basename "$EXISTING_ISO")"
+    ARCHIVED_ISO="$ISO_ARCHIVE_DIR/${EXISTING_NAME%.iso}-$ARCHIVE_STAMP.iso"
     if [ -e "$ARCHIVED_ISO" ]; then
-      ARCHIVED_ISO="$ISO_ARCHIVE_DIR/${ISO_NAME%.iso}-$ARCHIVE_STAMP-$$.iso"
+      ARCHIVED_ISO="$ISO_ARCHIVE_DIR/${EXISTING_NAME%.iso}-$ARCHIVE_STAMP-$$.iso"
     fi
     echo "--- archiving previous ISO -> $ARCHIVED_ISO ---"
-    cp -p "$ISO_PATH" "$ARCHIVED_ISO"
-  fi
+    mv "$EXISTING_ISO" "$ARCHIVED_ISO"
+    if [ -f "$EXISTING_ISO.manifest.json" ]; then
+      mv "$EXISTING_ISO.manifest.json" "$ARCHIVED_ISO.manifest.json"
+    fi
+  done
 
   echo "--- promoting new ISO -> $ISO_PATH ---"
   mv -f "$ISO_STAGED" "$ISO_PATH"
+  echo "--- writing build traceability manifest ---"
+  "$RELEASE_TOOL" build-manifest --iso "$ISO_PATH"
 elif [ "$BOOT_DISK_ONLY" -eq 0 ]; then
   echo "--- skipping build, reusing existing ISO ---"
 fi
