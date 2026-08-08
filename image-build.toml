@@ -2,33 +2,43 @@ schema = 1
 
 [image]
 name = "lyra-os"
-description = "lyra-image.kiwi"
+description = "config.xml"
 architecture = "x86_64"
-required_flavor = "standard"
-optional_flavors = ["nvidia"]
+
+[source]
+repository = "https://github.com/britors/Lyra"
+
+[distribution]
+iso_provider = "sourceforge"
 
 [obs]
 api_url = "https://api.opensuse.org"
-project = "home:rodrigosbrito:lyra:images:staging"
-package = "lyra-image"
-repository = "images"
-maintainer = "rodrigosbrito"
+role = "packages-only"
 
-[[obs.paths]]
+[[obs.package_sources]]
 project = "home:rodrigosbrito:lyra"
 repository = "openSUSE_Leap_16.0"
 
-[[obs.paths]]
+[[obs.package_sources]]
 project = "home:rodrigosbrito:vega"
 repository = "openSUSE_Leap_16.0"
 
-[[obs.paths]]
+[[obs.package_sources]]
 project = "home:rodrigosbrito:fina"
 repository = "openSUSE_Leap_16.0"
 
-[[obs.paths]]
+[[obs.package_sources]]
 project = "Virtualization:Appliances:Builder"
 repository = "openSUSE_Leap_16.0"
 
 [artifacts]
-required = ["iso", "packages", "verified", "changes", "kiwi_result"]
+required = [
+  "iso",
+  "packages",
+  "verified",
+  "report",
+  "checksum",
+  "checksum_signature",
+  "cyclonedx_sbom",
+  "spdx_sbom",
+]

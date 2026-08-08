@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Export, publish, and audit reproducible Lyra KIWI image builds."""
+"""Export and audit reproducible Lyra KIWI image builds."""
 
 from __future__ import annotations
 
@@ -14,7 +14,6 @@ import shutil
 import subprocess
 import sys
 import tarfile
-import tempfile
 import tomllib
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -24,17 +23,12 @@ ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MANIFEST = ROOT / "image-build.toml"
 KIWI = ROOT / "kiwi"
 RELEASE = ROOT / "release.toml"
-OBS_SIGNING_KEYRING = KIWI / "keys/obs-package-signing-keyring.asc"
-OBS_SIGNING_KEYRING_SHA256 = "d022ff92be1bf001cc81a9f502aae839b8d9ff68ea6179e7cec9bd76b3e3e07d"
-OBS_SIGNING_KEYRING_EXPORT = "obs-package-signing-keyring.asc"
-
-
 class PolicyError(RuntimeError):
     """An image-build invariant was not satisfied."""
 
 
 @dataclasses.dataclass(frozen=True)
-class ObsPath:
+class ObsPackageSource:
     project: str
     repository: str
 
@@ -44,14 +38,11 @@ class Manifest:
     image_name: str
     description: str
     architecture: str
-    required_flavor: str
-    optional_flavors: tuple[str, ...]
+    source_repository: str
+    iso_provider: str
     api_url: str
-    project: str
-    package: str
-    repository: str
-    maintainer: str
-    paths: tuple[ObsPath, ...]
+    obs_role: str
+    package_sources: tuple[ObsPackageSource, ...]
     required_artifacts: tuple[str, ...]
 
     @classmethod
@@ -60,19 +51,22 @@ class Manifest:
             data = tomllib.load(stream)
         if data.get("schema") != 1:
             raise PolicyError("image manifest schema must be 1")
-        image, obs = data["image"], data["obs"]
+        image, source = data["image"], data["source"]
+        distribution, obs = data["distribution"], data["obs"]
+        forbidden_obs_targets = {"project", "package", "repository", "maintainer"} & obs.keys()
+        if forbidden_obs_targets:
+            raise PolicyError("OBS image publication targets are forbidden")
         result = cls(
             image_name=image["name"],
             description=image["description"],
             architecture=image["architecture"],
-            required_flavor=image["required_flavor"],
-            optional_flavors=tuple(image["optional_flavors"]),
+            source_repository=source["repository"],
+            iso_provider=distribution["iso_provider"],
             api_url=obs["api_url"],
-            project=obs["project"],
-            package=obs["package"],
-            repository=obs["repository"],
-            maintainer=obs["maintainer"],
-            paths=tuple(ObsPath(**item) for item in obs["paths"]),
+            obs_role=obs["role"],
+            package_sources=tuple(
+                ObsPackageSource(**item) for item in obs["package_sources"]
+            ),
             required_artifacts=tuple(data["artifacts"]["required"]),
         )
         result.validate()
@@ -81,21 +75,36 @@ class Manifest:
     def validate(self) -> None:
         if self.api_url != "https://api.opensuse.org":
             raise PolicyError("only the canonical HTTPS OBS API is allowed")
-        if not self.project.startswith("home:rodrigosbrito:"):
-            raise PolicyError("image project is outside the approved OBS namespace")
-        identifiers = (self.image_name, self.architecture, self.required_flavor, self.package)
+        if self.source_repository != "https://github.com/britors/Lyra":
+            raise PolicyError("GitHub must remain the canonical image source")
+        if self.iso_provider != "sourceforge":
+            raise PolicyError("SourceForge must remain the ISO distribution provider")
+        if self.obs_role != "packages-only":
+            raise PolicyError("OBS is restricted to RPM packages")
+        identifiers = (self.image_name, self.architecture)
         if any(not re.fullmatch(r"[A-Za-z0-9_.-]+", value) for value in identifiers):
             raise PolicyError("invalid image identifier")
-        if self.description != f"{self.package}.kiwi":
-            raise PolicyError("OBS description must be named after the package with a .kiwi suffix")
-        flavors = (self.required_flavor, *self.optional_flavors)
-        if len(set(flavors)) != len(flavors):
-            raise PolicyError("image flavors must be unique")
-        if self.required_flavor != "standard" or "nvidia" not in self.optional_flavors:
-            raise PolicyError("standard must be required and nvidia must remain optional")
-        if len(self.paths) < 4 or len(set(self.paths)) != len(self.paths):
-            raise PolicyError("OBS build paths are incomplete or duplicated")
-        if set(self.required_artifacts) != {"iso", "packages", "verified", "changes", "kiwi_result"}:
+        if self.description != "config.xml":
+            raise PolicyError("the exported KIWI description must be config.xml")
+        expected_sources = (
+            ObsPackageSource("home:rodrigosbrito:lyra", "openSUSE_Leap_16.0"),
+            ObsPackageSource("home:rodrigosbrito:vega", "openSUSE_Leap_16.0"),
+            ObsPackageSource("home:rodrigosbrito:fina", "openSUSE_Leap_16.0"),
+            ObsPackageSource("Virtualization:Appliances:Builder", "openSUSE_Leap_16.0"),
+        )
+        if self.package_sources != expected_sources:
+            raise PolicyError("OBS RPM package sources are incomplete or out of order")
+        expected_artifacts = {
+            "iso",
+            "packages",
+            "verified",
+            "report",
+            "checksum",
+            "checksum_signature",
+            "cyclonedx_sbom",
+            "spdx_sbom",
+        }
+        if set(self.required_artifacts) != expected_artifacts:
             raise PolicyError("artifact policy is incomplete")
 
 
@@ -156,8 +165,6 @@ def validate_sources(manifest: Manifest) -> None:
     flathub = KIWI / "root/etc/flatpak/remotes.d/flathub.flatpakrepo"
     if "GPGKey=" not in flathub.read_text(encoding="utf-8"):
         raise PolicyError("versioned Flathub remote or signing key is missing")
-    if sha256(OBS_SIGNING_KEYRING) != OBS_SIGNING_KEYRING_SHA256:
-        raise PolicyError("OBS package-signing keyring differs from the reviewed checksum")
 
 
 def source_metadata(commit: str, dirty: bool) -> tuple[dict[str, object], str]:
@@ -184,44 +191,6 @@ def source_metadata(commit: str, dirty: bool) -> tuple[dict[str, object], str]:
     return document, environment
 
 
-def render_obs_config(manifest: Manifest) -> bytes:
-    tree = canonical_xml()
-    root = tree.getroot()
-    root.insert(0, ET.Comment(" OBS-Profiles: @BUILD_FLAVOR@ "))
-    profiles = ET.Element("profiles")
-    ET.SubElement(
-        profiles,
-        "profile",
-        {"name": manifest.required_flavor, "description": "Lyra OS standard image", "import": "true"},
-    )
-    for flavor in manifest.optional_flavors:
-        ET.SubElement(
-            profiles,
-            "profile",
-            {"name": flavor, "description": f"Lyra OS {flavor} image"},
-        )
-    description_index = next(index for index, node in enumerate(root) if node.tag == "description")
-    root.insert(description_index + 1, profiles)
-    for repository in root.findall("repository"):
-        repository.attrib.pop("imageinclude", None)
-        repository.set("imageonly", "true")
-        if repository.attrib.get("alias") == "repo-oss":
-            source = repository.find("source")
-            if source is None:
-                raise PolicyError("repo-oss has no source element")
-            ET.SubElement(
-                source,
-                "signing",
-                {"key": f"file:///usr/src/packages/SOURCES/{OBS_SIGNING_KEYRING_EXPORT}"},
-            )
-    build_repository = ET.Element("repository", {"alias": "obs-build", "type": "rpm-md"})
-    ET.SubElement(build_repository, "source", {"path": "obsrepositories:/"})
-    first_packages = next(index for index, node in enumerate(root) if node.tag == "packages")
-    root.insert(first_packages, build_repository)
-    ET.indent(tree, space="  ")
-    return ET.tostring(root, encoding="utf-8", xml_declaration=True) + b"\n"
-
-
 def ensure_export_target(destination: Path) -> None:
     if destination.exists() and any(destination.iterdir()):
         raise PolicyError(f"export destination is not empty: {destination}")
@@ -229,7 +198,7 @@ def ensure_export_target(destination: Path) -> None:
 
 
 def write_root_archive(root: Path, archive: Path, epoch: int) -> None:
-    """Create the deterministic root.tar.gz format consumed by OBS/KIWI."""
+    """Create a deterministic archive of the KIWI root overlay."""
 
     def normalize(member: tarfile.TarInfo) -> tarfile.TarInfo:
         member.uid = 0
@@ -261,11 +230,9 @@ def export(manifest: Manifest, destination: Path, commit: str, allow_dirty: bool
     if metadata["commit"] != git("rev-parse", "HEAD"):
         raise PolicyError("--commit must identify the currently checked-out HEAD")
     ensure_export_target(destination)
-    for name in ("config.sh",):
+    for name in ("config.xml", "config.sh"):
         shutil.copy2(KIWI / name, destination / name)
-    shutil.copy2(OBS_SIGNING_KEYRING, destination / OBS_SIGNING_KEYRING_EXPORT)
     shutil.copytree(KIWI / "root", destination / "root", symlinks=True)
-    (destination / manifest.description).write_bytes(render_obs_config(manifest))
     (destination / "build-source.json").write_text(
         json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
@@ -273,12 +240,6 @@ def export(manifest: Manifest, destination: Path, commit: str, allow_dirty: bool
     embedded.parent.mkdir(parents=True, exist_ok=True)
     embedded.write_text(environment, encoding="utf-8")
     write_root_archive(destination / "root", destination / "root.tar.gz", metadata["source_epoch"])
-    multibuild = ET.Element("multibuild")
-    ET.SubElement(multibuild, "flavor").text = manifest.required_flavor
-    ET.indent(multibuild, space="  ")
-    (destination / "_multibuild").write_text(
-        ET.tostring(multibuild, encoding="unicode") + "\n", encoding="utf-8"
-    )
     print(destination)
 
 
@@ -287,28 +248,21 @@ def verify_export(manifest: Manifest, directory: Path) -> None:
     if metadata.get("dirty") is not False or not re.fullmatch(r"[0-9a-f]{40}", metadata.get("commit", "")):
         raise PolicyError("export has invalid source identity")
     root = ET.parse(directory / manifest.description).getroot()
-    profiles = {node.attrib["name"]: node.attrib for node in root.findall("profiles/profile")}
-    if profiles.get(manifest.required_flavor, {}).get("import") != "true":
-        raise PolicyError("standard profile is not the imported default")
-    flavors = [node.text for node in ET.parse(directory / "_multibuild").getroot().findall("flavor")]
-    if flavors != [manifest.required_flavor]:
-        raise PolicyError("optional NVIDIA flavor must not gate the standard image")
-    build_repos = [
-        node for node in root.findall("repository")
-        if node.find("source") is not None and node.find("source").attrib.get("path") == "obsrepositories:/"
-    ]
-    if len(build_repos) != 1:
-        raise PolicyError("export must have one OBS-injected build repository")
-    repo_oss = root.find("repository[@alias='repo-oss']")
-    signing = None if repo_oss is None else repo_oss.find("source/signing")
-    expected_key = f"file:///usr/src/packages/SOURCES/{OBS_SIGNING_KEYRING_EXPORT}"
-    if signing is None or signing.attrib.get("key") != expected_key:
-        raise PolicyError("preserved repository lacks the pinned OBS signing keyring")
-    if sha256(directory / OBS_SIGNING_KEYRING_EXPORT) != OBS_SIGNING_KEYRING_SHA256:
-        raise PolicyError("exported OBS signing keyring failed its checksum")
-    installed = [node for node in root.findall("repository") if node.attrib.get("alias") != "obs-build"]
-    if len(installed) != 5 or any(node.attrib.get("imageonly") != "true" for node in installed):
-        raise PolicyError("installed repositories must be isolated from OBS build resolution")
+    repositories = root.findall("repository")
+    if len(repositories) != 5:
+        raise PolicyError("export must preserve the five canonical repositories")
+    for repository in repositories:
+        source = repository.find("source")
+        url = "" if source is None else source.attrib.get("path", "")
+        if not url.startswith("https://") or url == "obsrepositories:/":
+            raise PolicyError("export must resolve RPMs through canonical HTTPS repositories")
+        for option in ("repository_gpgcheck", "package_gpgcheck"):
+            if repository.attrib.get(option) != "true":
+                raise PolicyError(f"exported repository must enable {option}")
+    if (directory / "_multibuild").exists():
+        raise PolicyError("OBS image recipes are forbidden in the GitHub source export")
+    if sha256(directory / manifest.description) != sha256(KIWI / "config.xml"):
+        raise PolicyError("exported KIWI description differs from the GitHub source")
     embedded = directory / "root/usr/lib/lyra-os/build-source"
     if metadata["commit"] not in embedded.read_text(encoding="utf-8"):
         raise PolicyError("embedded source identity differs from export manifest")
@@ -316,135 +270,11 @@ def verify_export(manifest: Manifest, directory: Path) -> None:
         names = archive.getnames()
         required = {"usr/lib/lyra-os/release", "usr/lib/lyra-os/build-source"}
         if not required.issubset(names):
-            raise PolicyError("OBS root archive lacks generated release metadata")
+            raise PolicyError("root archive lacks generated release metadata")
         archived_source = archive.extractfile("usr/lib/lyra-os/build-source")
         if archived_source is None or metadata["commit"].encode() not in archived_source.read():
             raise PolicyError("archived source identity differs from export manifest")
-    print(f"OK: deterministic {manifest.required_flavor} export at {metadata['commit']}")
-
-
-def project_meta(manifest: Manifest) -> str:
-    root = ET.Element("project", {"name": manifest.project})
-    ET.SubElement(root, "title").text = "Lyra OS image staging"
-    ET.SubElement(root, "description").text = "Reproducible KIWI image builds from committed Lyra sources."
-    ET.SubElement(root, "person", {"userid": manifest.maintainer, "role": "maintainer"})
-    publish = ET.SubElement(root, "publish")
-    ET.SubElement(publish, "enable", {"repository": manifest.repository, "arch": manifest.architecture})
-    repository = ET.SubElement(root, "repository", {"name": manifest.repository})
-    for path in manifest.paths:
-        ET.SubElement(repository, "path", dataclasses.asdict(path))
-    ET.SubElement(repository, "arch").text = manifest.architecture
-    ET.indent(root, space="  ")
-    return ET.tostring(root, encoding="unicode") + "\n"
-
-
-def package_meta(manifest: Manifest) -> str:
-    root = ET.Element("package", {"name": manifest.package, "project": manifest.project})
-    ET.SubElement(root, "title").text = "Lyra OS KIWI image"
-    ET.SubElement(root, "description").text = "Versioned source for the standard Lyra OS ISO."
-    ET.indent(root, space="  ")
-    return ET.tostring(root, encoding="unicode") + "\n"
-
-
-def project_config() -> str:
-    # RPM repositories otherwise default to spec recipes; image URLs should
-    # also remain stable across rebuilds. OBS deliberately refuses ambiguous
-    # providers, so keep the Leap branding and the KIWI live module choices
-    # explicit. The latter must resolve from Virtualization:Appliances:Builder
-    # instead of being shadowed by the Leap python-kiwi source package.
-    return (
-        "Type: kiwi\n"
-        "Repotype: staticlinks\n"
-        "Prefer: plymouth-branding-openSUSE\n"
-        "Prefer: MozillaFirefox-branding-openSUSE\n"
-        "Prefer: dracut-kiwi-live\n"
-    )
-
-
-def run(command: list[str], *, cwd: Path | None = None) -> str:
-    result = subprocess.run(command, cwd=cwd or ROOT, text=True, capture_output=True)
-    if result.returncode:
-        detail = result.stderr.strip() or result.stdout.strip()
-        raise PolicyError(f"command failed: {' '.join(command)}\n{detail}")
-    return result.stdout
-
-
-def publish(manifest: Manifest, execute: bool) -> None:
-    validate_sources(manifest)
-    if git("status", "--porcelain", "--untracked-files=normal"):
-        raise PolicyError("publish requires a clean committed working tree")
-    commit = git("rev-parse", "HEAD")
-    if not execute:
-        print(f"PLAN: create/update OBS project {manifest.project}")
-        print(f"PLAN: export commit {commit} to {manifest.package}")
-        print(f"PLAN: build only required flavor {manifest.required_flavor}")
-        return
-    osc = ["osc", "-A", manifest.api_url]
-    with tempfile.TemporaryDirectory(prefix="lyra-image-") as temporary_name:
-        temporary = Path(temporary_name)
-        exported = temporary / "export"
-        export(manifest, exported, commit, allow_dirty=False)
-        project_file = temporary / "project.xml"
-        package_file = temporary / "package.xml"
-        project_config_file = temporary / "project.conf"
-        project_file.write_text(project_meta(manifest), encoding="utf-8")
-        package_file.write_text(package_meta(manifest), encoding="utf-8")
-        project_config_file.write_text(project_config(), encoding="utf-8")
-        run([*osc, "meta", "prj", manifest.project, "-F", str(project_file)])
-        run([*osc, "meta", "prjconf", manifest.project, "-F", str(project_config_file)])
-        run([*osc, "meta", "pkg", manifest.project, manifest.package, "-F", str(package_file)])
-        checkout_root = temporary / "checkout"
-        checkout_root.mkdir()
-        checkout = checkout_root / "package"
-        run(
-            [*osc, "checkout", manifest.project, manifest.package, "--output-dir", str(checkout)],
-            cwd=checkout_root,
-        )
-        if not (checkout / ".osc/_package").is_file():
-            raise PolicyError("could not identify the OBS package checkout")
-        for child in checkout.iterdir():
-            if child.name != ".osc":
-                if child.is_dir() and not child.is_symlink():
-                    shutil.rmtree(child)
-                else:
-                    child.unlink()
-        for child in exported.iterdir():
-            target = checkout / child.name
-            if child.is_dir():
-                shutil.copytree(child, target, symlinks=True)
-            else:
-                shutil.copy2(child, target)
-        run([*osc, "addremove"], cwd=checkout)
-        run([*osc, "commit", "-m", f"Build Lyra OS image from Git {commit}"], cwd=checkout)
-    print(f"OK: published {manifest.project}/{manifest.package} from {commit}")
-
-
-def remote_check(manifest: Manifest) -> None:
-    osc = ["osc", "-A", manifest.api_url, "api"]
-    meta = ET.fromstring(run([*osc, f"/source/{manifest.project}/_meta"]))
-    repository = meta.find(f"repository[@name='{manifest.repository}']")
-    if repository is None:
-        raise PolicyError("OBS image repository is missing")
-    paths = tuple(ObsPath(**node.attrib) for node in repository.findall("path"))
-    arches = tuple(node.text for node in repository.findall("arch"))
-    if paths != manifest.paths or arches != (manifest.architecture,):
-        raise PolicyError("OBS paths or architecture differ from image-build.toml")
-    query = (
-        f"/build/{manifest.project}/_result?repository={manifest.repository}"
-        f"&arch={manifest.architecture}&view=status"
-    )
-    result = ET.fromstring(run([*osc, query])).find("result")
-    if result is None or result.attrib.get("code") != "published":
-        state = "missing" if result is None else result.attrib.get("code", "unknown")
-        raise PolicyError(f"OBS image repository is not published ({state})")
-    statuses = {node.attrib["package"]: node.attrib["code"] for node in result.findall("status")}
-    standard = f"{manifest.package}:{manifest.required_flavor}"
-    if statuses.get(standard) != "succeeded":
-        raise PolicyError(f"required image build did not succeed: {statuses.get(standard)!r}")
-    nvidia = f"{manifest.package}:nvidia"
-    if nvidia in statuses:
-        raise PolicyError("optional NVIDIA build unexpectedly gates Beta 2")
-    print(f"OK: {standard} succeeded and {nvidia} remains independent")
+    print(f"OK: deterministic KIWI source export at {metadata['commit']}")
 
 
 def sha256(path: Path) -> str:
@@ -467,11 +297,14 @@ def artifact_manifest(manifest: Manifest, directory: Path, output: Path, tests: 
         "iso": one(directory, "*.iso", "ISO"),
         "packages": one(directory, "*.packages", "package revision list"),
         "verified": one(directory, "*.verified", "verification report"),
-        "changes": one(directory, "*.changes", "change log"),
-        "kiwi_result": one(directory, "kiwi.result.json", "KIWI result"),
+        "report": one(directory, "*.report", "KIWI report"),
+        "checksum": one(directory, "*.iso.sha256", "ISO checksum"),
+        "checksum_signature": one(directory, "*.iso.sha256.asc", "checksum signature"),
+        "cyclonedx_sbom": one(directory, "*.cdx.json", "CycloneDX SBOM"),
+        "spdx_sbom": one(directory, "*.spdx.json", "SPDX SBOM"),
     }
     package_rows = [line.split("|") for line in roles["packages"].read_text(encoding="utf-8").splitlines() if line]
-    if any(len(row) != 8 for row in package_rows):
+    if any(len(row) != 7 for row in package_rows):
         raise PolicyError("KIWI package manifest has an unexpected format")
     if not package_rows or any(not row[5] for row in package_rows):
         raise PolicyError("exact source revisions are missing from the package manifest")
@@ -491,7 +324,7 @@ def artifact_manifest(manifest: Manifest, directory: Path, output: Path, tests: 
         "source": {"commit": git("rev-parse", "HEAD"), "dirty": bool(git("status", "--porcelain"))},
         "package_count": len(package_rows),
         "packages": [
-            {"name": row[0], "epoch": row[1], "version": row[2], "release": row[3], "arch": row[4], "source": row[5], "source_package": row[6], "license": row[7]}
+            {"name": row[0], "epoch": row[1], "version": row[2], "release": row[3], "arch": row[4], "source": row[5], "license": row[6]}
             for row in package_rows
         ],
         "artifacts": {
@@ -518,9 +351,6 @@ def parser() -> argparse.ArgumentParser:
     export_command.add_argument("--allow-dirty", action="store_true")
     verify = commands.add_parser("verify-export")
     verify.add_argument("directory", type=Path)
-    publish_command = commands.add_parser("publish")
-    publish_command.add_argument("--execute", action="store_true")
-    commands.add_parser("check-remote")
     artifacts = commands.add_parser("artifact-manifest")
     artifacts.add_argument("directory", type=Path)
     artifacts.add_argument("--output", required=True, type=Path)
@@ -534,15 +364,11 @@ def main() -> int:
         manifest = Manifest.load(args.manifest)
         if args.command == "validate":
             validate_sources(manifest)
-            print("OK: image sources, repositories, signatures, and flavors are valid")
+            print("OK: GitHub sources, RPM repositories, signatures, and distribution policy are valid")
         elif args.command == "export":
             export(manifest, args.destination, args.commit, args.allow_dirty)
         elif args.command == "verify-export":
             verify_export(manifest, args.directory)
-        elif args.command == "publish":
-            publish(manifest, args.execute)
-        elif args.command == "check-remote":
-            remote_check(manifest)
         else:
             artifact_manifest(manifest, args.directory, args.output, args.test_result)
     except (KeyError, OSError, PolicyError, subprocess.SubprocessError, tomllib.TOMLDecodeError, ET.ParseError, json.JSONDecodeError) as error:

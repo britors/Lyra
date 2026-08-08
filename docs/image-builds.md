@@ -1,20 +1,22 @@
-# KIWI image builds: local and OBS
+# KIWI image builds and SourceForge releases
 
-`kiwi/config.xml` is the single source of truth for the Lyra OS version,
-installed repositories, and package selection. `release.toml` owns the release
-identity. `image-build.toml` owns only the OBS image project, build-path order,
-architecture, flavors, and required evidence.
+The Lyra image pipeline has four explicit boundaries:
 
-The exported OBS package is generated as `lyra-image.kiwi`; do not edit it by
-hand. Its five HTTPS
-repositories are marked `imageonly=true`, so they remain configured in the
-resulting system but cannot affect dependency resolution in OBS. The single
-`obsrepositories:/` source is injected for the build. OBS resolves that source
-from the ordered project paths in `image-build.toml`.
+- GitHub is the canonical source for the KIWI description and root overlay;
+- KIWI builds run locally or in CI from a clean Git commit;
+- SourceForge is the public distribution point for ISO artifacts;
+- OBS builds and publishes RPM packages only.
 
-## Offline policy and deterministic export
+There is no OBS image project, KIWI package, image repository, or ISO binary.
+The image tool deliberately has no command capable of creating one.
+`kiwi/config.xml` owns the installed repositories and package selection,
+`release.toml` owns the release identity, and `image-build.toml` records this
+distribution policy plus the OBS projects used only as RPM sources.
 
-Run the policy gate and produce an inspectable package:
+## Policy gate and deterministic source export
+
+Run the release and repository checks, then create an inspectable source
+export from a clean commit:
 
 ```sh
 ./scripts/release.py check
@@ -25,82 +27,61 @@ destination="$(mktemp -d)/lyra-image"
 ./scripts/image-build.py verify-export "$destination"
 ```
 
-Export requires a clean tree. `--allow-dirty` exists only for structural
-inspection and marks that export dirty; it cannot pass `verify-export` or be
-published. The export records the checked-out full Git commit, commit epoch,
-and deterministic UTC build timestamp in `build-source.json` and in
+`--allow-dirty` exists only for structural inspection. A dirty export records
+that state and cannot pass `verify-export`.
+
+The export contains the canonical `config.xml`, `config.sh`, root overlay,
+and a normalized `root.tar.gz`. It also records the full Git commit, commit
+epoch, and deterministic UTC build timestamp in `build-source.json` and
 `root/usr/lib/lyra-os/build-source`. The latter becomes
-`/usr/lib/lyra-os/build-info` inside the image. The root overlay is also
-exported as a normalized, deterministic `root.tar.gz`, which is the source
-format OBS passes to KIWI.
+`/usr/lib/lyra-os/build-info` in the installed system.
 
-Signature verification is mandatory (`rpm-check-signatures`,
-`repository_gpgcheck`, and `package_gpgcheck`). Missing dependencies, invalid
-repository metadata, or bad package signatures therefore fail KIWI/OBS instead
-of creating a release candidate. The package-signing keyring used during the
-OBS bootstrap contains the Leap keys from `openSUSE-build-key` and the
-`Virtualization:Appliances:Builder` and `home:rodrigosbrito` keys obtained
-from the official OBS endpoints. It is pinned by SHA-256 and exported with
-the recipe; it is not
-replaced by a trust-all switch. It is attached to the preserved `repo-oss`
-entry because `obs-build` replaces `obsrepositories:/` with its command-line
-repository list before invoking KIWI. Flathub's URL and signing key are versioned at
-`kiwi/root/etc/flatpak/remotes.d/flathub.flatpakrepo`; no network command runs
-from `config.sh`.
+The verification gate rejects an export that differs from the GitHub KIWI
+description, contains `_multibuild` or an `obsrepositories:/` source, uses a
+staging repository, disables repository/package signature checks, or lacks
+the embedded source identity.
 
-## Equivalent local OBS build
+## Build and test the ISO
 
-Use a clean exported directory as an osc package checkout, or check out the
-published source and run:
-
-```sh
-osc -A https://api.opensuse.org checkout \
-  home:rodrigosbrito:lyra:images:staging lyra-image
-cd home:rodrigosbrito:lyra:images:staging/lyra-image
-osc -A https://api.opensuse.org build images x86_64 \
-  --multibuild-package=standard
-```
-
-This is the same repository graph and `standard` profile used remotely. For a
-direct KIWI build and interactive QEMU/installer validation, use:
+For the standard interactive build, VM installation, and first-boot test, use:
 
 ```sh
 ./kiwi/test/build-and-run-vm.sh
 ```
 
-## Publish to the staging image project
+The script builds directly from `kiwi/`, retains the previous usable ISO until
+its replacement is ready, starts QEMU with a fresh installation disk, and
+records logs below `kiwi/.kiwi/`. CI uses the deterministic export gate to
+prove that the same committed inputs are selected without publishing an image
+to OBS.
 
-Review the dry run, then execute from a clean committed tree:
+Signature verification is mandatory through `rpm-check-signatures`,
+`repository_gpgcheck`, and `package_gpgcheck`. The KIWI description uses the
+canonical HTTPS openSUSE and Lyra package repositories. Flathub's URL and
+signing key are versioned at
+`kiwi/root/etc/flatpak/remotes.d/flathub.flatpakrepo`; no network command runs
+from `config.sh`.
 
-```sh
-./scripts/image-build.py publish
-./scripts/image-build.py publish --execute
-./scripts/image-build.py check-remote
-```
+The NVIDIA ISO remains a separate optional deliverable. It does not introduce
+an OBS image flavor and cannot block the standard ISO.
 
-The project is `home:rodrigosbrito:lyra:images:staging`, package
-`lyra-image`, repository `images`, architecture `x86_64`. Its path order is
-Lyra, Vega, Fina, then `Virtualization:Appliances:Builder`; changing that order
-is a reviewed source change. The project configuration declares `Type: kiwi`
-explicitly and uses `Repotype: staticlinks`, which gives published images
-stable download paths. It also pins the openSUSE providers for Plymouth and
-Firefox branding, plus `dracut-kiwi-live` from
-`Virtualization:Appliances:Builder`, so OBS cannot choose differently when
-multiple providers or source-package variants are available. The live module
-is part of the installed-image package set, matching the official openSUSE
-live recipe so OBS stages its signed RPM for KIWI.
+## Release evidence
 
-`standard` is the only `_multibuild` entry for Beta 2. The `nvidia` profile is
-declared but optional and not submitted, so work tracked in #32 can reuse the
-same base description without duplicating packages and can never block the
-standard ISO.
+Keep the ISO together with its package inventory, verification report, KIWI
+report, checksum, checksum signature, and both SBOM formats:
 
-## Artifact and test evidence
+- `*.iso`
+- `*.packages`
+- `*.verified`
+- `*.report`
+- `*.iso.sha256`
+- `*.iso.sha256.asc`
+- `*.cdx.json`
+- `*.spdx.json`
 
-KIWI emits the ISO plus `.packages`, `.verified`, `.changes`, and
-`kiwi.result.json`. Keep all five. The `.packages` file is the authoritative
-list of exact package versions and OBS source revisions included in that image.
-Create a checksummed JSON evidence record and link results from #11 and #51:
+The `.packages` file records exact RPM versions and OBS source revisions.
+Create a checksummed evidence document and link the installer and smoke-test
+results:
 
 ```sh
 ./scripts/image-build.py artifact-manifest /path/to/kiwi/results \
@@ -109,23 +90,21 @@ Create a checksummed JSON evidence record and link results from #11 and #51:
   --test-result smoke=/path/to/issue-51-result.json
 ```
 
-The command fails if any required artifact is absent, if more than one matching
-artifact makes the result ambiguous, if a package lacks its exact source
-revision, or if a named test result does not exist. Publish the evidence JSON
-beside the ISO; its SHA-256 entries bind each artifact and test result to that
-record.
+The command fails if an artifact is absent or ambiguous, the package inventory
+does not contain exact sources, or a named test result does not exist.
 
-OBS build logs and binaries can be inspected with:
+After the checksum and release gates pass, publish the ISO and its evidence on
+SourceForge. Upload credentials and the SourceForge release operation remain
+outside this repository; this prevents CI or an OBS package workflow from
+silently distributing an unapproved image.
 
-```sh
-osc -A https://api.opensuse.org results \
-  home:rodrigosbrito:lyra:images:staging lyra-image --multibuild-package=standard
-osc -A https://api.opensuse.org buildlog \
-  home:rodrigosbrito:lyra:images:staging images x86_64 lyra-image:standard
-osc -A https://api.opensuse.org getbinaries \
-  home:rodrigosbrito:lyra:images:staging lyra-image:standard images x86_64
-```
+## OBS boundary
 
-An image is a candidate only after `check-remote` reports the repository
-published and `lyra-image:standard` succeeded, and its evidence manifest links
-the completed installer and smoke-test results.
+OBS remains responsible for the Lyra, Vega, Fina, and installer RPMs. Their
+staging, health, signing, and promotion are controlled by
+`scripts/obs-release.py` and documented in `docs/obs-release.md`.
+
+Do not add an image project, `Type: kiwi` project configuration, `_multibuild`
+image recipe, or ISO publication step to OBS. Any future image automation must
+consume the GitHub sources and hand approved artifacts to the SourceForge
+release process without storing the ISO in OBS.
