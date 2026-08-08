@@ -379,6 +379,9 @@
         more detail there, so accepting the package default was the
         reasonable call rather than fighting it.
       - Its %post also installs the GDM dconf defaults and branded logo.
+      - Lyra's own 99-lyra-desktop-defaults.gschema.override enables the
+        minimize/maximize titlebar buttons and keeps directories before files
+        in Nautilus/GTK file views. These are defaults, not locked settings.
       - Requires lyra-os-icons + plymouth-plugin-two-step
         automatically (RPM deps); fastfetch is only a Recommends in the
         spec file so it's made explicit here. Neofetch is left out

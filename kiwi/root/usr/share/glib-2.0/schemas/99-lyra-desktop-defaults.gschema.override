@@ -1,0 +1,13 @@
+# Lyra desktop defaults. These remain user-changeable in GNOME Settings,
+# Tweaks and Nautilus; this file only defines the initial value.
+[org.gnome.desktop.wm.preferences]
+button-layout='appmenu:minimize,maximize,close'
+
+# Nautilus 48 stores its folders-first preference in the GTK 4 file chooser
+# schema. Keep the GTK 3 equivalent aligned for legacy applications and for
+# users upgraded from an older Nautilus release.
+[org.gtk.gtk4.Settings.FileChooser]
+sort-directories-first=true
+
+[org.gtk.Settings.FileChooser]
+sort-directories-first=true
