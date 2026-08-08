@@ -314,12 +314,15 @@ def package_meta(manifest: Manifest) -> str:
 def project_config() -> str:
     # RPM repositories otherwise default to spec recipes; image URLs should
     # also remain stable across rebuilds. OBS deliberately refuses ambiguous
-    # providers, so keep the two Leap branding choices explicit.
+    # providers, so keep the Leap branding and the KIWI live module choices
+    # explicit. The latter must resolve from Virtualization:Appliances:Builder
+    # instead of being shadowed by the Leap python-kiwi source package.
     return (
         "Type: kiwi\n"
         "Repotype: staticlinks\n"
         "Prefer: plymouth-branding-openSUSE\n"
         "Prefer: MozillaFirefox-branding-openSUSE\n"
+        "Prefer: dracut-kiwi-live\n"
     )
 
 

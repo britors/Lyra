@@ -80,8 +80,9 @@ Lyra, Vega, Fina, then `Virtualization:Appliances:Builder`; changing that order
 is a reviewed source change. The project configuration declares `Type: kiwi`
 explicitly and uses `Repotype: staticlinks`, which gives published images
 stable download paths. It also pins the openSUSE providers for Plymouth and
-Firefox branding so OBS cannot choose differently when multiple providers are
-available.
+Firefox branding, plus `dracut-kiwi-live` from
+`Virtualization:Appliances:Builder`, so OBS cannot choose differently when
+multiple providers or source-package variants are available.
 
 `standard` is the only `_multibuild` entry for Beta 2. The `nvidia` profile is
 declared but optional and not submitted, so work tracked in #32 can reuse the
