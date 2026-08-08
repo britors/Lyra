@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 # Lyra OS - Odisseia (v1)
 # Prevent Calamares and Lyra Installer from running at the same time.
 

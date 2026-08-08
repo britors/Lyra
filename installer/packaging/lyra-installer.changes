@@ -5,3 +5,4 @@ Sat Aug  8 15:35:00 UTC 2026 - Rodrigo Brito <rodrigo@w3ti.com.br>
 - Add deterministic source archives tied to the full Git commit.
 - Record Cargo.lock provenance in the installed build-source metadata.
 - Keep the privileged backend separate and restricted by polkit.
+- Strip release binaries and use a direct Bash interpreter in the wrapper.

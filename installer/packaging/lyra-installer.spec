@@ -78,6 +78,12 @@ install -Dm0644 packaging/io.lyra.Installer.policy \
 install -Dm0644 packaging/01-lyra-installer-service.rules \
     %{buildroot}%{_sysconfdir}/polkit-1/rules.d/01-lyra-installer-service.rules
 
+# Rust keeps metadata sections that the generic RPM post-processing does not
+# classify as debuginfo. Strip the two release executables explicitly so the
+# shipped package contains no compiler symbols.
+%{__strip} --strip-all %{buildroot}%{_bindir}/lyra-installer
+%{__strip} --strip-all %{buildroot}%{_libexecdir}/lyra-installer-service
+
 desktop-file-validate \
     %{buildroot}%{_datadir}/applications/org.lyraos.LyraInstaller.desktop
 
