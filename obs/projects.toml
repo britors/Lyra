@@ -1,0 +1,70 @@
+schema = 1
+api_url = "https://api.opensuse.org"
+maintainer = "rodrigosbrito"
+
+[priorities]
+official_oss = 20
+official_non_oss = 21
+lyra_image = 1
+vega_image = 2
+fina_image = 3
+installed_third_party = 90
+
+[[projects]]
+id = "lyra"
+release = "home:rodrigosbrito:lyra"
+staging = "home:rodrigosbrito:lyra:staging"
+iso_consumer = true
+packages = [
+  "aladfar",
+  "beam",
+  "calamares",
+  "chord",
+  "lyra-installer",
+  "lyra-theme",
+  "postgres-draco",
+  "sheliak",
+  "sulafat",
+]
+
+[[projects.targets]]
+name = "openSUSE_Leap_16.0"
+upstream_project = "openSUSE:Leap:16.0"
+upstream_repository = "standard"
+architectures = ["x86_64"]
+iso_consumer = true
+
+[[projects]]
+id = "vega"
+release = "home:rodrigosbrito:vega"
+staging = "home:rodrigosbrito:vega:staging"
+iso_consumer = true
+packages = ["vega-cli", "vega-gtk", "vega-web", "vegad"]
+
+[[projects.targets]]
+name = "openSUSE_Leap_16.0"
+upstream_project = "openSUSE:Leap:16.0"
+upstream_repository = "standard"
+architectures = ["x86_64"]
+iso_consumer = true
+
+[[projects]]
+id = "fina"
+release = "home:rodrigosbrito:fina"
+staging = "home:rodrigosbrito:fina:staging"
+iso_consumer = true
+packages = ["fina"]
+
+[[projects.targets]]
+name = "openSUSE_Leap_16.0"
+upstream_project = "openSUSE:Leap:16.0"
+upstream_repository = "standard"
+architectures = ["x86_64"]
+iso_consumer = true
+
+[[projects.targets]]
+name = "openSUSE_Tumbleweed"
+upstream_project = "openSUSE:Factory"
+upstream_repository = "snapshot"
+architectures = ["x86_64"]
+iso_consumer = false
