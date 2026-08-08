@@ -288,8 +288,9 @@ def package_meta(manifest: Manifest) -> str:
 
 
 def project_config() -> str:
-    # KIWI's documented static-links mode keeps published image URLs stable.
-    return "Repotype: staticlinks\n"
+    # RPM repositories otherwise default to spec recipes; image URLs should
+    # also remain stable across rebuilds.
+    return "Type: kiwi\nRepotype: staticlinks\n"
 
 
 def run(command: list[str], *, cwd: Path | None = None) -> str:

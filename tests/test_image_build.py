@@ -78,7 +78,7 @@ class ImagePolicyTests(unittest.TestCase):
                 image_build.verify_export(self.manifest, destination)
 
     def test_obs_project_uses_static_image_links(self) -> None:
-        self.assertEqual(image_build.project_config(), "Repotype: staticlinks\n")
+        self.assertEqual(image_build.project_config(), "Type: kiwi\nRepotype: staticlinks\n")
 
 
 class ArtifactTests(unittest.TestCase):
