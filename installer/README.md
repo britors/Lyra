@@ -41,36 +41,50 @@ particionado), o resumo destrutivo e os avisos do plano, e só liberam
 `PlanBuilder` quando menos discos que o mínimo do nível são marcados,
 sem duplicar essa regra em JS.
 
-Um toggle "Usar LVM" (independente do modo disco/RAID, já que
-`storage::plan` valida RAID+LVM combinados) troca `volume_layer` de
-`Direct` para `NewVolumeGroup{name: "vg-lyra", logical_volumes}`. O
-editor de logical volumes começa com uma linha fixa (`root` em `/`,
-`FillRemaining`, não removível — `PlanBuilder` exige uma LV montada em
-`/`) e permite adicionar/remover outras, cada uma com nome, ponto de
-montagem e tamanho fixo (GiB) ou "preencher o restante". Um seletor de
-sugestões ("Somente raiz" / "Raiz + /home" / "Raiz + /home + /var") com
-botão "Aplicar sugestão" popula a lista automaticamente (raiz fixa em
-40 GiB, `/var` fixo em 20 GiB quando presente, `/home` sempre
-preenchendo o restante) — o usuário só valida/ajusta o que a sugestão
-já monta, em vez de montar do zero; a validação real continua vindo do
-`PlanBuilder` (ex.: espaço insuficiente se o disco for pequeno demais
-pra 40 GiB de raiz). Isso volta
-atrás de uma decisão de escopo tomada mais cedo na mesma sessão ("só
-RAID novo, sem editor de LVM, para manter o assistente guiado" — ver
-`docs/installer-architecture.md`); pedido explícito depois. `ExistingRaid`
-(reaproveitar array já existente) continua sem tela.
+A etapa abre com 5 cards de layout (`#layout-choice`), cada um
+pré-configurando `storageMode`/`lvmEnabled` e escondendo o que não é
+relevante, em vez de expor os alternadores brutos direto:
 
-Como o toggle de LVM é ortogonal ao modo disco/RAID, as 4 combinações
-pedidas já são alcançáveis sem código adicional: sem RAID/sem LVM (o
-fluxo original), com RAID/sem LVM, com RAID/com LVM, e sem RAID/com LVM
-(LVM direto sobre um disco único). Além dos cards de disco descobertos,
-um campo de texto ("Avançado: digite o caminho manualmente") deixa o
-usuário avançado digitar um caminho de disco (`/dev/sdX`) direto, tanto
-no modo disco único quanto adicionando membros no modo RAID — sem
-nenhuma validação nova em JS: se o caminho digitado não estiver no
-snapshot descoberto, o próprio `PlanBuilder` real devolve "disco não
-encontrado" no resumo do plano, igual a qualquer outro erro de
-validação já mostrado.
+- **Simples**: `RawTarget::Disk` + `VolumeLayer::Direct` — um disco, layout fixo.
+- **RAID**: `RawTarget::NewRaid` + `Direct` — mostra o seletor de nível (0/1/5/6/10, com mínimo de discos de cada um) e a lista de discos vira multi-seleção.
+- **LVM**: `RawTarget::Disk` + `NewVolumeGroup{name: "vg-lyra", logical_volumes}` — mostra o editor de logical volumes.
+- **RAID + LVM**: `NewRaid` + `NewVolumeGroup` — os dois juntos.
+- **Customizado**: `RawTarget::Disk` + `NewVolumeGroup` por baixo, mas a UI não expõe RAID nem o rótulo "LVM" — só disco único e a lista de volumes (nome, ponto de montagem, tamanho), estilo particionamento manual do Debian installer. O usuário só vê "crie seus volumes", nunca "volume group"; por decisão explícita, é uma escolha de rótulo/UI, não de mecanismo (`NewVolumeGroup` continua sendo o único jeito de expressar "monte em pontos diferentes com tamanhos diferentes" no `storage::plan` atual).
+
+O editor de logical volumes (usado por LVM/RAID+LVM/Customizado) começa
+com uma linha fixa (`root` em `/`, `FillRemaining`, não removível —
+`PlanBuilder` exige uma LV montada em `/`) e permite adicionar/remover
+outras, cada uma com nome, ponto de montagem e tamanho fixo (GiB) ou
+"preencher o restante". Um seletor de sugestões ("Somente raiz" /
+"Raiz + /home" / "Raiz + /home + /var") com botão "Aplicar sugestão"
+popula a lista automaticamente (raiz fixa em 40 GiB, `/var` fixo em 20
+GiB quando presente, `/home` sempre preenchendo o restante) — o
+usuário só valida/ajusta o que a sugestão já monta, em vez de montar
+do zero; a validação real continua vindo do `PlanBuilder` (ex.: espaço
+insuficiente se o disco for pequeno demais pra 40 GiB de raiz).
+`ExistingRaid` (reaproveitar array já existente) continua sem tela e
+sem card.
+
+Um card "Customizado" também revela um campo de texto ("Avançado:
+digite o caminho manualmente") deixando o usuário avançado digitar um
+caminho de disco (`/dev/sdX`) direto — sem nenhuma validação nova em
+JS: se o caminho digitado não estiver no snapshot descoberto, o
+próprio `PlanBuilder` real devolve "disco não encontrado" no resumo do
+plano, igual a qualquer outro erro de validação já mostrado.
+
+**Bug real encontrado e corrigido nesta sessão, vale registrar**: alternar
+a visibilidade de `#raid-level-row`/`#storage-mode`/`#manual-entry-row`
+via `elemento.hidden = true/false` não funcionava sozinho, porque essas
+classes também têm sua própria regra `display: flex` no CSS de autor —
+que tem prioridade sobre o `[hidden]{display:none}` do stylesheet padrão
+do navegador (origem "autor" sempre vence "user-agent", independente de
+especificidade ou ordem). O elemento ficava com o atributo `hidden`
+presente no DOM mas continuava visualmente `display:flex`. Corrigido
+com uma regra `.classe[hidden]{display:none}` (maior especificidade,
+ainda origem autor) pra cada contêiner que alterna visibilidade e tem
+`display` próprio — vale lembrar disso antes de adicionar qualquer novo
+elemento escondido via `hidden` que também tenha `display` explícito no
+CSS.
 
 `window.__TAURI__` precisou ser
 habilitado (`withGlobalTauri: true` em `tauri.conf.json`) porque este

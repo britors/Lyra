@@ -71,9 +71,12 @@
 
           <section class="page" data-page="5" aria-labelledby="storage-title">
             <div class="page-heading"><div class="kicker">DESTINO</div><h1 id="storage-title">Onde o Lyra<br /><em>vai viver?</em></h1><p class="lead">Escolha o disco de destino. O layout padrão usa Btrfs, Snapper e zram para manter o sistema seguro e recuperável.</p></div>
-            <div class="storage-mode" id="storage-mode">
-              <button type="button" class="mode-btn selected" data-mode="disk">Disco único</button>
-              <button type="button" class="mode-btn" data-mode="raid">Array RAID novo</button>
+            <div class="layout-choice" id="layout-choice">
+              <label class="layout-card selected"><input type="radio" name="layout-choice" value="simple" checked /><strong>Simples</strong><small>Um disco, layout direto</small></label>
+              <label class="layout-card"><input type="radio" name="layout-choice" value="raid" /><strong>RAID</strong><small>Array RAID novo, layout direto</small></label>
+              <label class="layout-card"><input type="radio" name="layout-choice" value="lvm" /><strong>LVM</strong><small>Um disco, volume group</small></label>
+              <label class="layout-card"><input type="radio" name="layout-choice" value="raid-lvm" /><strong>RAID + LVM</strong><small>Array RAID com volume group</small></label>
+              <label class="layout-card"><input type="radio" name="layout-choice" value="custom" /><strong>Customizado</strong><small>Crie seus volumes: ponto de montagem e tamanho</small></label>
             </div>
             <div class="raid-level-row" id="raid-level-row" hidden>
               <span class="raid-level-label">Nível do array</span>
@@ -81,11 +84,10 @@
             </div>
             <div class="keyboard-toolbar"><span class="keyboard-count" id="disk-count"></span></div>
             <div class="disk-list" id="disk-list" aria-live="polite"><p class="keyboard-empty">Detectando discos…</p></div>
-            <div class="manual-entry-row">
+            <div class="manual-entry-row" id="manual-entry-row" hidden>
               <input type="text" id="manual-disk-path" placeholder="Avançado: digite o caminho manualmente (ex.: /dev/sdb)" autocomplete="off" />
               <button type="button" id="manual-disk-add">Usar este caminho</button>
             </div>
-            <div class="lvm-toggle-row"><label class="lvm-toggle"><input type="checkbox" id="lvm-enabled" /> Usar LVM (volume group)</label></div>
             <div class="lvm-editor" id="lvm-editor" hidden>
               <div class="lvm-preset-row">
                 <select id="lvm-preset">

@@ -7,6 +7,7 @@ const label=document.querySelector('#step-label');
 const {invoke}=window.__TAURI__.core;
 let current=0;
 let storageSnapshot=null;
+let layoutChoice='simple';
 let storageMode='disk';
 let selectedDiskPath=null;
 let raidLevel='Raid1';
@@ -338,16 +339,33 @@ document.querySelector('#disk-list').addEventListener('change',event=>{
   renderDiskCards();
   refreshPlan();
 });
-document.querySelector('#storage-mode').addEventListener('click',event=>{
-  const btn=event.target.closest('.mode-btn');
-  if(!btn) return;
-  storageMode=btn.dataset.mode;
-  document.querySelectorAll('.mode-btn').forEach(b=>b.classList.toggle('selected',b===btn));
+function updateLayoutVisibility(){
+  document.querySelector('#manual-entry-row').hidden=layoutChoice!=='custom';
   document.querySelector('#raid-level-row').hidden=storageMode!=='raid';
+  document.querySelector('#lvm-editor').hidden=!lvmEnabled;
+}
+
+function applyLayoutChoice(choice){
+  layoutChoice=choice;
+  if(choice==='simple'){storageMode='disk';lvmEnabled=false;}
+  else if(choice==='raid'){storageMode='raid';lvmEnabled=false;}
+  else if(choice==='lvm'){storageMode='disk';lvmEnabled=true;}
+  else if(choice==='raid-lvm'){storageMode='raid';lvmEnabled=true;}
+  // 'custom': single disk, always shows the volume editor (mount point +
+  // size per volume, Debian-installer style) - no RAID, no "LVM" framing,
+  // even though it's the same NewVolumeGroup plan underneath.
+  else if(choice==='custom'){storageMode='disk';lvmEnabled=true;}
   selectedDiskPath=null;
   selectedRaidMembers.clear();
+  updateLayoutVisibility();
   renderDiskCards();
   refreshPlan();
+}
+
+document.querySelector('#layout-choice').addEventListener('change',event=>{
+  if(!event.target.matches('input')) return;
+  document.querySelectorAll('.layout-card').forEach(card=>card.classList.toggle('selected',card.querySelector('input').checked));
+  applyLayoutChoice(event.target.value);
 });
 document.querySelector('#raid-level-options').addEventListener('click',event=>{
   const btn=event.target.closest('.raid-level-btn');
@@ -373,11 +391,6 @@ function addManualPath(){
 document.querySelector('#manual-disk-add').addEventListener('click',addManualPath);
 document.querySelector('#manual-disk-path').addEventListener('keydown',event=>{
   if(event.key==='Enter'){event.preventDefault();addManualPath();}
-});
-document.querySelector('#lvm-enabled').addEventListener('change',event=>{
-  lvmEnabled=event.target.checked;
-  document.querySelector('#lvm-editor').hidden=!lvmEnabled;
-  refreshPlan();
 });
 document.querySelector('#lvm-preset-apply').addEventListener('click',()=>{
   const preset=document.querySelector('#lvm-preset').value;
@@ -421,5 +434,6 @@ renderLvList();
 renderLanguageCards();
 renderKeyboardCards();
 renderRaidLevelOptions();
+updateLayoutVisibility();
 discoverStorage();
 show(0);
