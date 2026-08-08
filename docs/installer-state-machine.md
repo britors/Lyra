@@ -1,8 +1,9 @@
 # Máquina de estados e contratos do Lyra Installer
 
 Este documento define o fluxo normativo entre interface, planejamento e
-serviço privilegiado. As telas até confirmação e os tipos do serviço existem;
-o streaming da execução para a tela de progresso continua pendente na #38.
+serviço privilegiado. A confirmação final já inicia a execução real e mostra
+o estado em andamento e os eventos terminais; o streaming de cada evento para
+a tela enquanto uma operação longa ainda roda continua pendente na #38.
 
 ## Estados
 

@@ -32,8 +32,9 @@ prioridade sobre os repositórios OBS do ecossistema Lyra no sistema instalado.
 
 A Beta 2 usa exclusivamente o Lyra Installer nativo em
 [`installer/`](installer/). A imagem já instala seu RPM e abre o frontend na
-sessão live; o backend privilegiado, a interface de progresso e os testes
-destrutivos em VM ainda precisam atingir o gate de release. A antiga
+sessão live; a confirmação final já aciona o backend privilegiado e apresenta
+o resultado da execução, mas os testes destrutivos em VM ainda precisam
+atingir o gate de release. A antiga
 configuração do Calamares foi retirada de `kiwi/root/` e preservada apenas em
 [`docs/calamares-reference/`](docs/calamares-reference/) para auditoria
 histórica.
@@ -42,13 +43,19 @@ Ainda estão pendentes:
 
 - repetir o teste completo de instalação e boot após as correções mais
   recentes, incluindo o caminho com Secure Boot;
-- concluir o backend privilegiado do Lyra Installer, incluindo discos, Btrfs,
-  cópia da imagem, usuários, Secure Boot e Snapper;
+- validar de ponta a ponta o backend privilegiado do Lyra Installer, incluindo
+  discos, Btrfs, cópia da imagem, usuários, Secure Boot e Snapper;
 - publicar codecs multimídia no OBS do Lyra, sem recorrer ao Packman;
 - automatizar o ciclo de CI e publicação da ISO.
 
 Consulte a [documentação técnica do KIWI](kiwi/README.md) para conhecer as
 decisões de implementação, limitações e verificações já realizadas.
+
+## Próximo ciclo
+
+A meta principal da **Beta 3** será a internacionalização dos pacotes próprios
+do ecossistema Lyra. O escopo inicial está registrado no
+[roadmap do projeto](docs/roadmap.md).
 
 ## Preparando o ambiente
 
@@ -141,6 +148,7 @@ imagem. O helper recomendado também gera, ao lado da ISO, um manifesto
 | [`docs/installer-architecture.md`](docs/installer-architecture.md) | arquitetura e gates do Lyra Installer |
 | [`docs/installer-state-machine.md`](docs/installer-state-machine.md) | estados, contratos, cancelamento e recuperação |
 | [`docs/adr/`](docs/adr/) | decisões técnicas aceitas do instalador |
+| [`docs/roadmap.md`](docs/roadmap.md) | metas dos próximos ciclos do Lyra OS |
 | [`PROMPT-LYRA-OS.md`](PROMPT-LYRA-OS.md) | especificação de produto da primeira versão |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | preparação da estação e fluxo de contribuição |
 

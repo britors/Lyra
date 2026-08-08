@@ -4,6 +4,11 @@ const back=document.querySelector('#back');
 const next=document.querySelector('#next');
 const progress=document.querySelector('#progress-bar');
 const label=document.querySelector('#step-label');
+const install=document.querySelector('#install');
+const installConfirm=document.querySelector('#install-confirm');
+const installStatus=document.querySelector('#install-status');
+const installStatusTitle=document.querySelector('#install-status-title');
+const executionEvents=document.querySelector('#execution-events');
 const {invoke}=window.__TAURI__.core;
 let current=0;
 let storageSnapshot=null;
@@ -15,6 +20,9 @@ let selectedRaidMembers=new Set();
 let lvmEnabled=false;
 let logicalVolumes=[{name:'root',mount_point:'/',size:'FillRemaining'}];
 let selectedPlan=null;
+let summaryConfigValid=false;
+let installing=false;
+let installationTerminal=false;
 
 const keyboardLayouts=[
   ['br-abnt2','Português (Brasil)','ABNT2 · Português brasileiro','Português','Q W E R T Y Ç ⌫'],
@@ -65,6 +73,21 @@ const keyboardLayouts=[
 const languages=[
   ['pt_BR.UTF-8','Português (Brasil)','🇧🇷','pt_BR · Recomendado'],['pt_PT.UTF-8','Português (Portugal)','🇵🇹','pt_PT'],['en_US.UTF-8','English (United States)','🇺🇸','en_US'],['en_GB.UTF-8','English (United Kingdom)','🇬🇧','en_GB'],['es_ES.UTF-8','Español (España)','🇪🇸','es_ES'],['es_MX.UTF-8','Español (México)','🇲🇽','es_MX'],['fr_FR.UTF-8','Français','🇫🇷','fr_FR'],['de_DE.UTF-8','Deutsch','🇩🇪','de_DE'],['it_IT.UTF-8','Italiano','🇮🇹','it_IT'],['nl_NL.UTF-8','Nederlands','🇳🇱','nl_NL'],['ca_ES.UTF-8','Català','🏴','ca_ES'],['gl_ES.UTF-8','Galego','🇪🇸','gl_ES'],['eu_ES.UTF-8','Euskara','🇪🇸','eu_ES'],['sv_SE.UTF-8','Svenska','🇸🇪','sv_SE'],['da_DK.UTF-8','Dansk','🇩🇰','da_DK'],['nb_NO.UTF-8','Norsk bokmål','🇳🇴','nb_NO'],['fi_FI.UTF-8','Suomi','🇫🇮','fi_FI'],['is_IS.UTF-8','Íslenska','🇮🇸','is_IS'],['pl_PL.UTF-8','Polski','🇵🇱','pl_PL'],['cs_CZ.UTF-8','Čeština','🇨🇿','cs_CZ'],['sk_SK.UTF-8','Slovenčina','🇸🇰','sk_SK'],['hu_HU.UTF-8','Magyar','🇭🇺','hu_HU'],['ro_RO.UTF-8','Română','🇷🇴','ro_RO'],['tr_TR.UTF-8','Türkçe','🇹🇷','tr_TR'],['ru_RU.UTF-8','Русский','🇷🇺','ru_RU'],['uk_UA.UTF-8','Українська','🇺🇦','uk_UA'],['bg_BG.UTF-8','Български','🇧🇬','bg_BG'],['el_GR.UTF-8','Ελληνικά','🇬🇷','el_GR'],['he_IL.UTF-8','עברית','🇮🇱','he_IL'],['ar_SA.UTF-8','العربية','🇸🇦','ar_SA'],['fa_IR.UTF-8','فارسی','🇮🇷','fa_IR'],['hi_IN.UTF-8','हिन्दी','🇮🇳','hi_IN'],['bn_IN.UTF-8','বাংলা','🇮🇳','bn_IN'],['ja_JP.UTF-8','日本語','🇯🇵','ja_JP'],['ko_KR.UTF-8','한국어','🇰🇷','ko_KR'],['zh_CN.UTF-8','简体中文','🇨🇳','zh_CN'],['zh_TW.UTF-8','繁體中文','🇹🇼','zh_TW'],['th_TH.UTF-8','ไทย','🇹🇭','th_TH'],['vi_VN.UTF-8','Tiếng Việt','🇻🇳','vi_VN'],['id_ID.UTF-8','Bahasa Indonesia','🇮🇩','id_ID'],['ms_MY.UTF-8','Bahasa Melayu','🇲🇾','ms_MY'],['sw_KE.UTF-8','Kiswahili','🇰🇪','sw_KE'],['af_ZA.UTF-8','Afrikaans','🇿🇦','af_ZA'],['la_LA.UTF-8','Latina','🏛️','la_LA']
 ];
+
+async function loadInstallerLogo(){
+  const image=document.querySelector('#brand-logo');
+  try{
+    const bytes=await invoke('installer_logo');
+    let binary='';
+    for(let offset=0;offset<bytes.length;offset+=8192){
+      binary+=String.fromCharCode(...bytes.slice(offset,offset+8192));
+    }
+    image.src=`data:image/png;base64,${btoa(binary)}`;
+  }catch(error){
+    image.alt='Lyra Installer';
+    console.error('Não foi possível carregar o logo do instalador',error);
+  }
+}
 
 function renderLanguageCards(query=''){
   const normalized=query.trim().toLocaleLowerCase();
@@ -259,20 +282,28 @@ async function refreshPlan(){
 }
 
 function updateNextButtonState(){
-  const gated=(current===5&&!selectedPlan)||current===6;
+  const gated=(current===5&&!selectedPlan)||installing||installationTerminal;
   next.disabled=gated;
   next.style.opacity=gated?'.45':'1';
+}
+
+function updateInstallButtonState(){
+  const enabled=current===6&&selectedPlan&&summaryConfigValid&&installConfirm.checked&&!installing&&!installationTerminal;
+  install.disabled=!enabled;
+  installConfirm.disabled=installing||installationTerminal||!summaryConfigValid;
 }
 
 function show(index){
   current=index;
   pages.forEach((page,i)=>page.classList.toggle('page-active',i===index));
   steps.forEach((step,i)=>step.classList.toggle('active',i===index));
-  back.disabled=index===0;
-  next.innerHTML=index===6?'Backend em desenvolvimento <span>·</span>':'Continuar <span>→</span>';
+  back.disabled=index===0||installing||installationTerminal;
+  next.hidden=index===6;
+  next.innerHTML='Continuar <span>→</span>';
   progress.style.width=`${(index+1)*14.2857}%`;
   label.textContent=`ETAPA 0${index+1} / 07`;
   updateNextButtonState();
+  updateInstallButtonState();
 }
 
 function validate(){
@@ -305,23 +336,109 @@ function collectInstallConfig(){
 
 async function updateSummary(){
   const locale=document.querySelector('input[name=locale]:checked').value;
-  document.querySelector('#summary-locale').textContent=locale==='pt_BR.UTF-8'?'Português (Brasil)':'English (United States)';
+  const language=languages.find(([value])=>value===locale);
+  document.querySelector('#summary-locale').textContent=language?.[1]||locale;
   document.querySelector('#summary-hostname').textContent=document.querySelector('#hostname').value||'lyra-os';
   document.querySelector('#summary-user').textContent=document.querySelector('#username').value||'Aguardando preenchimento';
-  document.querySelector('#summary-disk').textContent=selectedDiskPath||'Aguardando seleção';
+  const choice=buildGuidedChoice();
+  const target=choice?.raw_target?.Disk
+    ||(choice?.raw_target?.NewRaid?`${raidLevel.replace('Raid','RAID ')} · ${choice.raw_target.NewRaid.members.join(', ')}`:null)
+    ||'Aguardando seleção';
+  document.querySelector('#summary-disk').textContent=target;
+  document.querySelector('#install-confirm-text').textContent=`Entendo que os dados de ${target} serão apagados permanentemente.`;
+  installConfirm.checked=false;
 
   const validationBox=document.querySelector('#summary-validation');
+  summaryConfigValid=false;
   try{
     await invoke('validate_install_config',{config:collectInstallConfig()});
     validationBox.textContent='';
+    summaryConfigValid=true;
   }catch(error){
     validationBox.textContent=error;
   }
+  updateInstallButtonState();
 }
 
-next.addEventListener('click',async()=>{if(current===4&&!validate()) return;if(current===5&&!selectedPlan) return;if(current<6){if(current===5) await updateSummary();show(current+1)}});
-back.addEventListener('click',()=>{if(current>0)show(current-1)});
-steps.forEach(step=>step.addEventListener('click',()=>{const index=Number(step.dataset.step);if(index<=current)show(index)}));
+function eventParts(event){
+  if(typeof event==='string') return [event,null];
+  const entry=Object.entries(event)[0];
+  return entry||['Unknown',null];
+}
+
+function appendExecutionEvent(event){
+  const [kind,payload]=eventParts(event);
+  const item=document.createElement('li');
+  if(kind==='Started') item.textContent='Serviço privilegiado iniciado';
+  else if(kind==='Step') item.textContent=payload.detail?`${payload.name}: ${payload.detail}`:payload.name;
+  else if(kind==='Warning') item.textContent=`Aviso: ${payload.message}`;
+  else if(kind==='Failed') item.textContent=`Falha em ${payload.step}: ${payload.message}`;
+  else if(kind==='Completed') item.textContent='Instalação e limpeza concluídas';
+  else item.textContent='O serviço enviou um evento desconhecido';
+  item.className=`event-${kind.toLocaleLowerCase()}`;
+  executionEvents.append(item);
+}
+
+function setInstallationStatus(state,title){
+  installStatus.hidden=false;
+  installStatus.className=`install-status ${state}`;
+  installStatusTitle.textContent=title;
+}
+
+function lockWizard(locked){
+  steps.forEach(step=>{step.disabled=locked;});
+  back.disabled=locked||current===0;
+}
+
+async function executeInstallation(){
+  const choice=buildGuidedChoice();
+  if(!choice||!selectedPlan||!summaryConfigValid||!installConfirm.checked||installing||installationTerminal) return;
+
+  installing=true;
+  lockWizard(true);
+  install.textContent='Instalando…';
+  executionEvents.replaceChildren();
+  setInstallationStatus('running','Autorizando e iniciando a instalação…');
+  updateInstallButtonState();
+  updateNextButtonState();
+
+  try{
+    const config=collectInstallConfig();
+    await invoke('validate_install_config',{config});
+    const events=await invoke('execute_plan',{request:{choice,plan:selectedPlan,config}});
+    events.forEach(appendExecutionEvent);
+
+    const failure=events.map(eventParts).find(([kind])=>kind==='Failed');
+    const completed=events.map(eventParts).some(([kind])=>kind==='Completed');
+    if(failure){
+      installationTerminal=true;
+      const [,payload]=failure;
+      setInstallationStatus('failed',`Instalação interrompida em “${payload.step}”`);
+      install.textContent='Instalação interrompida';
+    }else if(completed){
+      installationTerminal=true;
+      setInstallationStatus('completed','Lyra OS instalado. Reinicie para usar o novo sistema.');
+      install.textContent='Instalação concluída';
+    }else{
+      throw new Error('o serviço não informou se a instalação foi concluída');
+    }
+  }catch(error){
+    installConfirm.checked=false;
+    setInstallationStatus('failed',`Não foi possível iniciar a instalação: ${error}`);
+    install.textContent='Tentar instalar novamente';
+  }finally{
+    installing=false;
+    lockWizard(installationTerminal);
+    updateInstallButtonState();
+    updateNextButtonState();
+  }
+}
+
+next.addEventListener('click',async()=>{if(installing||installationTerminal)return;if(current===4&&!validate())return;if(current===5&&!selectedPlan)return;if(current<6){if(current===5)await updateSummary();show(current+1)}});
+back.addEventListener('click',()=>{if(!installing&&!installationTerminal&&current>0)show(current-1)});
+steps.forEach(step=>step.addEventListener('click',()=>{const index=Number(step.dataset.step);if(!installing&&!installationTerminal&&index<=current)show(index)}));
+installConfirm.addEventListener('change',updateInstallButtonState);
+install.addEventListener('click',executeInstallation);
 document.querySelectorAll('.choice input').forEach(input=>input.addEventListener('change',()=>{document.querySelectorAll('.choice').forEach(choice=>choice.classList.toggle('selected',choice.querySelector('input').checked))}));
 document.querySelector('#keyboard-cards').addEventListener('change',event=>{if(event.target.matches('input'))document.querySelectorAll('.keyboard-card').forEach(card=>card.classList.toggle('selected',card.querySelector('input').checked))});
 document.querySelector('#keyboard-search').addEventListener('input',event=>renderKeyboardCards(event.target.value));
@@ -435,5 +552,6 @@ renderLanguageCards();
 renderKeyboardCards();
 renderRaidLevelOptions();
 updateLayoutVisibility();
+loadInstallerLogo();
 discoverStorage();
 show(0);

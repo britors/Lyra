@@ -45,6 +45,14 @@ pub fn execute<'a>(
         return ExecutionOutcome::Failed;
     }
 
+    if let Err(errors) = request.config.validate() {
+        on_event(ExecutionEvent::Failed {
+            step: "validação da configuração".to_string(),
+            message: errors.join("; "),
+        });
+        return ExecutionOutcome::Failed;
+    }
+
     match PlanBuilder::new(current_snapshot).build(&request.choice) {
         Err(error) => {
             on_event(ExecutionEvent::Failed {
@@ -248,9 +256,35 @@ mod tests {
             ExecutionRequest {
                 choice,
                 plan,
-                config: InstallConfig::default(),
+                config: InstallConfig {
+                    full_name: "Lyra User".to_string(),
+                    username: "lyra".to_string(),
+                    password: "harmonia-2026".to_string(),
+                    ..InstallConfig::default()
+                },
             },
         )
+    }
+
+    #[test]
+    fn invalid_identity_data_fails_before_any_operation() {
+        let (snapshot, mut request) = valid_request();
+        request.config.username = "root".to_string();
+        let executor = FakeExecutor::new(None);
+        let cancel = AtomicBool::new(false);
+        let mut events = Vec::new();
+        let ops = fake_ops(&[("a", false)]);
+
+        let outcome = execute(&request, &snapshot, &ops, &executor, &cancel, |event| {
+            events.push(event)
+        });
+
+        assert_eq!(outcome, ExecutionOutcome::Failed);
+        assert!(executor.calls().is_empty());
+        assert!(matches!(
+            events.last(),
+            Some(ExecutionEvent::Failed { step, .. }) if step == "validação da configuração"
+        ));
     }
 
     #[test]

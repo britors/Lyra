@@ -10,7 +10,7 @@
   <body>
     <main class="shell" aria-labelledby="page-title">
       <aside class="rail" aria-label="Progresso da instalação">
-        <div class="brand-mark" aria-hidden="true">✦</div>
+        <img class="brand-logo" id="brand-logo" alt="Logo do Lyra Installer" />
         <div class="rail-brand">LYRA <span>OS</span></div>
         <div class="rail-copy">Harmonia.<br />Performance.<br />Liberdade.</div>
         <nav class="steps" aria-label="Etapas">
@@ -105,7 +105,34 @@
           </section>
 
           <section class="page" data-page="6" aria-labelledby="summary-title">
-            <div class="summary-grid"><div class="page-heading"><div class="kicker">QUASE LÁ</div><h1 id="summary-title">Pronto para<br /><em>começar.</em></h1><p class="lead">Revise suas escolhas. A instalação só ficará disponível quando o backend passar pelos testes de VM e Secure Boot.</p><div class="summary-list"><div><span>Idioma</span><strong id="summary-locale">Português (Brasil)</strong></div><div><span>Dispositivo</span><strong id="summary-hostname">lyra-os</strong></div><div><span>Conta</span><strong id="summary-user">Aguardando preenchimento</strong></div><div><span>Disco</span><strong id="summary-disk">Aguardando seleção</strong></div></div><p class="validation" id="summary-validation" role="alert"></p><button class="disabled-install" disabled>Backend em desenvolvimento</button></div><div class="final-art art-frame"><img src="telas/telafinal-ajustada.png" alt="Paisagem noturna com a constelação de Lyra e a marca Lyra OS." /></div></div>
+            <div class="summary-grid">
+              <div class="page-heading">
+                <div class="kicker">QUASE LÁ</div>
+                <h1 id="summary-title">Pronto para<br /><em>começar.</em></h1>
+                <p class="lead">Revise suas escolhas. Ao iniciar, o destino selecionado será apagado e o Lyra OS será instalado de verdade.</p>
+                <div class="summary-list">
+                  <div><span>Idioma</span><strong id="summary-locale">Português (Brasil)</strong></div>
+                  <div><span>Dispositivo</span><strong id="summary-hostname">lyra-os</strong></div>
+                  <div><span>Conta</span><strong id="summary-user">Aguardando preenchimento</strong></div>
+                  <div><span>Destino</span><strong id="summary-disk">Aguardando seleção</strong></div>
+                </div>
+                <p class="validation" id="summary-validation" role="alert"></p>
+                <label class="install-confirm">
+                  <input id="install-confirm" type="checkbox" />
+                  <span id="install-confirm-text">Entendo que os dados do destino serão apagados permanentemente.</span>
+                </label>
+                <button class="install-button" id="install" type="button" disabled>Instalar o Lyra OS</button>
+                <section class="install-status" id="install-status" aria-live="polite" hidden>
+                  <div class="install-status-heading">
+                    <span class="install-status-spinner" aria-hidden="true"></span>
+                    <strong id="install-status-title">Preparando a instalação…</strong>
+                  </div>
+                  <div class="install-status-progress" aria-hidden="true"><span></span></div>
+                  <ul class="execution-events" id="execution-events"></ul>
+                </section>
+              </div>
+              <div class="final-art art-frame"><img src="telas/telafinal-ajustada.png" alt="Paisagem noturna com a constelação de Lyra e a marca Lyra OS." /></div>
+            </div>
           </section>
         </div>
 

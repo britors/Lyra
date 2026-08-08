@@ -1,4 +1,12 @@
 -------------------------------------------------------------------
+Sat Aug  8 18:36:00 UTC 2026 - Rodrigo Brito <rodrigo@w3ti.com.br>
+
+- Wire the final confirmation screen to the privileged installation service.
+- Require explicit destructive confirmation and report terminal events.
+- Revalidate identity and locale configuration before privileged writes.
+- Display the packaged Lyra Installer logo in the wizard sidebar.
+
+-------------------------------------------------------------------
 Sat Aug  8 15:35:00 UTC 2026 - Rodrigo Brito <rodrigo@w3ti.com.br>
 
 - Promote Lyra Installer from experimental to the only Beta 2 installer.

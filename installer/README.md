@@ -5,8 +5,8 @@ interface é HTML/CSS/JavaScript estático servido pelo WebKitGTK do sistema,
 com o núcleo de domínio e o serviço privilegiado em Rust. Ele implementa a
 navegação do assistente, descoberta e planejamento de armazenamento, os
 padrões de produto (`pt_BR.UTF-8` e `lyra-os`) e a configuração do target. A
-execução destrutiva continua bloqueada na interface até passar pelo gate em
-VM da issue #11.
+execução destrutiva é iniciada somente na tela final, depois da validação do
+plano/configuração e de uma confirmação explícita do destino que será apagado.
 
 ```bash
 cd installer
@@ -252,12 +252,15 @@ configurou método de entrada nenhum, em nenhum dos dois caminhos. E
 `kiwi/config.xml` não instala nenhum pacote `ibus-*` hoje — isso é uma
 decisão de conteúdo da imagem, fora do escopo do `installer/`.
 
-**O que continua faltando, de propósito**: nada chama `execute_plan`
-ainda — o botão "Instalar" segue desabilitado ("Backend em
-desenvolvimento"), porque isso dispararia o serviço privilegiado fazendo
-partição/formatação de verdade, e isso só faz sentido depois de
-`service/test-loop-device.sh` rodar validado (ver acima) e da matriz de
-testes do #11.
+O botão da tela final chama `execute_plan` com o mesmo `GuidedChoice`,
+`InstallPlan` e `InstallConfig` exibidos no resumo. Ele só é liberado depois
+da validação Rust e de o usuário marcar a confirmação destrutiva. Enquanto o
+`pkexec` e o serviço rodam, a navegação fica bloqueada; ao final, os eventos
+estruturados indicam sucesso, avisos ou a etapa da falha. Uma falha emitida
+depois do início da execução é terminal e exige reabrir o instalador, porque
+o plano confirmado pode ter sido parcialmente aplicado. O streaming de cada
+evento durante uma operação longa continua pendente; nesta versão a tela
+mostra um estado indeterminado e recebe a lista completa ao término.
 
 `operations::deploy` implanta o rootfs no target já particionado: extrai o
 squashfs da sessão live, machine-id, fuso horário, teclado, locale

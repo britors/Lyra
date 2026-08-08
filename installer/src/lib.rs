@@ -1,4 +1,4 @@
-//! Domain model shared by the installer UI and the future privileged backend.
+//! Domain model shared by the installer UI and privileged backend.
 
 pub mod service;
 pub mod storage;
@@ -10,11 +10,9 @@ use serde::{Deserialize, Serialize};
 pub struct InstallConfig {
     pub locale: String,
     /// IANA zone name, e.g. `America/Sao_Paulo` — one of `ui/index.html`'s
-    /// `#timezone` options. Nothing in the wizard UI constructs an
-    /// `InstallConfig` yet (see `installer/README.md`), so this only has a
-    /// real caller once that wiring exists; the field and its validation
-    /// are added now so `WriteTimezone` (issue #44's parity audit) has
-    /// something typed to read.
+    /// `#timezone` options. The wizard sends this typed value to the
+    /// privileged service only after summary validation and destructive
+    /// confirmation.
     pub timezone: String,
     /// One of `ui/app.js`'s `keyboardLayouts` ids (e.g. `br-abnt2`,
     /// `us-intl`, `dvorak`) — see [`KEYBOARD_LAYOUTS`] for how each maps to
