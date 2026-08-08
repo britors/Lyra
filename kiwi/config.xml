@@ -193,6 +193,8 @@
     <!-- sgdisk currently arrives transitively, but the installer invokes it
          directly, so keep its provider explicit under onlyRequired. -->
     <package name="gptfdisk"/>
+    <!-- mkswap is used when the guided installer selects disk-backed swap. -->
+    <package name="util-linux"/>
     <package name="snapper"/>
     <!-- snapper only Recommends this package; onlyRequired would otherwise
          omit the plugin that creates pre/post snapshots for zypper. -->
@@ -211,7 +213,8 @@
     <package name="mdadm"/>
     <package name="lvm2"/>
 
-    <!-- Swap: zram only, no swapfile. Config shipped via root/etc/systemd/zram-generator.conf -->
+    <!-- ZRAM remains the guided default; the installer can remove this
+         configuration for disk-backed swap or a no-swap installation. -->
     <package name="zram-generator"/>
 
     <!-- Leap defaults, listed explicitly so a minimal bootstrap doesn't drop them -->

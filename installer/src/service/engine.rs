@@ -251,6 +251,7 @@ mod tests {
         let choice = GuidedChoice {
             raw_target: Some(RawTarget::Disk(PathBuf::from("/dev/sda"))),
             volume_layer: VolumeLayer::Direct,
+            swap: crate::storage::SwapChoice::Zram,
         };
         let plan = PlanBuilder::new(&snapshot)
             .build(&choice)

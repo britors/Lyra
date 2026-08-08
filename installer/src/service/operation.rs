@@ -29,6 +29,7 @@ pub const ALLOWED_BINARIES: &[&str] = &[
     "wipefs",
     "mkfs.btrfs",
     "mkfs.vfat",
+    "mkswap",
     "blkid",
     "mdadm",
     "vgcreate",

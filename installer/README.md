@@ -42,11 +42,17 @@ particionado), o resumo destrutivo e os avisos do plano, e só liberam
 `PlanBuilder` quando menos discos que o mínimo do nível são marcados,
 sem duplicar essa regra em JS.
 
-Todo `InstallPlan` carrega `schema_version`. A versão atual é `1`; o serviço
+Todo `InstallPlan` carrega `schema_version`. A versão atual é `2`; o serviço
 rejeita versões desconhecidas antes de executar qualquer operação e reconstrói
 o plano contra um snapshot novo para detectar estado obsoleto. Os contratos e
 as regras de evolução estão em `docs/adr/0002-json-lines-privileged-protocol.md`
 e `docs/installer-state-machine.md`.
+
+A mesma etapa oferece três cards de memória virtual. `Zram` é o padrão e
+grava uma configuração zstd no sistema instalado; `Disk` reserva uma partição
+swap de 8 GiB, executa `mkswap` e inclui seu UUID no `fstab`; `None` não cria
+swap e remove a configuração do `zram-generator`. A escolha faz parte de
+`GuidedChoice` e do plano revalidado, não é apenas estado visual do frontend.
 
 A etapa abre com 5 cards de layout (`#layout-choice`), cada um
 pré-configurando `storageMode`/`lvmEnabled` e escondendo o que não é

@@ -18,7 +18,8 @@ o instalador da edição **Odisseia Beta 2** para computadores x86_64.
 - Btrfs com Snapper e snapshots automáticos durante operações do Zypper;
 - recuperação por snapshots no menu do GRUB;
 - inicialização UEFI e suporte ao Secure Boot com o shim do openSUSE;
-- zram com compressão Zstandard, sem swapfile;
+- escolha na instalação entre ZRAM com Zstandard, swap em disco ou nenhuma
+  memória virtual;
 - Firefox, LibreOffice, GNOME Software, Flatpak e Flathub;
 - Vega, Sheliak e Fina pré-instalados pelos repositórios OBS do Lyra;
 - identidade visual Lyra Enterprise no desktop e no GRUB;

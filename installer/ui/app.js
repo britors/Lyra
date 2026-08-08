@@ -19,6 +19,7 @@ let raidLevel='Raid1';
 let selectedRaidMembers=new Set();
 let lvmEnabled=false;
 let logicalVolumes=[{name:'root',mount_point:'/',size:'FillRemaining'}];
+let swapChoice='Zram';
 let selectedPlan=null;
 let summaryConfigValid=false;
 let installing=false;
@@ -115,6 +116,19 @@ function renderKeyboardCards(query=''){
 
 const transportLabels={Nvme:'NVMe',Sata:'SATA',Virtio:'VirtIO',Usb:'USB',Unknown:'Transporte desconhecido'};
 
+function diskTitle(disk){
+  const meaningfulLabel=value=>value&&!/^0x[0-9a-f]+$/i.test(value.trim());
+  if(meaningfulLabel(disk.model)) return disk.model.trim();
+  if(meaningfulLabel(disk.vendor)) return disk.vendor.trim();
+
+  // VirtIO disks commonly expose only their PCI vendor ID (for example
+  // 0x1af4) through lsblk. That identifier is useful to the kernel, not to
+  // someone choosing an installation target.
+  const transport=disk.transport==='Unknown'&&disk.kname.startsWith('vd')?'Virtio':disk.transport;
+  const transportLabel=transportLabels[transport];
+  return transportLabel&&transport!=='Unknown'?`Disco ${transportLabel}`:`Disco ${disk.kname}`;
+}
+
 function formatBytes(bytes){
   const units=['B','KiB','MiB','GiB','TiB'];
   let value=bytes,i=0;
@@ -197,7 +211,7 @@ function renderDiskCards(){
   if(storageMode==='disk'){
     list.innerHTML=disks.map(disk=>{
       const reason=diskIneligibleReason(disk);
-      const title=disk.model||disk.vendor||disk.kname;
+      const title=diskTitle(disk);
       const selected=disk.path===selectedDiskPath;
       return `<label class="disk-card${selected?' selected':''}${reason?' disk-card-disabled':''}">
         <input type="radio" name="disk" value="${disk.path}" ${selected?'checked':''} ${reason?'disabled':''}/>
@@ -211,7 +225,7 @@ function renderDiskCards(){
   }else{
     list.innerHTML=disks.map(disk=>{
       const reason=diskIneligibleReason(disk);
-      const title=disk.model||disk.vendor||disk.kname;
+      const title=diskTitle(disk);
       const selected=selectedRaidMembers.has(disk.path);
       return `<label class="disk-card${selected?' selected':''}${reason?' disk-card-disabled':''}">
         <input type="checkbox" name="raid-member" value="${disk.path}" ${selected?'checked':''} ${reason?'disabled':''}/>
@@ -245,10 +259,14 @@ function renderPlan(plan){
     ?`ESP existente reaproveitada em ${plan.esp.Reuse.path}`
     :`Nova ESP de ${formatBytes(plan.esp.Create.size_bytes)} será criada`;
   const erased=plan.destructive_summary.erased;
+  const swap=plan.swap==='None'
+    ?'Sem swap nem ZRAM'
+    :(plan.swap==='Zram'?'ZRAM (memória comprimida)':`Swap em disco · ${formatBytes(plan.swap.Partition.size_bytes)}`);
   box.hidden=false;
   box.innerHTML=`
     <div class="plan-row"><span>Partição EFI</span><strong>${esp}</strong></div>
     <div class="plan-row"><span>Sistema de arquivos</span><strong>Btrfs · ${plan.root_filesystem.Btrfs.subvolumes.length} subvolumes</strong></div>
+    <div class="plan-row"><span>Memória virtual</span><strong>${swap}</strong></div>
     ${erased.length?`<div class="plan-warning"><strong>Dados que serão apagados nesta instalação:</strong><ul>${erased.map(item=>`<li>${item}</li>`).join('')}</ul></div>`:''}
     ${plan.warnings.length?`<ul class="plan-notes">${plan.warnings.map(item=>`<li>${item}</li>`).join('')}</ul>`:''}
   `;
@@ -266,7 +284,7 @@ function buildGuidedChoice(){
   const volume_layer=lvmEnabled
     ?{NewVolumeGroup:{name:'vg-lyra',logical_volumes:buildLogicalVolumePlans()}}
     :'Direct';
-  return {raw_target,volume_layer};
+  return {raw_target,volume_layer,swap:swapChoice};
 }
 
 async function refreshPlan(){
@@ -331,6 +349,17 @@ function validate(){
   return errors.length===0;
 }
 
+function suggestedUsername(fullName){
+  const normalized=fullName
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .toLocaleLowerCase()
+    .replace(/[^a-z0-9]+/g,' ')
+    .trim();
+  const first=normalized.split(/\s+/)[0]||'';
+  return /^[a-z]/.test(first)?first.slice(0,32):'';
+}
+
 function collectInstallConfig(){
   return {
     locale: document.querySelector('input[name=locale]:checked').value,
@@ -354,6 +383,7 @@ async function updateSummary(){
     ||(choice?.raw_target?.NewRaid?`${raidLevel.replace('Raid','RAID ')} · ${choice.raw_target.NewRaid.members.join(', ')}`:null)
     ||'Aguardando seleção';
   document.querySelector('#summary-disk').textContent=target;
+  document.querySelector('#summary-swap').textContent=swapChoice==='None'?'Sem swap nem ZRAM':swapChoice==='Disk'?'Swap em disco (8 GiB)':'ZRAM';
   document.querySelector('#install-confirm-text').textContent=`Entendo que os dados de ${target} serão apagados permanentemente.`;
   installConfirm.checked=false;
 
@@ -473,6 +503,18 @@ document.querySelector('#disk-list').addEventListener('change',event=>{
   renderDiskCards();
   refreshPlan();
 });
+document.querySelector('#swap-choice').addEventListener('change',event=>{
+  if(!event.target.matches('input')) return;
+  swapChoice=event.target.value;
+  document.querySelectorAll('.swap-card').forEach(card=>card.classList.toggle('selected',card.querySelector('input').checked));
+  refreshPlan();
+});
+let usernameManuallyEdited=false;
+document.querySelector('#full-name').addEventListener('input',event=>{
+  const username=document.querySelector('#username');
+  if(!usernameManuallyEdited) username.value=suggestedUsername(event.target.value);
+});
+document.querySelector('#username').addEventListener('input',()=>{usernameManuallyEdited=true;});
 function updateLayoutVisibility(){
   document.querySelector('#manual-entry-row').hidden=layoutChoice!=='custom';
   document.querySelector('#raid-level-row').hidden=storageMode!=='raid';

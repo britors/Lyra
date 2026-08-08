@@ -17,9 +17,9 @@ pub use device::{
 };
 pub use discovery::{DiscoveryBackend, DiscoveryError, SystemDiscoveryBackend};
 pub use plan::{
-    DestructiveSummary, EspPlan, FilesystemPlan, GuidedChoice, INSTALL_PLAN_SCHEMA_VERSION,
-    InstallPlan, LogicalVolumePlan, PlanBuilder, PlanError, RawTarget, SizePolicy, SubvolumePlan,
-    VolumeLayer,
+    DISK_SWAP_SIZE_BYTES, DestructiveSummary, EspPlan, FilesystemPlan, GuidedChoice,
+    INSTALL_PLAN_SCHEMA_VERSION, InstallPlan, LogicalVolumePlan, PlanBuilder, PlanError, RawTarget,
+    SizePolicy, SubvolumePlan, SwapChoice, SwapPlan, VolumeLayer,
 };
 
 #[cfg(test)]
@@ -60,6 +60,7 @@ mod tests {
         GuidedChoice {
             raw_target: Some(RawTarget::Disk(PathBuf::from(path))),
             volume_layer: VolumeLayer::Direct,
+            swap: SwapChoice::Zram,
         }
     }
 
@@ -89,6 +90,45 @@ mod tests {
 
         let json = serde_json::to_value(plan).expect("plan should serialize");
         assert_eq!(json["schema_version"], INSTALL_PLAN_SCHEMA_VERSION);
+    }
+
+    #[test]
+    fn guided_swap_choices_become_explicit_plans() {
+        let snapshot = snapshot_with_disks(vec![disk("sda", LARGE)]);
+        let mut choice = whole_disk_choice("/dev/sda");
+
+        choice.swap = SwapChoice::None;
+        let none = PlanBuilder::new(&snapshot).build(&choice).unwrap();
+        assert_eq!(none.swap, SwapPlan::None);
+
+        choice.swap = SwapChoice::Disk;
+        let disk = PlanBuilder::new(&snapshot).build(&choice).unwrap();
+        assert_eq!(
+            disk.swap,
+            SwapPlan::Partition {
+                size_bytes: DISK_SWAP_SIZE_BYTES
+            }
+        );
+
+        choice.swap = SwapChoice::Zram;
+        let zram = PlanBuilder::new(&snapshot).build(&choice).unwrap();
+        assert_eq!(zram.swap, SwapPlan::Zram);
+    }
+
+    #[test]
+    fn disk_swap_space_is_reserved_before_approving_the_root() {
+        let barely_root_only = plan::MINIMUM_ROOT_SIZE_BYTES + plan::ESP_RECOMMENDED_SIZE_BYTES;
+        let snapshot = snapshot_with_disks(vec![disk("sda", barely_root_only)]);
+        let mut choice = whole_disk_choice("/dev/sda");
+        choice.swap = SwapChoice::Disk;
+
+        let error = PlanBuilder::new(&snapshot).build(&choice).unwrap_err();
+        assert!(
+            error
+                .0
+                .iter()
+                .any(|reason| reason.contains("após ESP/swap"))
+        );
     }
 
     #[test]
@@ -200,6 +240,7 @@ mod tests {
                 array: PathBuf::from("/dev/md0"),
             }),
             volume_layer: VolumeLayer::Direct,
+            swap: SwapChoice::Zram,
         };
 
         let plan = PlanBuilder::new(&snapshot)
@@ -233,6 +274,7 @@ mod tests {
                 array: PathBuf::from("/dev/md0"),
             }),
             volume_layer: VolumeLayer::Direct,
+            swap: SwapChoice::Zram,
         };
 
         let error = PlanBuilder::new(&snapshot).build(&choice).unwrap_err();
@@ -256,6 +298,7 @@ mod tests {
                     size: SizePolicy::FillRemaining,
                 }],
             },
+            swap: SwapChoice::Zram,
         };
 
         let plan = PlanBuilder::new(&snapshot)
@@ -292,6 +335,7 @@ mod tests {
                     size: SizePolicy::Fixed(LARGE),
                 }],
             },
+            swap: SwapChoice::Zram,
         };
 
         let error = PlanBuilder::new(&snapshot).build(&choice).unwrap_err();

@@ -13,7 +13,8 @@ use std::path::PathBuf;
 use lyra_installer_core::InstallConfig;
 use lyra_installer_core::service::ExecutionRequest;
 use lyra_installer_core::storage::{
-    DiscoveryBackend, GuidedChoice, PlanBuilder, RawTarget, SystemDiscoveryBackend, VolumeLayer,
+    DiscoveryBackend, GuidedChoice, PlanBuilder, RawTarget, SwapChoice, SystemDiscoveryBackend,
+    VolumeLayer,
 };
 
 fn main() {
@@ -27,6 +28,7 @@ fn main() {
     let choice = GuidedChoice {
         raw_target: Some(RawTarget::Disk(PathBuf::from(&disk))),
         volume_layer: VolumeLayer::Direct,
+        swap: SwapChoice::Zram,
     };
     let plan = PlanBuilder::new(&snapshot)
         .build(&choice)

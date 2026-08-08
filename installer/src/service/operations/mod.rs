@@ -10,7 +10,9 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::storage::{EspPlan, FilesystemPlan, InstallPlan, RawTarget, SubvolumePlan, VolumeLayer};
+use crate::storage::{
+    EspPlan, FilesystemPlan, InstallPlan, RawTarget, SubvolumePlan, SwapPlan, VolumeLayer,
+};
 
 use super::executor::Executor;
 use super::operation::{ArgvCommand, OperationError, PrivilegedOperation};
@@ -62,10 +64,16 @@ pub fn plan_to_operations(
     let target_root = PathBuf::from(TARGET_ROOT);
     let staging = PathBuf::from(STAGING_ROOT);
 
-    let (esp_size_bytes, root_partition_number) = match &plan.esp {
-        EspPlan::Create { size_bytes } => (Some(*size_bytes), 2u32),
-        EspPlan::Reuse { .. } => (None, 1u32),
+    let esp_size_bytes = match &plan.esp {
+        EspPlan::Create { size_bytes } => Some(*size_bytes),
+        EspPlan::Reuse { .. } => None,
     };
+    let swap_size_bytes = match &plan.swap {
+        SwapPlan::Partition { size_bytes } => Some(*size_bytes),
+        SwapPlan::None | SwapPlan::Zram => None,
+    };
+    let root_partition_number =
+        1 + u32::from(esp_size_bytes.is_some()) + u32::from(swap_size_bytes.is_some());
     let root_partition = partition_path(&disk, root_partition_number);
     let esp_partition = match &plan.esp {
         EspPlan::Create { .. } => partition_path(&disk, 1),
@@ -75,11 +83,22 @@ pub fn plan_to_operations(
     let mut operations: Vec<Box<dyn PrivilegedOperation>> = vec![Box::new(CreatePartitionTable {
         disk: disk.clone(),
         esp_size_bytes,
+        swap_size_bytes,
     })];
 
     if matches!(plan.esp, EspPlan::Create { .. }) {
         operations.push(Box::new(FormatEsp {
             partition: esp_partition.clone(),
+        }));
+    }
+
+    let swap_partition = swap_size_bytes.map(|_| {
+        let number = 1 + u32::from(esp_size_bytes.is_some());
+        partition_path(&disk, number)
+    });
+    if let Some(partition) = &swap_partition {
+        operations.push(Box::new(FormatSwap {
+            partition: partition.clone(),
         }));
     }
 
@@ -120,6 +139,7 @@ pub fn plan_to_operations(
         target_root,
         root_partition,
         esp_partition,
+        swap_partition,
         subvolumes: subvolumes.clone(),
     }));
 
@@ -134,7 +154,10 @@ pub fn build(
     request: &super::ExecutionRequest,
 ) -> Result<Vec<Box<dyn PrivilegedOperation>>, OperationError> {
     let mut operations = plan_to_operations(&request.plan)?;
-    operations.extend(deploy::deployment_operations(&request.config));
+    operations.extend(deploy::deployment_operations(
+        &request.config,
+        &request.plan.swap,
+    ));
     operations.push(Box::new(SyncAndFinish));
     Ok(operations)
 }
@@ -173,6 +196,7 @@ struct CreatePartitionTable {
     /// eligibility rules already guarantee this disk has no partitions of
     /// its own in that case, so only the root partition is created here.
     esp_size_bytes: Option<u64>,
+    swap_size_bytes: Option<u64>,
 }
 
 impl PrivilegedOperation for CreatePartitionTable {
@@ -191,26 +215,39 @@ impl PrivilegedOperation for CreatePartitionTable {
             args: vec!["--zap-all".to_string(), disk.clone()],
         })?;
 
+        let mut next_partition = 1u32;
         if let Some(esp_size_bytes) = self.esp_size_bytes {
             let esp_mib = esp_size_bytes / (1024 * 1024);
             executor.run(&ArgvCommand {
                 binary: "sgdisk".to_string(),
                 args: vec![
-                    format!("-n1:0:+{esp_mib}M"),
-                    "-t1:ef00".to_string(),
+                    format!("-n{next_partition}:0:+{esp_mib}M"),
+                    format!("-t{next_partition}:ef00"),
                     disk.clone(),
                 ],
             })?;
-            executor.run(&ArgvCommand {
-                binary: "sgdisk".to_string(),
-                args: vec!["-n2:0:0".to_string(), "-t2:8300".to_string(), disk],
-            })?;
-        } else {
-            executor.run(&ArgvCommand {
-                binary: "sgdisk".to_string(),
-                args: vec!["-n1:0:0".to_string(), "-t1:8300".to_string(), disk],
-            })?;
+            next_partition += 1;
         }
+        if let Some(swap_size_bytes) = self.swap_size_bytes {
+            let swap_mib = swap_size_bytes / (1024 * 1024);
+            executor.run(&ArgvCommand {
+                binary: "sgdisk".to_string(),
+                args: vec![
+                    format!("-n{next_partition}:0:+{swap_mib}M"),
+                    format!("-t{next_partition}:8200"),
+                    disk.clone(),
+                ],
+            })?;
+            next_partition += 1;
+        }
+        executor.run(&ArgvCommand {
+            binary: "sgdisk".to_string(),
+            args: vec![
+                format!("-n{next_partition}:0:0"),
+                format!("-t{next_partition}:8300"),
+                disk,
+            ],
+        })?;
         Ok(())
     }
 }
@@ -234,6 +271,24 @@ impl PrivilegedOperation for FormatEsp {
 
 struct FormatBtrfsRoot {
     partition: PathBuf,
+}
+
+struct FormatSwap {
+    partition: PathBuf,
+}
+
+impl PrivilegedOperation for FormatSwap {
+    fn describe(&self) -> String {
+        format!("formatar swap em {}", self.partition.display())
+    }
+
+    fn perform(&self, executor: &dyn Executor) -> Result<(), OperationError> {
+        executor.run(&ArgvCommand {
+            binary: "mkswap".to_string(),
+            args: vec![path_str(&self.partition)],
+        })?;
+        Ok(())
+    }
 }
 
 impl PrivilegedOperation for FormatBtrfsRoot {
@@ -390,6 +445,7 @@ struct WriteFstab {
     target_root: PathBuf,
     root_partition: PathBuf,
     esp_partition: PathBuf,
+    swap_partition: Option<PathBuf>,
     subvolumes: Vec<SubvolumePlan>,
 }
 
@@ -436,6 +492,19 @@ impl PrivilegedOperation for WriteFstab {
         content.push_str(&format!(
             "UUID={esp_uuid} /boot/efi vfat defaults,umask=0077 0 2\n"
         ));
+        if let Some(swap_partition) = &self.swap_partition {
+            let swap_uuid = executor.run(&ArgvCommand {
+                binary: "blkid".to_string(),
+                args: vec![
+                    "-s".to_string(),
+                    "UUID".to_string(),
+                    "-o".to_string(),
+                    "value".to_string(),
+                    path_str(swap_partition),
+                ],
+            })?;
+            content.push_str(&format!("UUID={swap_uuid} none swap defaults 0 0\n"));
+        }
 
         let etc = self.target_root.join("etc");
         fs::create_dir_all(&etc).map_err(io_error)?;
@@ -574,10 +643,19 @@ mod tests {
         let choice = GuidedChoice {
             raw_target: Some(RawTarget::Disk(PathBuf::from("/dev/sda"))),
             volume_layer: VolumeLayer::Direct,
+            swap: crate::storage::SwapChoice::Zram,
         };
         PlanBuilder::new(&snapshot)
             .build(&choice)
             .expect("fixture plan should be valid")
+    }
+
+    fn whole_disk_plan_with_swap_partition() -> InstallPlan {
+        let mut plan = whole_disk_plan_with_new_esp();
+        plan.swap = SwapPlan::Partition {
+            size_bytes: crate::storage::DISK_SWAP_SIZE_BYTES,
+        };
+        plan
     }
 
     #[test]
@@ -621,6 +699,7 @@ mod tests {
             choice: GuidedChoice {
                 raw_target: Some(RawTarget::Disk(PathBuf::from("/dev/sda"))),
                 volume_layer: VolumeLayer::Direct,
+                swap: crate::storage::SwapChoice::Zram,
             },
             plan,
             config: crate::InstallConfig::default(),
@@ -664,6 +743,33 @@ mod tests {
     }
 
     #[test]
+    fn disk_swap_gets_its_own_partition_and_is_formatted() {
+        let plan = whole_disk_plan_with_swap_partition();
+        let operations = plan_to_operations(&plan).unwrap();
+        let executor = FakeExecutor::new();
+
+        operations[0].perform(&executor).unwrap();
+        assert_eq!(
+            executor.calls(),
+            vec![
+                "wipefs -a /dev/sda",
+                "sgdisk --zap-all /dev/sda",
+                "sgdisk -n1:0:+300M -t1:ef00 /dev/sda",
+                "sgdisk -n2:0:+8192M -t2:8200 /dev/sda",
+                "sgdisk -n3:0:0 -t3:8300 /dev/sda",
+            ]
+        );
+        assert_eq!(operations[2].describe(), "formatar swap em /dev/sda2");
+        operations[2].perform(&executor).unwrap();
+        assert_eq!(executor.calls().last().unwrap(), "mkswap /dev/sda2");
+        assert!(
+            operations
+                .iter()
+                .any(|op| op.describe() == "formatar Btrfs em /dev/sda3")
+        );
+    }
+
+    #[test]
     fn esp_reuse_never_formats_or_creates_an_esp_partition() {
         let mut esp_disk = disk("sda", LARGE);
         esp_disk.partitions.push(crate::storage::Partition {
@@ -686,6 +792,7 @@ mod tests {
         let choice = GuidedChoice {
             raw_target: Some(RawTarget::Disk(PathBuf::from("/dev/sdb"))),
             volume_layer: VolumeLayer::Direct,
+            swap: crate::storage::SwapChoice::Zram,
         };
         let plan = PlanBuilder::new(&snapshot)
             .build(&choice)
@@ -732,6 +839,7 @@ mod tests {
                 array: PathBuf::from("/dev/md0"),
             }),
             volume_layer: VolumeLayer::Direct,
+            swap: crate::storage::SwapChoice::Zram,
         };
         let raid_plan = PlanBuilder::new(&raid_snapshot)
             .build(&raid_choice)
@@ -763,6 +871,7 @@ mod tests {
                     size: SizePolicy::FillRemaining,
                 }],
             },
+            swap: crate::storage::SwapChoice::Zram,
         };
         let vg_plan = PlanBuilder::new(&vg_snapshot)
             .build(&vg_choice)
@@ -876,6 +985,7 @@ mod tests {
             target_root: temp.0.clone(),
             root_partition: PathBuf::from("/dev/sda2"),
             esp_partition: PathBuf::from("/dev/sda1"),
+            swap_partition: None,
             subvolumes,
         };
         let executor = FakeExecutor::new();
@@ -890,6 +1000,26 @@ mod tests {
             "UUID-FOR-/dev/sda2 /var/lib/mariadb btrfs subvol=/@/var/lib/mariadb,nodatacow 0 0"
         ));
         assert!(content.contains("UUID-FOR-/dev/sda1 /boot/efi vfat defaults,umask=0077 0 2"));
+    }
+
+    #[test]
+    fn write_fstab_includes_the_selected_disk_swap() {
+        let temp = TempRoot::new("write-fstab-swap");
+        let op = WriteFstab {
+            target_root: temp.0.clone(),
+            root_partition: PathBuf::from("/dev/sda3"),
+            esp_partition: PathBuf::from("/dev/sda1"),
+            swap_partition: Some(PathBuf::from("/dev/sda2")),
+            subvolumes: vec![SubvolumePlan {
+                mount_point: PathBuf::from("/"),
+                subvolume: "/@".to_string(),
+                nodatacow: false,
+            }],
+        };
+
+        op.perform(&FakeExecutor::new()).unwrap();
+        let content = fs::read_to_string(temp.0.join("etc/fstab")).unwrap();
+        assert!(content.contains("UUID=UUID-FOR-/dev/sda2 none swap defaults 0 0"));
     }
 
     #[test]

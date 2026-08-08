@@ -30,17 +30,18 @@ Transições diretas de `Collecting`, `Planning` ou `PlanReady` para
 
 `PlanBuilder` é uma função pura: recebe snapshot + escolha e retorna
 `InstallPlan` ou todos os motivos de bloqueio. O JSON do plano contém
-`schema_version`, alvo bruto, camada de volumes, política da ESP, filesystem,
-resumo destrutivo e warnings.
+`schema_version`, alvo bruto, camada de volumes, políticas da ESP e de swap,
+filesystem, resumo destrutivo e warnings.
 
 Exemplo reduzido:
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "raw_target": {"Disk": "/dev/sda"},
   "volume_layer": "Direct",
   "esp": {"Create": {"size_bytes": 314572800}},
+  "swap": "Zram",
   "root_filesystem": {"Btrfs": {"subvolumes": []}},
   "destructive_summary": {"erased": []},
   "warnings": []

@@ -31,7 +31,7 @@ explicitamente em vez de assumir.
 | Distribuição base | openSUSE Leap 16 |
 | Kernel | `kernel-default` (padrão do Leap, sem customização) |
 | Sistema de arquivos | Btrfs + Snapper (padrão do Leap, mantido) |
-| Swap | zram apenas (sem swapfile em disco) |
+| Memória virtual | escolha no instalador: sem swap, partição swap de 8 GiB ou zram |
 | Áudio | PipeWire (padrão do Leap, sem alteração) |
 | Rede | NetworkManager (padrão do Leap, sem alteração) |
 | Firewall | firewalld (padrão do Leap, sem alteração) |

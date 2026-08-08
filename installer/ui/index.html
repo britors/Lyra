@@ -38,8 +38,16 @@
                 <div class="kicker">UM NOVO COMEÇO</div>
                 <h1 id="page-title">Instale o<br /><em>Lyra OS.</em></h1>
                 <p class="lead">Uma experiência desktop harmoniosa, segura e feita para acompanhar o seu ritmo.</p>
-                <div class="feature-row"><span class="feature-icon">◈</span><span>Rust no núcleo<br /><small>Seguro por construção</small></span></div>
-                <div class="feature-row"><span class="feature-icon">✦</span><span>GNOME integrado<br /><small>Leve, familiar e elegante</small></span></div>
+                <div class="feature-strip" aria-label="Tecnologias do Lyra OS">
+                  <div class="feature-item">
+                    <svg class="feature-icon" viewBox="0 0 32 32" aria-hidden="true"><path d="M13 3h6l1 3 3 1 3-1 3 5-2 2v4l2 2-3 5-3-1-3 2-1 3h-6l-1-3-3-2-3 1-3-5 2-2v-4l-2-2 3-5 3 1 3-1 1-3Z"/><circle cx="16" cy="15" r="5"/></svg>
+                    <span><strong>Rust no núcleo</strong><small>Seguro por construção</small></span>
+                  </div>
+                  <div class="feature-item">
+                    <svg class="feature-icon" viewBox="0 0 32 32" aria-hidden="true"><ellipse cx="17" cy="20" rx="7" ry="9" transform="rotate(25 17 20)"/><circle cx="8" cy="9" r="3"/><circle cx="14" cy="6" r="3"/><circle cx="20" cy="6" r="2.7"/><circle cx="25" cy="9" r="2.4"/></svg>
+                    <span><strong>GNOME integrado</strong><small>Leve, familiar e elegante</small></span>
+                  </div>
+                </div>
               </div>
               <div class="welcome-art art-frame"><img src="telas/telainicial-ajustada.png" alt="Logotipo do Lyra OS e o lema Harmonia. Performance. Liberdade." /></div>
             </div>
@@ -66,17 +74,25 @@
 
           <section class="page" data-page="4" aria-labelledby="account-title">
             <div class="page-heading"><div class="kicker">IDENTIDADE</div><h1 id="account-title">Seu espaço.<br /><em>Seu nome.</em></h1><p class="lead">Crie a conta principal do Lyra OS. Ela terá acesso administrativo via sudo; root permanecerá bloqueado.</p></div>
-            <form class="form-grid" id="account-form"><label>Nome completo<input id="full-name" autocomplete="name" placeholder="Como devemos chamar você?" /></label><label>Nome de usuário<input id="username" autocomplete="username" placeholder="ex.: lyra" /></label><label>Nome do dispositivo<input id="hostname" value="lyra-os" autocomplete="off" /></label><label>Senha<input id="password" type="password" autocomplete="new-password" placeholder="Mínimo de 8 caracteres" /></label><label>Confirmar senha<input id="password-confirm" type="password" autocomplete="new-password" placeholder="Repita a senha" /></label></form><p class="validation" id="validation" role="alert"></p>
+            <form class="form-grid" id="account-form"><label>Nome completo<input id="full-name" autocomplete="name" placeholder="Como devemos chamar você?" /></label><label>Nome de usuário<input id="username" autocomplete="username" placeholder="Sugerido a partir do nome completo" /><small class="field-hint">Esta conta será administradora do sistema.</small></label><label>Nome do dispositivo<input id="hostname" value="lyra-os" autocomplete="off" /></label><label>Senha<input id="password" type="password" autocomplete="new-password" placeholder="Mínimo de 8 caracteres" /></label><label>Confirmar senha<input id="password-confirm" type="password" autocomplete="new-password" placeholder="Repita a senha" /></label></form><p class="validation" id="validation" role="alert"></p>
           </section>
 
           <section class="page" data-page="5" aria-labelledby="storage-title">
-            <div class="page-heading"><div class="kicker">DESTINO</div><h1 id="storage-title">Onde o Lyra<br /><em>vai viver?</em></h1><p class="lead">Escolha o disco de destino. O layout padrão usa Btrfs, Snapper e zram para manter o sistema seguro e recuperável.</p></div>
+            <div class="page-heading"><div class="kicker">DESTINO</div><h1 id="storage-title">Onde o Lyra<br /><em>vai viver?</em></h1><p class="lead">Escolha o disco, o layout e como o sistema deve usar memória virtual.</p></div>
             <div class="layout-choice" id="layout-choice">
               <label class="layout-card selected"><input type="radio" name="layout-choice" value="simple" checked /><strong>Simples</strong><small>Um disco, layout direto</small></label>
               <label class="layout-card"><input type="radio" name="layout-choice" value="raid" /><strong>RAID</strong><small>Array RAID novo, layout direto</small></label>
               <label class="layout-card"><input type="radio" name="layout-choice" value="lvm" /><strong>LVM</strong><small>Um disco, volume group</small></label>
               <label class="layout-card"><input type="radio" name="layout-choice" value="raid-lvm" /><strong>RAID + LVM</strong><small>Array RAID com volume group</small></label>
               <label class="layout-card"><input type="radio" name="layout-choice" value="custom" /><strong>Customizado</strong><small>Crie seus volumes: ponto de montagem e tamanho</small></label>
+            </div>
+            <div class="swap-section">
+              <span class="storage-option-label">MEMÓRIA VIRTUAL</span>
+              <div class="swap-choice" id="swap-choice">
+                <label class="swap-card"><input type="radio" name="swap-choice" value="None" /><strong>Sem swap</strong><small>Não cria swap nem ativa ZRAM</small></label>
+                <label class="swap-card"><input type="radio" name="swap-choice" value="Disk" /><strong>Swap em disco</strong><small>Partição dedicada de 8 GiB</small></label>
+                <label class="swap-card selected"><input type="radio" name="swap-choice" value="Zram" checked /><strong>ZRAM</strong><small>Memória comprimida, sem ocupar o disco</small></label>
+              </div>
             </div>
             <div class="raid-level-row" id="raid-level-row" hidden>
               <span class="raid-level-label">Nível do array</span>
@@ -115,6 +131,7 @@
                   <div><span>Dispositivo</span><strong id="summary-hostname">lyra-os</strong></div>
                   <div><span>Conta</span><strong id="summary-user">Aguardando preenchimento</strong></div>
                   <div><span>Destino</span><strong id="summary-disk">Aguardando seleção</strong></div>
+                  <div><span>Memória virtual</span><strong id="summary-swap">ZRAM</strong></div>
                 </div>
                 <p class="validation" id="summary-validation" role="alert"></p>
                 <label class="install-confirm">

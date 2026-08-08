@@ -1,6 +1,11 @@
 -------------------------------------------------------------------
 Sat Aug  8 20:40:00 UTC 2026 - Rodrigo Brito <rodrigo@w3ti.com.br>
 
+- Offer no-swap, 8 GiB disk swap, and ZRAM installation choices.
+- Render readable VirtIO disk names instead of hexadecimal PCI vendor IDs.
+- Suggest a valid username from the full name and identify it as administrator.
+- Replace button-like welcome highlights with static Rust and GNOME icons.
+- Keep the bottom action bar height stable on short and final screens.
 - Keep the Tauri window responsive while the privileged install runs.
 - Move blocking process and pipe handling to Tauri's blocking task pool.
 - Never present zram, RAM disks, swap devices, or normal loop devices as

@@ -28,7 +28,12 @@ pub const ESP_MINIMUM_SIZE_BYTES: u64 = 32 * 1024 * 1024;
 /// Wire-format version for [`InstallPlan`]. Any structural or semantic change
 /// that an older privileged service could misinterpret must increment this
 /// value. The service rejects unknown versions before running an operation.
-pub const INSTALL_PLAN_SCHEMA_VERSION: u32 = 1;
+pub const INSTALL_PLAN_SCHEMA_VERSION: u32 = 2;
+
+/// Fixed size used by the guided "swap em disco" choice. Keeping the size
+/// in the typed plan makes the destructive layout explicit and lets the
+/// builder reserve the space before approving the installation.
+pub const DISK_SWAP_SIZE_BYTES: u64 = 8 * 1024 * 1024 * 1024;
 
 // --- Btrfs layout, grounded in docs/calamares-reference/modules/mount.conf ---
 
@@ -103,6 +108,21 @@ pub enum EspPlan {
     },
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SwapChoice {
+    None,
+    Disk,
+    #[default]
+    Zram,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SwapPlan {
+    None,
+    Partition { size_bytes: u64 },
+    Zram,
+}
+
 // --- Target shape: raw block target, optionally with LVM on top -----------
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -153,6 +173,8 @@ pub struct GuidedChoice {
     /// *is* the volume group, there is no raw disk/array to prepare first.
     pub raw_target: Option<RawTarget>,
     pub volume_layer: VolumeLayer,
+    #[serde(default)]
+    pub swap: SwapChoice,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -168,6 +190,7 @@ pub struct InstallPlan {
     pub raw_target: Option<RawTarget>,
     pub volume_layer: VolumeLayer,
     pub esp: EspPlan,
+    pub swap: SwapPlan,
     pub root_filesystem: FilesystemPlan,
     pub destructive_summary: DestructiveSummary,
     pub warnings: Vec<String>,
@@ -241,6 +264,33 @@ impl<'a> PlanBuilder<'a> {
             }
         }
 
+        let esp = match self.existing_esp() {
+            Some(path) => EspPlan::Reuse { path },
+            None => EspPlan::Create {
+                size_bytes: ESP_RECOMMENDED_SIZE_BYTES,
+            },
+        };
+        if matches!(esp, EspPlan::Create { .. }) {
+            warnings.push("nenhuma ESP existente encontrada — uma nova será criada".to_string());
+        }
+
+        let swap = match choice.swap {
+            SwapChoice::None => SwapPlan::None,
+            SwapChoice::Disk => SwapPlan::Partition {
+                size_bytes: DISK_SWAP_SIZE_BYTES,
+            },
+            SwapChoice::Zram => SwapPlan::Zram,
+        };
+        let reserved_bytes = match esp {
+            EspPlan::Create { size_bytes } => size_bytes,
+            EspPlan::Reuse { .. } => 0,
+        } + match swap {
+            SwapPlan::Partition { size_bytes } => size_bytes,
+            SwapPlan::None | SwapPlan::Zram => 0,
+        };
+        let root_available_bytes =
+            available_bytes.map(|bytes| bytes.saturating_sub(reserved_bytes));
+
         let root_mount_present;
         match &choice.volume_layer {
             VolumeLayer::Direct => {
@@ -252,7 +302,7 @@ impl<'a> PlanBuilder<'a> {
             } => {
                 root_mount_present = has_root_mount(logical_volumes);
                 if let Err(reason) =
-                    validate_logical_volumes(name, logical_volumes, available_bytes)
+                    validate_logical_volumes(name, logical_volumes, root_available_bytes)
                 {
                     errors.push(reason);
                 }
@@ -280,23 +330,12 @@ impl<'a> PlanBuilder<'a> {
             );
         }
 
-        if let Some(bytes) = available_bytes {
-            let minimum = MINIMUM_ROOT_SIZE_BYTES + ESP_MINIMUM_SIZE_BYTES;
-            if bytes < minimum {
+        if let Some(bytes) = root_available_bytes {
+            if bytes < MINIMUM_ROOT_SIZE_BYTES {
                 errors.push(format!(
-                    "espaço insuficiente: {bytes} bytes disponíveis, mínimo {minimum} bytes"
+                    "espaço insuficiente para a raiz: {bytes} bytes após ESP/swap, mínimo {MINIMUM_ROOT_SIZE_BYTES} bytes"
                 ));
             }
-        }
-
-        let esp = match self.existing_esp() {
-            Some(path) => EspPlan::Reuse { path },
-            None => EspPlan::Create {
-                size_bytes: ESP_RECOMMENDED_SIZE_BYTES,
-            },
-        };
-        if matches!(esp, EspPlan::Create { .. }) {
-            warnings.push("nenhuma ESP existente encontrada — uma nova será criada".to_string());
         }
 
         if !errors.is_empty() {
@@ -308,6 +347,7 @@ impl<'a> PlanBuilder<'a> {
             raw_target: choice.raw_target.clone(),
             volume_layer: choice.volume_layer.clone(),
             esp,
+            swap,
             root_filesystem: FilesystemPlan::default(),
             destructive_summary: DestructiveSummary { erased },
             warnings,

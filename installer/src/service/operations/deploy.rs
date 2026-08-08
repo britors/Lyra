@@ -15,6 +15,7 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
 use crate::InstallConfig;
+use crate::storage::SwapPlan;
 
 use super::{ArgvCommand, Executor, OperationError, PrivilegedOperation, io_error, path_str};
 
@@ -42,12 +43,19 @@ const ENABLED_SERVICES: &[&str] = &[
     "cups.service",
 ];
 
-pub fn deployment_operations(config: &InstallConfig) -> Vec<Box<dyn PrivilegedOperation>> {
+pub fn deployment_operations(
+    config: &InstallConfig,
+    swap: &SwapPlan,
+) -> Vec<Box<dyn PrivilegedOperation>> {
     let target_root = PathBuf::from(super::TARGET_ROOT);
 
     vec![
         Box::new(ExtractRootfs {
             target_root: target_root.clone(),
+        }),
+        Box::new(ConfigureSwap {
+            target_root: target_root.clone(),
+            swap: swap.clone(),
         }),
         Box::new(WriteMachineId {
             target_root: target_root.clone(),
@@ -164,6 +172,42 @@ pub fn deployment_operations(config: &InstallConfig) -> Vec<Box<dyn PrivilegedOp
         }),
         Box::new(RemoveTransitionalInstallerArtifacts { target_root }),
     ]
+}
+
+struct ConfigureSwap {
+    target_root: PathBuf,
+    swap: SwapPlan,
+}
+
+impl PrivilegedOperation for ConfigureSwap {
+    fn describe(&self) -> String {
+        match self.swap {
+            SwapPlan::None => "desativar swap e ZRAM".to_string(),
+            SwapPlan::Partition { .. } => "configurar swap em disco".to_string(),
+            SwapPlan::Zram => "configurar ZRAM".to_string(),
+        }
+    }
+
+    fn perform(&self, _executor: &dyn Executor) -> Result<(), OperationError> {
+        let config = self.target_root.join("etc/systemd/zram-generator.conf");
+        match self.swap {
+            SwapPlan::Zram => {
+                let parent = config.parent().expect("zram config always has a parent");
+                fs::create_dir_all(parent).map_err(io_error)?;
+                fs::write(
+                    config,
+                    "[zram0]\nzram-size = min(ram / 2, 8192)\ncompression-algorithm = zstd\n",
+                )
+                .map_err(io_error)?;
+            }
+            SwapPlan::None | SwapPlan::Partition { .. } => {
+                if config.exists() {
+                    fs::remove_file(config).map_err(io_error)?;
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 fn random_bytes(n: usize) -> Result<Vec<u8>, OperationError> {
@@ -2195,9 +2239,46 @@ mod tests {
     }
 
     #[test]
+    fn configure_swap_writes_zram_or_removes_it_for_other_choices() {
+        let temp = TempRoot::new("configure-swap");
+        let config_path = temp.0.join("etc/systemd/zram-generator.conf");
+        let executor = FakeExecutor::new();
+
+        ConfigureSwap {
+            target_root: temp.0.clone(),
+            swap: SwapPlan::Zram,
+        }
+        .perform(&executor)
+        .unwrap();
+        let zram = fs::read_to_string(&config_path).unwrap();
+        assert!(zram.contains("zram-size = min(ram / 2, 8192)"));
+        assert!(zram.contains("compression-algorithm = zstd"));
+
+        ConfigureSwap {
+            target_root: temp.0.clone(),
+            swap: SwapPlan::Partition {
+                size_bytes: crate::storage::DISK_SWAP_SIZE_BYTES,
+            },
+        }
+        .perform(&executor)
+        .unwrap();
+        assert!(!config_path.exists());
+
+        fs::create_dir_all(config_path.parent().unwrap()).unwrap();
+        fs::write(&config_path, "stale").unwrap();
+        ConfigureSwap {
+            target_root: temp.0.clone(),
+            swap: SwapPlan::None,
+        }
+        .perform(&executor)
+        .unwrap();
+        assert!(!config_path.exists());
+    }
+
+    #[test]
     fn deployment_operations_orders_timezone_before_keyboard_before_locale() {
         let config = InstallConfig::default();
-        let describe: Vec<String> = deployment_operations(&config)
+        let describe: Vec<String> = deployment_operations(&config, &SwapPlan::Zram)
             .iter()
             .map(|op| op.describe())
             .collect();
@@ -2227,7 +2308,7 @@ mod tests {
     #[test]
     fn deployment_operations_runs_grub_and_snapper_after_liveuser_cleanup() {
         let config = InstallConfig::default();
-        let describe: Vec<String> = deployment_operations(&config)
+        let describe: Vec<String> = deployment_operations(&config, &SwapPlan::Zram)
             .iter()
             .map(|op| op.describe())
             .collect();
