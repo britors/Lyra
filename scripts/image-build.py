@@ -23,7 +23,7 @@ DEFAULT_MANIFEST = ROOT / "image-build.toml"
 KIWI = ROOT / "kiwi"
 RELEASE = ROOT / "release.toml"
 PACKAGE_SIGNING_KEY = KIWI / "keys/suse-16-package-signing.asc"
-PACKAGE_SIGNING_KEY_SHA256 = "dece9365f3c78139c0aa6df9c263db2fe7898526162af8d1c1a68cd46136d30c"
+PACKAGE_SIGNING_KEY_SHA256 = "2f5f47168f5bd25efc5d1f26ebfab5a8fcba971b8d7c6dda19c0882ad8092acb"
 PACKAGE_SIGNING_KEY_EXPORT = "suse-16-package-signing.asc"
 
 
@@ -155,7 +155,7 @@ def validate_sources(manifest: Manifest) -> None:
     if "GPGKey=" not in flathub.read_text(encoding="utf-8"):
         raise PolicyError("versioned Flathub remote or signing key is missing")
     if sha256(PACKAGE_SIGNING_KEY) != PACKAGE_SIGNING_KEY_SHA256:
-        raise PolicyError("SUSE 16 package-signing key differs from the reviewed fingerprint")
+        raise PolicyError("Leap 16 package-signing keyring differs from the reviewed checksum")
 
 
 def source_metadata(commit: str, dirty: bool) -> tuple[dict[str, object], str]:
@@ -276,9 +276,9 @@ def verify_export(manifest: Manifest, directory: Path) -> None:
     signing = None if repo_oss is None else repo_oss.find("source/signing")
     expected_key = f"file:///usr/src/packages/SOURCES/{PACKAGE_SIGNING_KEY_EXPORT}"
     if signing is None or signing.attrib.get("key") != expected_key:
-        raise PolicyError("preserved repository lacks the pinned SUSE package-signing key")
+        raise PolicyError("preserved repository lacks the pinned Leap 16 signing keyring")
     if sha256(directory / PACKAGE_SIGNING_KEY_EXPORT) != PACKAGE_SIGNING_KEY_SHA256:
-        raise PolicyError("exported SUSE package-signing key failed its checksum")
+        raise PolicyError("exported Leap 16 signing keyring failed its checksum")
     installed = [node for node in root.findall("repository") if node.attrib.get("alias") != "obs-build"]
     if len(installed) != 5 or any(node.attrib.get("imageonly") != "true" for node in installed):
         raise PolicyError("installed repositories must be isolated from OBS build resolution")
