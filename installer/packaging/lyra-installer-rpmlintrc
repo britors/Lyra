@@ -1,7 +1,7 @@
-# The installer is experimental and only grants its narrowly scoped action to
-# the locked live-session account. The policy pins pkexec to the exact service
-# path; it is not submitted for inclusion in a SUSE product. A future product
-# submission still requires the upstream SUSE security review.
+# The Beta 2 installer only grants its narrowly scoped action to the locked
+# live-session account. The policy pins pkexec to the exact service path; it is
+# not submitted for inclusion in a SUSE product. A future product submission
+# still requires the upstream SUSE security review.
 # These security checks are deliberately non-filterable in rpmlint 2.7.
 # Lower their package-local badness instead; the policy and rule remain in the
 # report for audit visibility, while the experimental home project can build.
