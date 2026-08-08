@@ -35,7 +35,9 @@ and deterministic UTC build timestamp in `build-source.json` and in
 Signature verification is mandatory (`rpm-check-signatures`,
 `repository_gpgcheck`, and `package_gpgcheck`). Missing dependencies, invalid
 repository metadata, or bad package signatures therefore fail KIWI/OBS instead
-of creating a release candidate. Flathub's URL and signing key are versioned at
+of creating a release candidate. The SUSE 16 package-signing key used during
+the OBS bootstrap is pinned by SHA-256 and exported with the recipe; it is not
+replaced by a trust-all switch. Flathub's URL and signing key are versioned at
 `kiwi/root/etc/flatpak/remotes.d/flathub.flatpakrepo`; no network command runs
 from `config.sh`.
 

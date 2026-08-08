@@ -22,6 +22,9 @@ ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MANIFEST = ROOT / "image-build.toml"
 KIWI = ROOT / "kiwi"
 RELEASE = ROOT / "release.toml"
+PACKAGE_SIGNING_KEY = KIWI / "keys/suse-16-package-signing.asc"
+PACKAGE_SIGNING_KEY_SHA256 = "dece9365f3c78139c0aa6df9c263db2fe7898526162af8d1c1a68cd46136d30c"
+PACKAGE_SIGNING_KEY_EXPORT = "suse-16-package-signing.asc"
 
 
 class PolicyError(RuntimeError):
@@ -151,6 +154,8 @@ def validate_sources(manifest: Manifest) -> None:
     flathub = KIWI / "root/etc/flatpak/remotes.d/flathub.flatpakrepo"
     if "GPGKey=" not in flathub.read_text(encoding="utf-8"):
         raise PolicyError("versioned Flathub remote or signing key is missing")
+    if sha256(PACKAGE_SIGNING_KEY) != PACKAGE_SIGNING_KEY_SHA256:
+        raise PolicyError("SUSE 16 package-signing key differs from the reviewed fingerprint")
 
 
 def source_metadata(commit: str, dirty: bool) -> tuple[dict[str, object], str]:
@@ -199,7 +204,12 @@ def render_obs_config(manifest: Manifest) -> bytes:
         repository.attrib.pop("imageinclude", None)
         repository.set("imageonly", "true")
     build_repository = ET.Element("repository", {"alias": "obs-build", "type": "rpm-md"})
-    ET.SubElement(build_repository, "source", {"path": "obsrepositories:/"})
+    build_source = ET.SubElement(build_repository, "source", {"path": "obsrepositories:/"})
+    ET.SubElement(
+        build_source,
+        "signing",
+        {"key": f"file:///usr/src/packages/SOURCES/{PACKAGE_SIGNING_KEY_EXPORT}"},
+    )
     first_packages = next(index for index, node in enumerate(root) if node.tag == "packages")
     root.insert(first_packages, build_repository)
     ET.indent(tree, space="  ")
@@ -223,6 +233,7 @@ def export(manifest: Manifest, destination: Path, commit: str, allow_dirty: bool
     ensure_export_target(destination)
     for name in ("config.sh",):
         shutil.copy2(KIWI / name, destination / name)
+    shutil.copy2(PACKAGE_SIGNING_KEY, destination / PACKAGE_SIGNING_KEY_EXPORT)
     shutil.copytree(KIWI / "root", destination / "root", symlinks=True)
     (destination / manifest.description).write_bytes(render_obs_config(manifest))
     (destination / "build-source.json").write_text(
@@ -257,6 +268,12 @@ def verify_export(manifest: Manifest, directory: Path) -> None:
     ]
     if len(build_repos) != 1:
         raise PolicyError("export must have one OBS-injected build repository")
+    signing = build_repos[0].find("source/signing")
+    expected_key = f"file:///usr/src/packages/SOURCES/{PACKAGE_SIGNING_KEY_EXPORT}"
+    if signing is None or signing.attrib.get("key") != expected_key:
+        raise PolicyError("OBS build repository lacks the pinned SUSE package-signing key")
+    if sha256(directory / PACKAGE_SIGNING_KEY_EXPORT) != PACKAGE_SIGNING_KEY_SHA256:
+        raise PolicyError("exported SUSE package-signing key failed its checksum")
     installed = [node for node in root.findall("repository") if node.attrib.get("alias") != "obs-build"]
     if len(installed) != 5 or any(node.attrib.get("imageonly") != "true" for node in installed):
         raise PolicyError("installed repositories must be isolated from OBS build resolution")
