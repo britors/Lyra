@@ -1,6 +1,9 @@
 -------------------------------------------------------------------
 Sat Aug  8 20:40:00 UTC 2026 - Rodrigo Brito <rodrigo@w3ti.com.br>
 
+- Align the account form into balanced, responsive rows.
+- Stream privileged installation events to the progress panel in real time.
+- Offer a system restart button after a successful installation.
 - Offer no-swap, 8 GiB disk swap, and ZRAM installation choices.
 - Render readable VirtIO disk names instead of hexadecimal PCI vendor IDs.
 - Suggest a valid username from the full name and identify it as administrator.

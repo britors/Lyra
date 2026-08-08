@@ -41,6 +41,8 @@ e serviço são entregues no mesmo RPM e devem concordar sobre a versão.
 - o protocolo é inspecionável, reproduzível e fácil de testar sem D-Bus;
 - o plano exibido é exatamente o plano autorizado;
 - stdin/stdout não oferece persistência ou retomada automática;
-- streaming/cancelamento na interface ainda precisa ser conectado na #38;
+- o frontend recebe cada evento durante a execução e mantém a resposta final
+  completa como fallback; o cancelamento na interface ainda precisa ser
+  conectado na #38;
 - D-Bus fica rejeitado para a Beta 2; poderá substituir o transporte sem
   alterar os tipos de domínio se requisitos futuros justificarem.

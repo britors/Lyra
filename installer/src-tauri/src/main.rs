@@ -15,6 +15,7 @@ use lyra_installer_core::storage::{
     DiscoveryBackend, GuidedChoice, InstallPlan, PlanBuilder, StorageSnapshot,
     SystemDiscoveryBackend,
 };
+use tauri::Emitter;
 
 /// Read-only: lists disks, RAID arrays and LVM volumes currently visible to
 /// the live session. Never touches the disk — planning and execution are
@@ -59,6 +60,7 @@ fn validate_install_config(config: InstallConfig) -> Result<(), String> {
 /// keep both in sync. Development builds may use a locally staged service;
 /// the live image receives this path from the `lyra-installer` RPM.
 const SERVICE_PATH: &str = "/usr/libexec/lyra-installer-service";
+const SYSTEMCTL_PATH: &str = "/usr/bin/systemctl";
 const TRACE_FILENAME: &str = "lyra-installer-trace.log";
 
 fn redacted_config(config: &InstallConfig) -> serde_json::Value {
@@ -191,19 +193,58 @@ fn fit_window_to_monitor(window: tauri::WebviewWindow) -> Result<(), String> {
 /// so GNOME repeatedly offered an "Aguarde" response while the installation
 /// itself continued normally in the background.
 #[tauri::command]
-async fn execute_plan(request: ExecutionRequest) -> Result<Vec<ExecutionEvent>, String> {
-    tauri::async_runtime::spawn_blocking(move || execute_plan_blocking(request))
-        .await
-        .map_err(|error| format!("a tarefa de instalação foi interrompida: {error}"))?
+async fn execute_plan(
+    request: ExecutionRequest,
+    window: tauri::WebviewWindow,
+) -> Result<Vec<ExecutionEvent>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        execute_plan_blocking(request, |event| {
+            // Losing the window must not interrupt an installation that has
+            // already crossed the destructive boundary. The complete event
+            // list is still returned as a fallback when the command ends.
+            let _ = window.emit("installation-event", event);
+        })
+    })
+    .await
+    .map_err(|error| format!("a tarefa de instalação foi interrompida: {error}"))?
+}
+
+/// Requests a reboot through systemd/logind as the active live-session user.
+/// Keeping the command unprivileged lets the desktop's normal polkit policy
+/// decide whether the local session may restart the machine.
+fn system_restart_command() -> Command {
+    let mut command = Command::new(SYSTEMCTL_PATH);
+    command.arg("reboot");
+    command
+}
+
+#[tauri::command]
+async fn restart_system() -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(|| {
+        let status = system_restart_command()
+            .status()
+            .map_err(|error| format!("não foi possível executar {SYSTEMCTL_PATH}: {error}"))?;
+
+        if status.success() {
+            Ok(())
+        } else {
+            Err(format!("o pedido de reinicialização terminou com {status}"))
+        }
+    })
+    .await
+    .map_err(|error| format!("a solicitação de reinicialização foi interrompida: {error}"))?
 }
 
 /// Launches the privileged service via `pkexec` for the duration of this one
 /// call only — never the whole UI (see `docs/installer-architecture.md`).
-/// Sends the confirmed plan on stdin, collects every event from stdout, and
-/// returns once the child exits. The frontend remains responsive and shows
-/// its indeterminate animation while this function runs on the blocking pool;
-/// live event streaming remains a separate improvement.
-fn execute_plan_blocking(request: ExecutionRequest) -> Result<Vec<ExecutionEvent>, String> {
+/// Sends the confirmed plan on stdin and forwards each stdout event while the
+/// service is running. The complete list is also returned once the child exits
+/// so the frontend can verify the terminal result and recover if an emitted
+/// window event was missed.
+fn execute_plan_blocking(
+    request: ExecutionRequest,
+    mut on_event: impl FnMut(&ExecutionEvent),
+) -> Result<Vec<ExecutionEvent>, String> {
     let (mut trace, trace_path) = create_install_trace(&request)?;
     append_trace(&mut trace, "frontend=starting privileged service");
 
@@ -248,6 +289,7 @@ fn execute_plan_blocking(request: ExecutionRequest) -> Result<Vec<ExecutionEvent
         append_trace(&mut trace, &format!("service_event={line}"));
         let event = serde_json::from_str::<ExecutionEvent>(&line)
             .map_err(|error| format!("evento inesperado do serviço: {error}"))?;
+        on_event(&event);
         events.push(event);
     }
 
@@ -290,7 +332,8 @@ fn main() {
             validate_install_config,
             installer_logo,
             fit_window_to_monitor,
-            execute_plan
+            execute_plan,
+            restart_system
         ])
         .run(tauri::generate_context!())
         .expect("erro ao executar o Lyra Installer");
@@ -333,5 +376,13 @@ mod tests {
         );
 
         assert_eq!(fitted, tauri::PhysicalSize::new(800, 600));
+    }
+
+    #[test]
+    fn restart_uses_systemd_without_a_shell() {
+        let command = system_restart_command();
+
+        assert_eq!(command.get_program(), SYSTEMCTL_PATH);
+        assert_eq!(command.get_args().collect::<Vec<_>>(), ["reboot"]);
     }
 }

@@ -74,7 +74,14 @@
 
           <section class="page" data-page="4" aria-labelledby="account-title">
             <div class="page-heading"><div class="kicker">IDENTIDADE</div><h1 id="account-title">Seu espaço.<br /><em>Seu nome.</em></h1><p class="lead">Crie a conta principal do Lyra OS. Ela terá acesso administrativo via sudo; root permanecerá bloqueado.</p></div>
-            <form class="form-grid" id="account-form"><label>Nome completo<input id="full-name" autocomplete="name" placeholder="Como devemos chamar você?" /></label><label>Nome de usuário<input id="username" autocomplete="username" placeholder="Sugerido a partir do nome completo" /><small class="field-hint">Esta conta será administradora do sistema.</small></label><label>Nome do dispositivo<input id="hostname" value="lyra-os" autocomplete="off" /></label><label>Senha<input id="password" type="password" autocomplete="new-password" placeholder="Mínimo de 8 caracteres" /></label><label>Confirmar senha<input id="password-confirm" type="password" autocomplete="new-password" placeholder="Repita a senha" /></label></form><p class="validation" id="validation" role="alert"></p>
+            <form class="form-grid account-form" id="account-form">
+              <label class="account-field account-field-half">Nome completo<input id="full-name" autocomplete="name" placeholder="Como devemos chamar você?" /></label>
+              <label class="account-field account-field-half">Nome de usuário<input id="username" autocomplete="username" placeholder="Sugerido a partir do nome completo" /><small class="field-hint">Esta conta será administradora do sistema.</small></label>
+              <label class="account-field account-field-third">Nome do dispositivo<input id="hostname" value="lyra-os" autocomplete="off" /></label>
+              <label class="account-field account-field-third">Senha<input id="password" type="password" autocomplete="new-password" placeholder="Mínimo de 8 caracteres" /></label>
+              <label class="account-field account-field-third">Confirmar senha<input id="password-confirm" type="password" autocomplete="new-password" placeholder="Repita a senha" /></label>
+            </form>
+            <p class="validation" id="validation" role="alert"></p>
           </section>
 
           <section class="page" data-page="5" aria-labelledby="storage-title">
@@ -147,6 +154,8 @@
                   <div class="install-status-progress" aria-hidden="true"><span></span></div>
                   <ul class="execution-events" id="execution-events"></ul>
                 </section>
+                <button class="reboot-button" id="reboot" type="button" hidden>Reinicie seu sistema <span aria-hidden="true">↻</span></button>
+                <p class="reboot-error" id="reboot-error" role="alert" hidden></p>
               </div>
               <div class="final-art art-frame"><img src="telas/telafinal-ajustada.png" alt="Paisagem noturna com a constelação de Lyra e a marca Lyra OS." /></div>
             </div>

@@ -9,7 +9,10 @@ const installConfirm=document.querySelector('#install-confirm');
 const installStatus=document.querySelector('#install-status');
 const installStatusTitle=document.querySelector('#install-status-title');
 const executionEvents=document.querySelector('#execution-events');
+const reboot=document.querySelector('#reboot');
+const rebootError=document.querySelector('#reboot-error');
 const {invoke}=window.__TAURI__.core;
+const {listen}=window.__TAURI__.event;
 let current=0;
 let storageSnapshot=null;
 let layoutChoice='simple';
@@ -409,13 +412,17 @@ function appendExecutionEvent(event){
   const [kind,payload]=eventParts(event);
   const item=document.createElement('li');
   if(kind==='Started') item.textContent='Serviço privilegiado iniciado';
-  else if(kind==='Step') item.textContent=payload.detail?`${payload.name}: ${payload.detail}`:payload.name;
+  else if(kind==='Step'){
+    item.textContent=payload.detail?`${payload.name}: ${payload.detail}`:payload.name;
+    installStatusTitle.textContent=item.textContent;
+  }
   else if(kind==='Warning') item.textContent=`Aviso: ${payload.message}`;
   else if(kind==='Failed') item.textContent=`Falha em ${payload.step}: ${payload.message}`;
   else if(kind==='Completed') item.textContent='Instalação e limpeza concluídas';
   else item.textContent='O serviço enviou um evento desconhecido';
   item.className=`event-${kind.toLocaleLowerCase()}`;
   executionEvents.append(item);
+  executionEvents.scrollTop=executionEvents.scrollHeight;
 }
 
 function setInstallationStatus(state,title){
@@ -436,16 +443,30 @@ async function executeInstallation(){
   installing=true;
   lockWizard(true);
   install.textContent='Instalando…';
+  reboot.hidden=true;
+  rebootError.hidden=true;
   executionEvents.replaceChildren();
   setInstallationStatus('running','Autorizando e iniciando a instalação…');
   updateInstallButtonState();
   updateNextButtonState();
 
+  let stopListening=null;
+  const streamedEvents=[];
   try{
     const config=collectInstallConfig();
     await invoke('validate_install_config',{config});
+    stopListening=await listen('installation-event',event=>{
+      streamedEvents.push(event.payload);
+      appendExecutionEvent(event.payload);
+    });
     const events=await invoke('execute_plan',{request:{choice,plan:selectedPlan,config}});
-    events.forEach(appendExecutionEvent);
+    // Normally every item has already arrived through the live event. Keep
+    // the command response as a fallback if WebKit missed the whole stream or
+    // its final items while the privileged process was exiting.
+    if(streamedEvents.length!==events.length){
+      executionEvents.replaceChildren();
+      events.forEach(appendExecutionEvent);
+    }
 
     const failure=events.map(eventParts).find(([kind])=>kind==='Failed');
     const completed=events.map(eventParts).some(([kind])=>kind==='Completed');
@@ -458,6 +479,7 @@ async function executeInstallation(){
       installationTerminal=true;
       setInstallationStatus('completed','Lyra OS instalado. Reinicie para usar o novo sistema.');
       install.textContent='Instalação concluída';
+      reboot.hidden=false;
       await fitWindowToMonitor();
     }else{
       throw new Error('o serviço não informou se a instalação foi concluída');
@@ -467,10 +489,25 @@ async function executeInstallation(){
     setInstallationStatus('failed',`Não foi possível iniciar a instalação: ${error}`);
     install.textContent='Tentar instalar novamente';
   }finally{
+    if(stopListening) stopListening();
     installing=false;
     lockWizard(installationTerminal);
     updateInstallButtonState();
     updateNextButtonState();
+  }
+}
+
+async function restartSystem(){
+  reboot.disabled=true;
+  reboot.textContent='Reiniciando…';
+  rebootError.hidden=true;
+  try{
+    await invoke('restart_system');
+  }catch(error){
+    reboot.disabled=false;
+    reboot.innerHTML='Reinicie seu sistema <span aria-hidden="true">↻</span>';
+    rebootError.textContent=`Não foi possível reiniciar o sistema: ${error}`;
+    rebootError.hidden=false;
   }
 }
 
@@ -479,6 +516,7 @@ back.addEventListener('click',()=>{if(!installing&&!installationTerminal&&curren
 steps.forEach(step=>step.addEventListener('click',()=>{const index=Number(step.dataset.step);if(!installing&&!installationTerminal&&index<=current)show(index)}));
 installConfirm.addEventListener('change',updateInstallButtonState);
 install.addEventListener('click',executeInstallation);
+reboot.addEventListener('click',restartSystem);
 window.addEventListener('resize',()=>{
   const currentScreenSize=`${screen.availWidth}x${screen.availHeight}`;
   if(currentScreenSize!==knownScreenSize){
