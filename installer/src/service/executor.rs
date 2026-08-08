@@ -4,14 +4,37 @@
 
 use std::fmt;
 use std::io::Write;
+use std::os::unix::fs::PermissionsExt;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 use super::operation::{ALLOWED_BINARIES, ArgvCommand};
 
+const SYSTEM_BINARY_DIRS: &[&str] = &["/usr/sbin", "/usr/bin", "/sbin", "/bin"];
+
+/// Reports missing command providers before the first destructive operation.
+/// Search only the fixed system paths also used by the packaged live image;
+/// the privileged service must never trust a caller-controlled PATH.
+pub fn missing_allowed_binaries() -> Vec<&'static str> {
+    ALLOWED_BINARIES
+        .iter()
+        .copied()
+        .filter(|binary| system_binary_path(binary).is_none())
+        .collect()
+}
+
+fn system_binary_path(binary: &str) -> Option<PathBuf> {
+    SYSTEM_BINARY_DIRS.iter().find_map(|directory| {
+        let path = Path::new(directory).join(binary);
+        let metadata = path.metadata().ok()?;
+        (metadata.is_file() && metadata.permissions().mode() & 0o111 != 0).then_some(path)
+    })
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExecutorError {
     DisallowedBinary(String),
-    Spawn(String),
+    Spawn { binary: String, reason: String },
     NonZeroExit(Option<i32>),
 }
 
@@ -21,7 +44,9 @@ impl fmt::Display for ExecutorError {
             ExecutorError::DisallowedBinary(binary) => {
                 write!(f, "{binary}: binário fora da allow-list, execução recusada")
             }
-            ExecutorError::Spawn(reason) => write!(f, "falha ao iniciar processo: {reason}"),
+            ExecutorError::Spawn { binary, reason } => {
+                write!(f, "falha ao iniciar o processo {binary}: {reason}")
+            }
             ExecutorError::NonZeroExit(code) => {
                 write!(f, "processo terminou com código {code:?}")
             }
@@ -54,10 +79,19 @@ impl Executor for RealExecutor {
             return Err(ExecutorError::DisallowedBinary(command.binary.clone()));
         }
 
-        let output = Command::new(&command.binary)
+        let binary_path =
+            system_binary_path(&command.binary).ok_or_else(|| ExecutorError::Spawn {
+                binary: command.binary.clone(),
+                reason: "não encontrado nos diretórios de sistema".to_string(),
+            })?;
+
+        let output = Command::new(binary_path)
             .args(&command.args)
             .output()
-            .map_err(|error| ExecutorError::Spawn(error.to_string()))?;
+            .map_err(|error| ExecutorError::Spawn {
+                binary: command.binary.clone(),
+                reason: error.to_string(),
+            })?;
 
         if output.status.success() {
             Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
@@ -71,23 +105,41 @@ impl Executor for RealExecutor {
             return Err(ExecutorError::DisallowedBinary(command.binary.clone()));
         }
 
-        let mut child = Command::new(&command.binary)
+        let binary_path =
+            system_binary_path(&command.binary).ok_or_else(|| ExecutorError::Spawn {
+                binary: command.binary.clone(),
+                reason: "não encontrado nos diretórios de sistema".to_string(),
+            })?;
+
+        let mut child = Command::new(binary_path)
             .args(&command.args)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .spawn()
-            .map_err(|error| ExecutorError::Spawn(error.to_string()))?;
+            .map_err(|error| ExecutorError::Spawn {
+                binary: command.binary.clone(),
+                reason: error.to_string(),
+            })?;
 
         child
             .stdin
             .take()
-            .ok_or_else(|| ExecutorError::Spawn("stdin do processo indisponível".to_string()))?
+            .ok_or_else(|| ExecutorError::Spawn {
+                binary: command.binary.clone(),
+                reason: "stdin do processo indisponível".to_string(),
+            })?
             .write_all(stdin.as_bytes())
-            .map_err(|error| ExecutorError::Spawn(error.to_string()))?;
+            .map_err(|error| ExecutorError::Spawn {
+                binary: command.binary.clone(),
+                reason: error.to_string(),
+            })?;
 
         let output = child
             .wait_with_output()
-            .map_err(|error| ExecutorError::Spawn(error.to_string()))?;
+            .map_err(|error| ExecutorError::Spawn {
+                binary: command.binary.clone(),
+                reason: error.to_string(),
+            })?;
 
         if output.status.success() {
             Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
@@ -121,5 +173,17 @@ mod tests {
         // allow-list check by accident.
         let error = RealExecutor.run(&command("sgdisk; rm -rf /")).unwrap_err();
         assert!(matches!(error, ExecutorError::DisallowedBinary(_)));
+    }
+
+    #[test]
+    fn spawn_error_identifies_the_missing_binary() {
+        let error = ExecutorError::Spawn {
+            binary: "mkfs.vfat".to_string(),
+            reason: "No such file or directory (os error 2)".to_string(),
+        };
+        assert_eq!(
+            error.to_string(),
+            "falha ao iniciar o processo mkfs.vfat: No such file or directory (os error 2)"
+        );
     }
 }

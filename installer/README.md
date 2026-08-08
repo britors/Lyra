@@ -262,6 +262,13 @@ o plano confirmado pode ter sido parcialmente aplicado. O streaming de cada
 evento durante uma operação longa continua pendente; nesta versão a tela
 mostra um estado indeterminado e recebe a lista completa ao término.
 
+Cada tentativa recria `~/lyra-installer-trace.log` como o usuário da sessão
+live, com permissão `0600`. O arquivo registra versão e origem do build, plano
+confirmado, configuração com a senha removida, cada evento do serviço, stderr
+e status final do processo. Ele é atualizado enquanto os eventos chegam, por
+isso permanece útil quando a instalação é interrompida e pode ser anexado
+diretamente a um relatório de erro.
+
 `operations::deploy` implanta o rootfs no target já particionado: extrai o
 squashfs da sessão live, machine-id, fuso horário, teclado, locale
 (mapeamento de teclado fixo por locale por enquanto — sem tela própria),

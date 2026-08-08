@@ -30,10 +30,28 @@ BuildRequires:  pkgconfig
 BuildRequires:  rust >= 1.85
 BuildRequires:  webkit2gtk3-devel
 BuildRequires:  zstd
+# The privileged service invokes these packages' programs directly. Keep
+# every provider as an RPM dependency so a minimal/onlyRequired live image
+# cannot omit a command halfway through an installation.
+Requires:       btrfsprogs
+Requires:       coreutils
+Requires:       dconf
+Requires:       dosfstools
+Requires:       dracut
+Requires:       gptfdisk
+Requires:       grub2
+Requires:       grub2-common
+Requires:       lvm2
+Requires:       mdadm
 # polkit ships the action/rule loader this package's .policy/.rules need at
 # runtime; no polkit *library* is linked (lyra-installer-service shells out
 # to pkexec's caller side, not libpolkit).
 Requires:       polkit
+Requires:       shadow
+Requires:       shim
+Requires:       snapper
+Requires:       squashfs
+Requires:       systemd
 Requires:       util-linux
 
 %description

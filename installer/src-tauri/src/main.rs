@@ -1,8 +1,13 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use std::env;
+use std::fs::{self, File, OpenOptions};
 use std::io::{BufRead, BufReader, Read, Write};
+use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::thread;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use lyra_installer_core::InstallConfig;
 use lyra_installer_core::service::{ExecutionEvent, ExecutionRequest};
@@ -54,6 +59,78 @@ fn validate_install_config(config: InstallConfig) -> Result<(), String> {
 /// keep both in sync. Development builds may use a locally staged service;
 /// the live image receives this path from the `lyra-installer` RPM.
 const SERVICE_PATH: &str = "/usr/libexec/lyra-installer-service";
+const TRACE_FILENAME: &str = "lyra-installer-trace.log";
+
+fn redacted_config(config: &InstallConfig) -> serde_json::Value {
+    serde_json::json!({
+        "locale": config.locale,
+        "timezone": config.timezone,
+        "keyboard_layout": config.keyboard_layout,
+        "hostname": config.hostname,
+        "full_name": config.full_name,
+        "username": config.username,
+        "password": "<redacted>"
+    })
+}
+
+/// Creates the diagnostic log as the unprivileged desktop user, before
+/// pkexec is launched. The privileged service therefore never opens a path
+/// controlled by the live user, and the resulting file remains easy for the
+/// tester to copy from their own home directory.
+fn create_install_trace(request: &ExecutionRequest) -> Result<(File, PathBuf), String> {
+    let home = env::var_os("HOME").ok_or("HOME não está definido")?;
+    let home = PathBuf::from(home);
+    if !home.is_absolute() || !home.is_dir() {
+        return Err(format!("diretório HOME inválido: {}", home.display()));
+    }
+
+    let path = home.join(TRACE_FILENAME);
+    if let Ok(metadata) = fs::symlink_metadata(&path)
+        && (!metadata.file_type().is_file() || metadata.file_type().is_symlink())
+    {
+        return Err(format!(
+            "o caminho do trace não é um arquivo regular: {}",
+            path.display()
+        ));
+    }
+
+    let mut trace = OpenOptions::new()
+        .create(true)
+        .truncate(true)
+        .write(true)
+        .mode(0o600)
+        .open(&path)
+        .map_err(|error| format!("não foi possível criar {}: {error}", path.display()))?;
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o600))
+        .map_err(|error| format!("não foi possível proteger {}: {error}", path.display()))?;
+
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_secs())
+        .unwrap_or_default();
+    let source = fs::read_to_string("/usr/share/lyra-installer/build-source.txt")
+        .unwrap_or_else(|error| format!("indisponível: {error}"));
+    let summary = serde_json::json!({
+        "choice": &request.choice,
+        "plan": &request.plan,
+        "config": redacted_config(&request.config)
+    });
+
+    writeln!(trace, "Lyra Installer trace")
+        .and_then(|_| writeln!(trace, "timestamp_unix={timestamp}"))
+        .and_then(|_| writeln!(trace, "installer_version={}", env!("CARGO_PKG_VERSION")))
+        .and_then(|_| writeln!(trace, "build_source={}", source.trim()))
+        .and_then(|_| writeln!(trace, "request={summary}"))
+        .and_then(|_| trace.flush())
+        .map_err(|error| format!("não foi possível escrever {}: {error}", path.display()))?;
+
+    Ok((trace, path))
+}
+
+fn append_trace(trace: &mut File, line: &str) {
+    let _ = writeln!(trace, "{line}");
+    let _ = trace.flush();
+}
 
 /// Reuses the packaged application artwork inside the static frontend instead
 /// of maintaining a second copy that can drift from the RPM/window icon.
@@ -70,13 +147,20 @@ fn installer_logo() -> Vec<u8> {
 /// live event streaming remains a separate improvement.
 #[tauri::command]
 fn execute_plan(request: ExecutionRequest) -> Result<Vec<ExecutionEvent>, String> {
+    let (mut trace, trace_path) = create_install_trace(&request)?;
+    append_trace(&mut trace, "frontend=starting privileged service");
+
     let mut child = Command::new("pkexec")
         .arg(SERVICE_PATH)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|error| format!("não foi possível iniciar o serviço privilegiado: {error}"))?;
+        .map_err(|error| {
+            let message = format!("não foi possível iniciar o serviço privilegiado: {error}");
+            append_trace(&mut trace, &format!("frontend_error={message}"));
+            message
+        })?;
 
     let payload = serde_json::to_string(&request).map_err(|error| error.to_string())?;
     {
@@ -104,6 +188,7 @@ fn execute_plan(request: ExecutionRequest) -> Result<Vec<ExecutionEvent>, String
         if line.trim().is_empty() {
             continue;
         }
+        append_trace(&mut trace, &format!("service_event={line}"));
         let event = serde_json::from_str::<ExecutionEvent>(&line)
             .map_err(|error| format!("evento inesperado do serviço: {error}"))?;
         events.push(event);
@@ -113,6 +198,11 @@ fn execute_plan(request: ExecutionRequest) -> Result<Vec<ExecutionEvent>, String
     let stderr = stderr_reader
         .join()
         .unwrap_or_else(|_| "não foi possível ler o erro do serviço".to_string());
+    if !stderr.trim().is_empty() {
+        append_trace(&mut trace, &format!("service_stderr={}", stderr.trim()));
+    }
+    append_trace(&mut trace, &format!("service_status={status}"));
+    append_trace(&mut trace, &format!("trace_path={}", trace_path.display()));
     let failed_event = events
         .iter()
         .any(|event| matches!(event, ExecutionEvent::Failed { .. }));
@@ -156,5 +246,14 @@ mod tests {
     fn embedded_installer_logo_is_a_png() {
         let logo = installer_logo();
         assert!(logo.starts_with(b"\x89PNG\r\n\x1a\n"));
+    }
+
+    #[test]
+    fn diagnostic_config_never_contains_the_password() {
+        let mut config = InstallConfig::default();
+        config.password = "segredo-que-nao-pode-ir-ao-log".to_string();
+        let summary = redacted_config(&config);
+        assert_eq!(summary["password"], "<redacted>");
+        assert!(!summary.to_string().contains(&config.password));
     }
 }

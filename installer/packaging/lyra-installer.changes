@@ -1,4 +1,13 @@
 -------------------------------------------------------------------
+Sat Aug  8 19:00:00 UTC 2026 - Rodrigo Brito <rodrigo@w3ti.com.br>
+
+- Require every command used by the privileged installation backend.
+- Include FAT32 and squashfs deployment tools in minimal live images.
+- Name a missing executable in process-spawn errors.
+- Check all required commands before any destructive disk operation.
+- Write a password-redacted installation trace in the live user's home.
+
+-------------------------------------------------------------------
 Sat Aug  8 18:36:00 UTC 2026 - Rodrigo Brito <rodrigo@w3ti.com.br>
 
 - Wire the final confirmation screen to the privileged installation service.

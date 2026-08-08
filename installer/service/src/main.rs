@@ -13,7 +13,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use lyra_installer_core::service::{
     ExecutionControl, ExecutionEvent, ExecutionOutcome, ExecutionRequest, RealExecutor, build,
-    execute,
+    execute, missing_allowed_binaries,
 };
 use lyra_installer_core::storage::{DiscoveryBackend, SystemDiscoveryBackend};
 
@@ -33,6 +33,20 @@ fn main() {
             std::process::exit(2);
         }
     };
+
+    // Package/image regressions must be caught before storage discovery and,
+    // critically, before wipefs/sgdisk can touch the selected disk.
+    let missing_binaries = missing_allowed_binaries();
+    if !missing_binaries.is_empty() {
+        emit(ExecutionEvent::Failed {
+            step: "pré-verificação do ambiente".to_string(),
+            message: format!(
+                "comandos obrigatórios ausentes: {}",
+                missing_binaries.join(", ")
+            ),
+        });
+        std::process::exit(1);
+    }
 
     let cancel_requested = Arc::new(AtomicBool::new(false));
     spawn_control_reader(reader, Arc::clone(&cancel_requested));

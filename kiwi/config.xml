@@ -185,6 +185,14 @@
       is what makes the GRUB panic-button rollback menu exist at all.
     -->
     <package name="btrfsprogs"/>
+    <!-- The installer creates a FAT32 EFI System Partition and deploys the
+         live squashfs into the target. These tools are runtime requirements,
+         not merely image-build utilities. -->
+    <package name="dosfstools"/>
+    <package name="squashfs"/>
+    <!-- sgdisk currently arrives transitively, but the installer invokes it
+         directly, so keep its provider explicit under onlyRequired. -->
+    <package name="gptfdisk"/>
     <package name="snapper"/>
     <!-- snapper only Recommends this package; onlyRequired would otherwise
          omit the plugin that creates pre/post snapshots for zypper. -->
