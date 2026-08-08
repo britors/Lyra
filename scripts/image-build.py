@@ -22,9 +22,9 @@ ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MANIFEST = ROOT / "image-build.toml"
 KIWI = ROOT / "kiwi"
 RELEASE = ROOT / "release.toml"
-PACKAGE_SIGNING_KEY = KIWI / "keys/suse-16-package-signing.asc"
-PACKAGE_SIGNING_KEY_SHA256 = "2f5f47168f5bd25efc5d1f26ebfab5a8fcba971b8d7c6dda19c0882ad8092acb"
-PACKAGE_SIGNING_KEY_EXPORT = "suse-16-package-signing.asc"
+OBS_SIGNING_KEYRING = KIWI / "keys/obs-package-signing-keyring.asc"
+OBS_SIGNING_KEYRING_SHA256 = "98d1bb4dc35174d2e23cc45b419947164f0019df9c6336492e195b8fb29d218c"
+OBS_SIGNING_KEYRING_EXPORT = "obs-package-signing-keyring.asc"
 
 
 class PolicyError(RuntimeError):
@@ -154,8 +154,8 @@ def validate_sources(manifest: Manifest) -> None:
     flathub = KIWI / "root/etc/flatpak/remotes.d/flathub.flatpakrepo"
     if "GPGKey=" not in flathub.read_text(encoding="utf-8"):
         raise PolicyError("versioned Flathub remote or signing key is missing")
-    if sha256(PACKAGE_SIGNING_KEY) != PACKAGE_SIGNING_KEY_SHA256:
-        raise PolicyError("Leap 16 package-signing keyring differs from the reviewed checksum")
+    if sha256(OBS_SIGNING_KEYRING) != OBS_SIGNING_KEYRING_SHA256:
+        raise PolicyError("OBS package-signing keyring differs from the reviewed checksum")
 
 
 def source_metadata(commit: str, dirty: bool) -> tuple[dict[str, object], str]:
@@ -210,7 +210,7 @@ def render_obs_config(manifest: Manifest) -> bytes:
             ET.SubElement(
                 source,
                 "signing",
-                {"key": f"file:///usr/src/packages/SOURCES/{PACKAGE_SIGNING_KEY_EXPORT}"},
+                {"key": f"file:///usr/src/packages/SOURCES/{OBS_SIGNING_KEYRING_EXPORT}"},
             )
     build_repository = ET.Element("repository", {"alias": "obs-build", "type": "rpm-md"})
     ET.SubElement(build_repository, "source", {"path": "obsrepositories:/"})
@@ -237,7 +237,7 @@ def export(manifest: Manifest, destination: Path, commit: str, allow_dirty: bool
     ensure_export_target(destination)
     for name in ("config.sh",):
         shutil.copy2(KIWI / name, destination / name)
-    shutil.copy2(PACKAGE_SIGNING_KEY, destination / PACKAGE_SIGNING_KEY_EXPORT)
+    shutil.copy2(OBS_SIGNING_KEYRING, destination / OBS_SIGNING_KEYRING_EXPORT)
     shutil.copytree(KIWI / "root", destination / "root", symlinks=True)
     (destination / manifest.description).write_bytes(render_obs_config(manifest))
     (destination / "build-source.json").write_text(
@@ -274,11 +274,11 @@ def verify_export(manifest: Manifest, directory: Path) -> None:
         raise PolicyError("export must have one OBS-injected build repository")
     repo_oss = root.find("repository[@alias='repo-oss']")
     signing = None if repo_oss is None else repo_oss.find("source/signing")
-    expected_key = f"file:///usr/src/packages/SOURCES/{PACKAGE_SIGNING_KEY_EXPORT}"
+    expected_key = f"file:///usr/src/packages/SOURCES/{OBS_SIGNING_KEYRING_EXPORT}"
     if signing is None or signing.attrib.get("key") != expected_key:
-        raise PolicyError("preserved repository lacks the pinned Leap 16 signing keyring")
-    if sha256(directory / PACKAGE_SIGNING_KEY_EXPORT) != PACKAGE_SIGNING_KEY_SHA256:
-        raise PolicyError("exported Leap 16 signing keyring failed its checksum")
+        raise PolicyError("preserved repository lacks the pinned OBS signing keyring")
+    if sha256(directory / OBS_SIGNING_KEYRING_EXPORT) != OBS_SIGNING_KEYRING_SHA256:
+        raise PolicyError("exported OBS signing keyring failed its checksum")
     installed = [node for node in root.findall("repository") if node.attrib.get("alias") != "obs-build"]
     if len(installed) != 5 or any(node.attrib.get("imageonly") != "true" for node in installed):
         raise PolicyError("installed repositories must be isolated from OBS build resolution")
