@@ -23,7 +23,7 @@ DEFAULT_MANIFEST = ROOT / "image-build.toml"
 KIWI = ROOT / "kiwi"
 RELEASE = ROOT / "release.toml"
 OBS_SIGNING_KEYRING = KIWI / "keys/obs-package-signing-keyring.asc"
-OBS_SIGNING_KEYRING_SHA256 = "98d1bb4dc35174d2e23cc45b419947164f0019df9c6336492e195b8fb29d218c"
+OBS_SIGNING_KEYRING_SHA256 = "d022ff92be1bf001cc81a9f502aae839b8d9ff68ea6179e7cec9bd76b3e3e07d"
 OBS_SIGNING_KEYRING_EXPORT = "obs-package-signing-keyring.asc"
 
 
