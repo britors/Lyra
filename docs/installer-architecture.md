@@ -1,16 +1,17 @@
 # Arquitetura do Lyra Installer
 
+As decisões aceitas estão em [`adr/`](adr/) e o fluxo normativo, incluindo
+falhas e cancelamento, está em
+[`installer-state-machine.md`](installer-state-machine.md).
+
 ## Decisão
 
 O instalador final do Lyra OS será uma aplicação nativa em Rust + Tauri, com
 interface HTML/CSS/JavaScript servida pelo WebKitGTK do sistema. A escolha
 acompanha o desktop GNOME, permite uma primeira impressão visual mais rica e
-responsiva e elimina a dependência visual e operacional do Calamares/Qt no
-produto final.
-
-O Calamares permanece temporariamente na ISO de desenvolvimento. Removê-lo
-antes de existir paridade no backend deixaria a imagem sem um caminho de
-instalação validado.
+responsiva e elimina a dependência visual e operacional do antigo instalador
+Qt. Na Beta 2, o Lyra Installer é o único instalador presente na ISO; isso
+torna seus testes end-to-end um bloqueador obrigatório do release.
 
 ## Limite de privilégios
 
@@ -50,11 +51,13 @@ processos, logs ou arquivos temporários persistentes.
 10. Desmontar em ordem reversa, sincronizar os dados e emitir um relatório
     local de instalação sem dados secretos.
 
-Cada etapa deve ser idempotente ou registrar claramente seu ponto de retomada.
-Uma falha nunca pode resultar em mensagem de sucesso nem ocultar os comandos e
-logs relevantes para diagnóstico.
+Operações de configuração devem convergir quando repetidas. Depois da primeira
+escrita destrutiva não há retomada automática na Beta 2: uma falha encerra a
+execução, libera recursos temporários e exige nova descoberta e confirmação.
+Uma falha nunca pode resultar em mensagem de sucesso nem ocultar os eventos
+relevantes para diagnóstico.
 
-## Critério para substituir o Calamares na ISO
+## Gate do instalador para publicar a Beta 2
 
 - frontend acessível por teclado e leitor de tela, em pt-BR e inglês;
 - backend com testes unitários de plano e testes de integração sobre loop
@@ -66,8 +69,9 @@ logs relevantes para diagnóstico.
 - Btrfs/Snapper e recuperação pelo GRUB comprovados;
 - pacote RPM `lyra-installer` publicado no OBS do Lyra.
 
-Somente depois desse checklist o KIWI troca o pacote, o autostart, a regra de
-polkit e remove `root/etc/calamares/`.
+O KIWI já contém somente o pacote, autostart e regra de privilégio do Lyra
+Installer. A ISO não pode ser publicada enquanto esse checklist não estiver
+verde; não existe instalador alternativo ou fallback na Beta 2.
 
 ## Descoberta de armazenamento e plano (issue #39)
 
@@ -96,21 +100,17 @@ falha, não só em erro (é assim que o alvo fica desmontado ao final de uma
 instalação bem-sucedida). `operation::PrivilegedOperation` deixou de ser um
 enum vazio com #40 — ver a seção seguinte.
 
-Diferente do Calamares (`Exec=pkexec /usr/bin/calamares`, a interface
-inteira como root), o `lyra-installer-service` é lançado via
+O `lyra-installer-service` é lançado via
 `pkexec /usr/libexec/lyra-installer-service` só pelo comando Tauri
 `execute_plan`, só durante a execução do plano — nunca a UI inteira. A
-autorização usa o mesmo padrão já comprovado para o Calamares
-(`root/etc/polkit-1/rules.d/00-lyra-live-installer.rules`): uma nova regra
-`01-lyra-installer-service.rules` libera a action `io.lyra.Installer.execute-plan`
-só para `liveuser`, e essa action (declarada em
-`root/usr/share/polkit-1/actions/io.lyra.Installer.policy`) está presa a
-esse binário específico via a annotation
+regra `01-lyra-installer-service.rules` libera a action
+`io.lyra.Installer.execute-plan` só para `liveuser`, e essa action (declarada
+em `io.lyra.Installer.policy`) está presa ao binário específico pela annotation
 `org.freedesktop.policykit.exec.path`.
 
-Como o pacote RPM do instalador ainda não existe (#53), nem `lyra-installer`
-nem `lyra-installer-service` estão de fato instalados em nenhuma imagem
-ainda — os arquivos de policy/regra ficam prontos, mas inertes, até lá.
+O RPM `lyra-installer` entrega interface, serviço, desktop entry, policy e
+regra como um conjunto. `kiwi/config.xml` consome esse pacote e não contém um
+segundo instalador.
 
 ## Particionamento e layout Btrfs (issue #40)
 
@@ -143,11 +143,9 @@ prática, só na lógica pura coberta por `cargo test`.
 
 `lyra-installer-core::service::operations::deploy` implanta o sistema no
 target já particionado por #40: extrai `/run/overlay/live/LiveOS/squashfs.img`
-(`unsquashfs -f`, preserva permissões/ACLs/xattrs), depois reproduz — lendo
-o comportamento real do Calamares instalado (incluindo módulos sem
-override no repo, como `machineid.conf`/`locale.conf`/`keyboard.conf`, cujo
-`.conf` efetivo vem do `calamares-branding-upstream`) — a mesma sequência
-que `settings.conf` roda depois do `fstab`: machine-id, locale, teclado,
+(`unsquashfs -f`, preserva permissões/ACLs/xattrs), depois executa a sequência
+Lyra auditada contra o comportamento do instalador anterior: machine-id,
+locale, teclado,
 hostname, criação do usuário (`useradd -R`/`chpasswd -R`, senha só via
 stdin, nunca argv), `sudoers.d`, initramfs, remoção do `liveuser` e de
 artefatos exclusivos da sessão live, redução de prioridade dos repositórios
@@ -165,21 +163,10 @@ próprio target): três operações `BindMount` (`/proc`, `/sys`, `/dev`) mais
 `chroot <target> dracut -f`, desmontadas pelo mesmo desfazimento
 sempre-executado de #40.
 
-**Achado real, não hipótese**: o `dracut.conf` efetivo hoje (sem override
-Lyra, herdado do `calamares-branding-upstream`) tem
-`initramfsName: /boot/initramfs-freebsd.img` — um valor de exemplo do
-upstream nunca trocado. Isso faz o Calamares atual gravar o initramfs no
-arquivo errado. `kiwi/root/etc/calamares/modules/dracut.conf` (novo)
-corrige isso removendo essa chave; `lyra-installer-service` já roda
-`dracut -f` correto desde o início.
-
-**Fora de escopo, sinalizado**: remover os pacotes `calamares`/
-`calamares-branding-upstream` do target (`packages.conf`'s `try_remove`) —
-mexe com resolução de dependências do zypper sem um target real para
-testar contra; fica para a auditoria de paridade da #44. `InstallConfig`
-também ainda não tem campo de teclado — o layout usado é um mapeamento
-fixo por locale (`pt_BR.UTF-8` → `br`, resto → `us`), assumido e dito
-explicitamente no código, não um seletor de verdade.
+O serviço usa `dracut -f`, mantendo o nome de initramfs derivado do kernel, e
+`InstallConfig` carrega explicitamente o layout de teclado selecionado. O
+comportamento anterior permanece documentado em `docs/calamares-reference/`
+somente como fonte histórica para a auditoria da migração.
 
 Mesma limitação de #40: nada disso foi executado contra root/disco real
 nesta sessão — só a lógica pura, com `FakeExecutor`/diretórios temporários
@@ -193,10 +180,9 @@ do Snapper precisa nascer já sem isso. Reaproveita os bind mounts de
 `/proc`/`/sys`/`/dev` que `RunDracut` (#41) já deixou de pé: como o
 desfazimento do engine só roda no fim de toda a execução, o chroot
 continua disponível para todas as operações abaixo sem montar nada de
-novo. Li o código de verdade de novo em vez de assumir: o `main.py` real
-do módulo `grubcfg` (compilado do pacote `calamares`), o
-`/usr/sbin/shim-install` real (pacote `shim`) e o helper
-`lyra-configure-btrfs-rollback` inteiro.
+novo. A implementação foi conferida contra `/usr/sbin/shim-install` (pacote
+`shim`), o helper `lyra-configure-btrfs-rollback` inteiro e a configuração
+histórica preservada em `docs/calamares-reference/`.
 
 Sequência: grava `/etc/default/grub` do target (mesma lógica de merge do
 `update_existing_config` real — descomenta/substitui chaves gerenciadas,
@@ -210,32 +196,28 @@ target (sem chroot — é só um argumento de caminho) + remove `subvol=`/
 real) → `chroot dracut --force --fstab` (chamada separada da de #41,
 pra reincorporar o fstab sem `subvol=`) → `chroot snapper create
 --read-only ...` (primeiro snapshot) → `grub2-mkconfig` de novo (pro
-submenu de rollback aparecer) → remove `/etc/calamares` e o helper bash do
-target.
+submenu de rollback aparecer) → remove o helper bash e os próprios artefatos
+do Lyra Installer do target.
 
 **Achado real #2**: o `grubcfg` de verdade duplica `"splash"` —
 `kernel_params: ["quiet","splash"]` do YAML mais a própria detecção
 automática de `plymouth` do módulo (plymouth está instalado no target)
 somam duas entradas, produzindo `GRUB_CMDLINE_LINUX_DEFAULT='quiet splash
-splash'`. `lyra-installer-service` calcula o valor certo direto;
-`kiwi/root/etc/calamares/modules/grubcfg.conf` também teve `"splash"`
-removido de `kernel_params` (fica só `["quiet"]`), corrigindo o Calamares
-ainda ativo pelo mesmo mecanismo — a detecção automática sozinha já
-reintroduz `splash` uma vez, sem duplicar.
+splash'`. `lyra-installer-service` calcula o valor certo diretamente, sem
+duplicar o parâmetro.
 
 **`shim-install` real já resolve o fallback EFI sozinho**: sem
 `--removable`, ele mesmo escreve `/boot/efi/EFI/boot/bootx64.efi` sempre
 que esse caminho não existir ou pertencer a outra distro, e cria a entrada
 NVRAM via `efibootmgr` internamente — não precisei reimplementar nada
-disso, só invocar a ferramenta real do mesmo jeito que o Calamares já
-invoca.
+disso; o serviço invoca diretamente a ferramenta suportada pelo Leap.
 
 **O que continua sem confirmação, e por quê**: "Snapper lista/cria
 snapshots após o primeiro boot", "rollback testado em VM" e "Secure Boot
 ligado/desligado" exigem boot real, que este ambiente não tem como fazer.
 A parte boa: **já existe tooling pronto pra isso** —
 `kiwi/test/build-and-run-vm.sh --secure-boot` usa OVMF com chaves
-Microsoft pré-inscritas, e `--boot-disk --secure-boot` reinicia um disco
+Microsoft pré-inscritas; reiniciar o guest na mesma execução inicia o disco
 já instalado preservando o NVRAM. `kiwi/README.md` já registra esse gap
 ("Validation status") — continua exatamente onde estava, não é novidade
 desta sessão.

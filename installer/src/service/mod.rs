@@ -17,8 +17,8 @@ pub mod operation;
 pub mod operations;
 pub mod protocol;
 
-pub use engine::{execute, ExecutionOutcome};
+pub use engine::{ExecutionOutcome, execute};
 pub use executor::{Executor, ExecutorError, RealExecutor};
-pub use operation::{ArgvCommand, OperationError, PrivilegedOperation, ALLOWED_BINARIES};
-pub use operations::{build, plan_to_operations, TARGET_ROOT};
+pub use operation::{ALLOWED_BINARIES, ArgvCommand, OperationError, PrivilegedOperation};
+pub use operations::{TARGET_ROOT, build, plan_to_operations};
 pub use protocol::{ExecutionControl, ExecutionEvent, ExecutionRequest};

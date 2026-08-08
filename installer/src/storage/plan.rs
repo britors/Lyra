@@ -11,11 +11,12 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use super::device::{Disk, DeviceRole, RaidLevel, StorageSnapshot};
+use super::device::{DeviceRole, Disk, RaidLevel, StorageSnapshot};
 
 /// Below this, a whole-disk/array/VG is not offered as an install target.
 /// No size requirement is documented anywhere in the project yet (grepped
-/// `PROMPT-LYRA-OS.md`, the Calamares configs, and `docs/installer-architecture.md`
+/// `PROMPT-LYRA-OS.md`, the historical storage reference, and
+/// `docs/installer-architecture.md`
 /// — none set one); 20 GiB is a conservative placeholder for a Btrfs+GNOME
 /// desktop root and should be revisited once #49 (performance/size budget)
 /// lands.
@@ -24,7 +25,12 @@ pub const MINIMUM_ROOT_SIZE_BYTES: u64 = 20 * 1024 * 1024 * 1024;
 pub const ESP_RECOMMENDED_SIZE_BYTES: u64 = 300 * 1024 * 1024;
 pub const ESP_MINIMUM_SIZE_BYTES: u64 = 32 * 1024 * 1024;
 
-// --- Btrfs layout, mirroring kiwi/root/etc/calamares/modules/mount.conf ---
+/// Wire-format version for [`InstallPlan`]. Any structural or semantic change
+/// that an older privileged service could misinterpret must increment this
+/// value. The service rejects unknown versions before running an operation.
+pub const INSTALL_PLAN_SCHEMA_VERSION: u32 = 1;
+
+// --- Btrfs layout, grounded in docs/calamares-reference/modules/mount.conf ---
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SubvolumePlan {
@@ -87,10 +93,14 @@ impl Default for FilesystemPlan {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EspPlan {
-    Create { size_bytes: u64 },
+    Create {
+        size_bytes: u64,
+    },
     /// An existing ESP is reused, never reformatted implicitly (per #39's
     /// acceptance criteria).
-    Reuse { path: PathBuf },
+    Reuse {
+        path: PathBuf,
+    },
 }
 
 // --- Target shape: raw block target, optionally with LVM on top -----------
@@ -154,6 +164,7 @@ pub struct DestructiveSummary {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct InstallPlan {
+    pub schema_version: u32,
     pub raw_target: Option<RawTarget>,
     pub volume_layer: VolumeLayer,
     pub esp: EspPlan,
@@ -190,7 +201,11 @@ impl<'a> PlanBuilder<'a> {
                 }
                 Err(reason) => errors.push(reason),
             },
-            Some(RawTarget::NewRaid { level, members, name }) => {
+            Some(RawTarget::NewRaid {
+                level,
+                members,
+                name,
+            }) => {
                 if members.len() < level.minimum_members() {
                     errors.push(format!(
                         "{name}: {level:?} exige ao menos {} discos, {} informados",
@@ -231,17 +246,27 @@ impl<'a> PlanBuilder<'a> {
             VolumeLayer::Direct => {
                 root_mount_present = true;
             }
-            VolumeLayer::NewVolumeGroup { name, logical_volumes } => {
+            VolumeLayer::NewVolumeGroup {
+                name,
+                logical_volumes,
+            } => {
                 root_mount_present = has_root_mount(logical_volumes);
-                if let Err(reason) = validate_logical_volumes(name, logical_volumes, available_bytes) {
+                if let Err(reason) =
+                    validate_logical_volumes(name, logical_volumes, available_bytes)
+                {
                     errors.push(reason);
                 }
             }
-            VolumeLayer::ExistingVolumeGroup { name, logical_volumes } => {
+            VolumeLayer::ExistingVolumeGroup {
+                name,
+                logical_volumes,
+            } => {
                 root_mount_present = has_root_mount(logical_volumes);
                 match self.eligible_volume_group(name) {
                     Ok(vg) => {
-                        if let Err(reason) = validate_logical_volumes(name, logical_volumes, Some(vg.free_bytes)) {
+                        if let Err(reason) =
+                            validate_logical_volumes(name, logical_volumes, Some(vg.free_bytes))
+                        {
                             errors.push(reason);
                         }
                     }
@@ -250,7 +275,9 @@ impl<'a> PlanBuilder<'a> {
             }
         }
         if !root_mount_present {
-            errors.push("o layout de volumes precisa incluir uma logical volume montada em /".to_string());
+            errors.push(
+                "o layout de volumes precisa incluir uma logical volume montada em /".to_string(),
+            );
         }
 
         if let Some(bytes) = available_bytes {
@@ -277,6 +304,7 @@ impl<'a> PlanBuilder<'a> {
         }
 
         Ok(InstallPlan {
+            schema_version: INSTALL_PLAN_SCHEMA_VERSION,
             raw_target: choice.raw_target.clone(),
             volume_layer: choice.volume_layer.clone(),
             esp,
@@ -302,10 +330,13 @@ impl<'a> PlanBuilder<'a> {
         }
         match disk.role {
             DeviceRole::Free => Ok(disk),
-            DeviceRole::RaidMember => Err(format!("{}: já é membro de um array RAID", path.display())),
-            DeviceRole::LvmPhysicalVolume => {
-                Err(format!("{}: já é um physical volume LVM em uso", path.display()))
+            DeviceRole::RaidMember => {
+                Err(format!("{}: já é membro de um array RAID", path.display()))
             }
+            DeviceRole::LvmPhysicalVolume => Err(format!(
+                "{}: já é um physical volume LVM em uso",
+                path.display()
+            )),
             DeviceRole::Unsupported => Err(format!(
                 "{}: já contém partições ou dados — particionamento manual ainda não é suportado",
                 path.display()
@@ -344,7 +375,11 @@ impl<'a> PlanBuilder<'a> {
         self.snapshot.disks.iter().find_map(|disk| {
             disk.partitions
                 .iter()
-                .find(|p| p.mountpoints.iter().any(|m| m == std::path::Path::new("/boot/efi")))
+                .find(|p| {
+                    p.mountpoints
+                        .iter()
+                        .any(|m| m == std::path::Path::new("/boot/efi"))
+                })
                 .map(|p| p.path.clone())
         })
     }
@@ -372,7 +407,7 @@ fn describe_disk_erasure(disk: &Disk, erased: &mut Vec<String>) {
 fn has_root_mount(logical_volumes: &[LogicalVolumePlan]) -> bool {
     logical_volumes
         .iter()
-        .any(|lv| lv.mount_point == PathBuf::from("/"))
+        .any(|lv| lv.mount_point.as_path() == std::path::Path::new("/"))
 }
 
 fn validate_logical_volumes(

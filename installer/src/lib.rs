@@ -127,7 +127,10 @@ impl InstallConfig {
         ) {
             errors.push("fuso horário não suportado");
         }
-        if !KEYBOARD_LAYOUTS.iter().any(|(id, ..)| *id == self.keyboard_layout) {
+        if !KEYBOARD_LAYOUTS
+            .iter()
+            .any(|(id, ..)| *id == self.keyboard_layout)
+        {
             errors.push("layout de teclado não suportado");
         }
         if !valid_hostname(&self.hostname) {

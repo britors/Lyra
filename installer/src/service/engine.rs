@@ -4,7 +4,7 @@
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use crate::storage::{PlanBuilder, StorageSnapshot};
+use crate::storage::{INSTALL_PLAN_SCHEMA_VERSION, PlanBuilder, StorageSnapshot};
 
 use super::executor::Executor;
 use super::operation::PrivilegedOperation;
@@ -33,6 +33,17 @@ pub fn execute<'a>(
     mut on_event: impl FnMut(ExecutionEvent),
 ) -> ExecutionOutcome {
     on_event(ExecutionEvent::Started);
+
+    if request.plan.schema_version != INSTALL_PLAN_SCHEMA_VERSION {
+        on_event(ExecutionEvent::Failed {
+            step: "versão do plano".to_string(),
+            message: format!(
+                "schema {} não suportado; este serviço aceita somente {}",
+                request.plan.schema_version, INSTALL_PLAN_SCHEMA_VERSION
+            ),
+        });
+        return ExecutionOutcome::Failed;
+    }
 
     match PlanBuilder::new(current_snapshot).build(&request.choice) {
         Err(error) => {
@@ -119,10 +130,10 @@ mod tests {
     use std::sync::Mutex;
 
     use super::*;
+    use crate::InstallConfig;
     use crate::service::executor::ExecutorError;
     use crate::service::operation::{ArgvCommand, OperationError};
     use crate::storage::{DeviceRole, Disk, GuidedChoice, RawTarget, Transport, VolumeLayer};
-    use crate::InstallConfig;
 
     struct FakeOperation {
         name: &'static str,
@@ -154,7 +165,9 @@ mod tests {
     fn fake_ops(names: &[(&'static str, bool)]) -> Vec<Box<dyn PrivilegedOperation>> {
         names
             .iter()
-            .map(|(name, undo)| Box::new(FakeOperation { name, undo: *undo }) as Box<dyn PrivilegedOperation>)
+            .map(|(name, undo)| {
+                Box::new(FakeOperation { name, undo: *undo }) as Box<dyn PrivilegedOperation>
+            })
             .collect()
     }
 
@@ -189,7 +202,11 @@ mod tests {
             }
         }
 
-        fn run_with_stdin(&self, command: &ArgvCommand, _stdin: &str) -> Result<String, ExecutorError> {
+        fn run_with_stdin(
+            &self,
+            command: &ArgvCommand,
+            _stdin: &str,
+        ) -> Result<String, ExecutorError> {
             self.run(command)
         }
     }
@@ -223,7 +240,9 @@ mod tests {
             raw_target: Some(RawTarget::Disk(PathBuf::from("/dev/sda"))),
             volume_layer: VolumeLayer::Direct,
         };
-        let plan = PlanBuilder::new(&snapshot).build(&choice).expect("fixture plan should be valid");
+        let plan = PlanBuilder::new(&snapshot)
+            .build(&choice)
+            .expect("fixture plan should be valid");
         (
             snapshot,
             ExecutionRequest {
@@ -249,11 +268,40 @@ mod tests {
         let mut events = Vec::new();
         let ops = fake_ops(&[("a", false)]);
 
-        let outcome = execute(&request, &stale_snapshot, &ops, &executor, &cancel, |event| events.push(event));
+        let outcome = execute(
+            &request,
+            &stale_snapshot,
+            &ops,
+            &executor,
+            &cancel,
+            |event| events.push(event),
+        );
 
         assert_eq!(outcome, ExecutionOutcome::Failed);
         assert!(executor.calls().is_empty());
-        assert!(matches!(events.last(), Some(ExecutionEvent::Failed { step, .. }) if step == "revalidação"));
+        assert!(
+            matches!(events.last(), Some(ExecutionEvent::Failed { step, .. }) if step == "revalidação")
+        );
+    }
+
+    #[test]
+    fn an_unknown_plan_schema_fails_before_any_operation() {
+        let (snapshot, mut request) = valid_request();
+        request.plan.schema_version = INSTALL_PLAN_SCHEMA_VERSION + 1;
+        let executor = FakeExecutor::new(None);
+        let cancel = AtomicBool::new(false);
+        let mut events = Vec::new();
+        let ops = fake_ops(&[("a", false)]);
+
+        let outcome = execute(&request, &snapshot, &ops, &executor, &cancel, |event| {
+            events.push(event)
+        });
+
+        assert_eq!(outcome, ExecutionOutcome::Failed);
+        assert!(executor.calls().is_empty());
+        assert!(
+            matches!(events.last(), Some(ExecutionEvent::Failed { step, .. }) if step == "versão do plano")
+        );
     }
 
     #[test]
@@ -264,7 +312,9 @@ mod tests {
         let mut events = Vec::new();
         let ops = fake_ops(&[("a", false), ("b", false)]);
 
-        let outcome = execute(&request, &snapshot, &ops, &executor, &cancel, |event| events.push(event));
+        let outcome = execute(&request, &snapshot, &ops, &executor, &cancel, |event| {
+            events.push(event)
+        });
 
         assert_eq!(outcome, ExecutionOutcome::Cancelled);
         assert!(executor.calls().is_empty(), "no operation should have run");
@@ -278,7 +328,9 @@ mod tests {
         let mut events = Vec::new();
         let ops = fake_ops(&[("a", true), ("b", true), ("c", true)]);
 
-        let outcome = execute(&request, &snapshot, &ops, &executor, &cancel, |event| events.push(event));
+        let outcome = execute(&request, &snapshot, &ops, &executor, &cancel, |event| {
+            events.push(event)
+        });
 
         assert_eq!(outcome, ExecutionOutcome::Failed);
         assert_eq!(executor.calls(), vec!["a", "b", "c", "undo-b", "undo-a"]);
@@ -292,12 +344,19 @@ mod tests {
         let mut events = Vec::new();
         let ops = fake_ops(&[("mount-root", true), ("mount-home", true)]);
 
-        let outcome = execute(&request, &snapshot, &ops, &executor, &cancel, |event| events.push(event));
+        let outcome = execute(&request, &snapshot, &ops, &executor, &cancel, |event| {
+            events.push(event)
+        });
 
         assert_eq!(outcome, ExecutionOutcome::Completed);
         assert_eq!(
             executor.calls(),
-            vec!["mount-root", "mount-home", "undo-mount-home", "undo-mount-root"]
+            vec![
+                "mount-root",
+                "mount-home",
+                "undo-mount-home",
+                "undo-mount-root"
+            ]
         );
     }
 
@@ -308,9 +367,14 @@ mod tests {
         let cancel = AtomicBool::new(false);
         let mut events = Vec::new();
 
-        let outcome = execute(&request, &snapshot, &[], &executor, &cancel, |event| events.push(event));
+        let outcome = execute(&request, &snapshot, &[], &executor, &cancel, |event| {
+            events.push(event)
+        });
 
         assert_eq!(outcome, ExecutionOutcome::Completed);
-        assert_eq!(events, vec![ExecutionEvent::Started, ExecutionEvent::Completed]);
+        assert_eq!(
+            events,
+            vec![ExecutionEvent::Started, ExecutionEvent::Completed]
+        );
     }
 }

@@ -18,7 +18,6 @@ iso_consumer = true
 packages = [
   "aladfar",
   "beam",
-  "calamares",
   "chord",
   "lyra-installer",
   "lyra-theme",

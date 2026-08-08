@@ -10,14 +10,10 @@
   installer/src-tauri/tauri.conf.json, rather than the more conventional
   all-lowercase polkit style, so the two stay obviously linked.
 
-  Unlike com.github.calamares.calamares.pkexec.run (Calamares' own shipped
-  policy, granted as-is by 00-lyra-live-installer.rules), this action has
-  no upstream RPM to source it from - lyra-installer-service is Lyra's own
-  binary, so the action has to be declared here. Ships in the
-  lyra-installer RPM itself (see ../lyra-installer.spec), not as a KIWI
-  root/ overlay file - the authorization travels with the binary it
-  authorizes instead of living as a separately-tracked image file (issue
-  #43).
+  lyra-installer-service is Lyra's own binary, so the action is declared
+  here and ships in the lyra-installer RPM itself (see
+  ../lyra-installer.spec), not as a KIWI root/ overlay file. The
+  authorization therefore travels with the binary it authorizes.
 
   The org.freedesktop.policykit.exec.path annotation is what ties this
   action id to one specific binary: pkexec resolves the action for

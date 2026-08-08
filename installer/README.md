@@ -2,10 +2,11 @@
 
 Frontend nativo do instalador do Lyra OS, escrito em Rust com Tauri 2. A
 interface é HTML/CSS/JavaScript estático servido pelo WebKitGTK do sistema,
-com o núcleo de domínio e a futura ponte privilegiada em Rust. Neste primeiro
-estágio ele implementa a navegação do assistente, os padrões de produto
-(`pt_BR.UTF-8` e `lyra-os`) e a validação dos dados da conta sem executar
-nenhuma operação destrutiva.
+com o núcleo de domínio e o serviço privilegiado em Rust. Ele implementa a
+navegação do assistente, descoberta e planejamento de armazenamento, os
+padrões de produto (`pt_BR.UTF-8` e `lyra-os`) e a configuração do target. A
+execução destrutiva continua bloqueada na interface até passar pelo gate em
+VM da issue #11.
 
 ```bash
 cd installer
@@ -40,6 +41,12 @@ particionado), o resumo destrutivo e os avisos do plano, e só liberam
 "Continuar" quando o plano é válido — inclusive o erro real do
 `PlanBuilder` quando menos discos que o mínimo do nível são marcados,
 sem duplicar essa regra em JS.
+
+Todo `InstallPlan` carrega `schema_version`. A versão atual é `1`; o serviço
+rejeita versões desconhecidas antes de executar qualquer operação e reconstrói
+o plano contra um snapshot novo para detectar estado obsoleto. Os contratos e
+as regras de evolução estão em `docs/adr/0002-json-lines-privileged-protocol.md`
+e `docs/installer-state-machine.md`.
 
 A etapa abre com 5 cards de layout (`#layout-choice`), cada um
 pré-configurando `storageMode`/`lvmEnabled` e escondendo o que não é
@@ -164,18 +171,6 @@ Achei e corrigi mais duas lacunas reais, uma delas séria:
   padrão a vídeo/áudio/mídia removível/impressão. Corrigido para o mesmo
   conjunto de 7 grupos.
 
-Terceira rodada: portei o último item que tinha ficado deliberadamente de
-fora — `packages.conf`'s `try_remove: [calamares,
-calamares-branding-upstream]`. Lido direto do `main.py` real: o backend
-`zypp` roda, por pacote, `zypper --non-interactive remove <pkg>` dentro do
-chroot do target, e `operation_try_remove` remove **um pacote de cada
-vez**, engolindo a falha de cada um individualmente — é por isso que
-`try_remove` existe (uma mudança de nome do pacote de branding não pode
-derrubar uma instalação que, fora isso, terminou certa). `RemoveCalamaresPackages`
-porta isso literalmente, inclusive a tolerância por pacote. Precisou
-adicionar `zypper` à `ALLOWED_BINARIES` (única finalidade: remover
-exatamente esses dois pacotes, nunca com nome vindo de plano/usuário).
-
 Quarta rodada: fechei o `/etc/default/keyboard` e conferi o Netplan de
 verdade em vez de deixar como "achado menor". `WriteKeyboard` agora
 escreve `/etc/default/keyboard` (`XKBMODEL="pc105"` — valor literal do
@@ -262,15 +257,13 @@ ainda — o botão "Instalar" segue desabilitado ("Backend em
 desenvolvimento"), porque isso dispararia o serviço privilegiado fazendo
 partição/formatação de verdade, e isso só faz sentido depois de
 `service/test-loop-device.sh` rodar validado (ver acima) e da matriz de
-testes do #44.
+testes do #11.
 
 `operations::deploy` implanta o rootfs no target já particionado: extrai o
 squashfs da sessão live, machine-id, fuso horário, teclado, locale
 (mapeamento de teclado fixo por locale por enquanto — sem tela própria),
 hostname, cria o usuário (senha só via stdin do `chpasswd`, nunca em argv),
-`sudoers.d`, initramfs via `chroot` (achei e corrigi um bug real: o
-`dracut.conf` efetivo do Calamares hoje grava o initramfs num nome errado —
-ver `docs/installer-architecture.md`), remove `liveuser` e artefatos da
+`sudoers.d`, initramfs via `chroot`, remove `liveuser` e artefatos da
 sessão live, ajusta prioridade dos repositórios Lyra, copia perfis de rede
 e sincroniza o relógio em UTC. Por último (depois da limpeza do
 `liveuser`, de propósito): `/etc/default/grub` do target, `grub2-mkconfig`,
@@ -285,11 +278,12 @@ duplicava `"splash"` em `GRUB_CMDLINE_LINUX_DEFAULT` (detecção automática
 de plymouth somada ao valor já configurado) — ver
 `docs/installer-architecture.md`. `operations::build(request)` junta
 particionamento + implantação (incluindo bootloader/Snapper) + `sync`
-final. Fora de escopo por enquanto: remover os pacotes do Calamares do
-target (fica para a auditoria de paridade da #44); rollback e Secure Boot
-continuam sem confirmação de boot real — `kiwi/test/build-and-run-vm.sh
---secure-boot`/`--boot-disk --secure-boot` já existem prontos pra isso.
+final. Rollback e Secure Boot continuam sem confirmação de boot real —
+`kiwi/test/build-and-run-vm.sh --secure-boot` já prepara esse teste; depois da
+instalação, o primeiro boot do disco deve ser feito reiniciando o guest na
+mesma execução.
 
-O Calamares continua sendo o instalador ativo da imagem de desenvolvimento
-enquanto o serviço Tauri/Rust não implementa e valida todo o pipeline descrito em
-[`../docs/installer-architecture.md`](../docs/installer-architecture.md).
+O Lyra Installer é o único instalador ativo da imagem Beta 2. A ISO permanece
+pré-release enquanto o serviço e o pipeline descrito em
+[`../docs/installer-architecture.md`](../docs/installer-architecture.md) não
+forem validados de ponta a ponta.

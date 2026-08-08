@@ -38,7 +38,7 @@ instalado. Também inclui:
 - estado dos dispositivos de rede sem perfis, senhas ou nomes de conexão;
 - repositórios e pacotes instalados;
 - mounts, `fstab`, Btrfs, Snapper e GRUB;
-- disponibilidade dos instaladores e logs legíveis do Calamares/Lyra Installer.
+- disponibilidade e logs legíveis do Lyra Installer.
 
 Comandos ausentes ou dados sem permissão ficam registrados como falhas de
 coleta; isso não interrompe as demais seções.

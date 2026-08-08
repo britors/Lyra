@@ -6,7 +6,7 @@ use std::fmt;
 use std::io::Write;
 use std::process::{Command, Stdio};
 
-use super::operation::{ArgvCommand, ALLOWED_BINARIES};
+use super::operation::{ALLOWED_BINARIES, ArgvCommand};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExecutorError {

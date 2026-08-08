@@ -132,7 +132,6 @@ detect_context() {
 {
     printf 'collected_at_utc=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     printf 'context=%s\n' "$(detect_context)"
-    printf 'calamares_available=%s\n' "$(command -v calamares >/dev/null 2>&1 && printf yes || printf no)"
     printf 'rust_installer_available=%s\n' "$(command -v lyra-installer >/dev/null 2>&1 && printf yes || printf no)"
 } > "$raw_dir/context.txt"
 
@@ -179,7 +178,6 @@ collect efi-boot /usr/sbin/efibootmgr -v
 collect flatpak-remotes /usr/bin/flatpak remotes --system --show-details
 collect gnome-version /usr/bin/gnome-shell --version
 collect lyra-packages /usr/bin/rpm -q vega-gtk sheliak fina lyra-installer
-collect_file calamares-log /var/log/Calamares.log
 collect_file lyra-installer-log /var/log/lyra-installer.log
 
 # Connection names and SSIDs can occur in journal messages. They are supplied

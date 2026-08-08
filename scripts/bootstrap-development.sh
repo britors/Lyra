@@ -152,6 +152,7 @@ install_system_packages() {
         podman buildah
     )
     local -a virtualization_packages=(
+        # Complete toolchain consumed by kiwi/test/build-and-run-vm.sh.
         python3-kiwi
         kiwi-systemdeps-core
         kiwi-systemdeps-filesystems
@@ -159,9 +160,11 @@ install_system_packages() {
         kiwi-systemdeps-iso-media
         kiwi-systemdeps-disk-images
         kiwi-systemdeps-image-validation
-        qemu-x86 qemu-img qemu-ovmf-x86_64
+        dracut xorriso kmod
+        qemu qemu-x86 qemu-img qemu-ovmf-x86_64
         qemu-ui-gtk qemu-ui-opengl qemu-hw-display-virtio-vga
-        libvirt libvirt-daemon-qemu virt-manager
+        libvirt libvirt-daemon-qemu libvirt-daemon-driver-qemu
+        libvirt-daemon-config-network virt-manager
     )
     local -a packages=("${base_packages[@]}")
 
@@ -260,10 +263,20 @@ configure_osc() {
 }
 
 configure_virtualization() {
+    local -a kvm_modules=(kvm)
+    local cpu_vendor
     local group_name
+    local kvm_module
     local current_user
 
     current_user=$(id -un)
+    cpu_vendor=$(awk -F: '/^[[:space:]]*vendor_id[[:space:]]*:/ {
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", $2); print $2; exit
+    }' /proc/cpuinfo 2>/dev/null || true)
+    case "$cpu_vendor" in
+        GenuineIntel) kvm_modules+=(kvm_intel) ;;
+        AuthenticAMD) kvm_modules+=(kvm_amd) ;;
+    esac
 
     log "Configuring local virtualization"
     if (( ! DRY_RUN )); then
@@ -273,12 +286,23 @@ configure_virtualization() {
             fi
         done
 
+        for kvm_module in "${kvm_modules[@]}"; do
+            print_command sudo -- modprobe "$kvm_module"
+            if ! sudo -- modprobe "$kvm_module"; then
+                printf '  warning  could not load %s; check CPU virtualization in firmware\n' \
+                    "$kvm_module" >&2
+            fi
+        done
+
         if systemctl list-unit-files libvirtd.service --no-legend 2>/dev/null \
             | grep -q '^libvirtd\.service'; then
             run_as_root systemctl enable --now libvirtd.service
         fi
     else
         printf '  + add %q to the kvm and libvirt groups when available\n' "$current_user"
+        printf '  + load KVM modules:'
+        printf ' %q' "${kvm_modules[@]}"
+        printf '\n'
         printf '  + enable libvirtd.service when available\n'
     fi
 }
@@ -292,7 +316,10 @@ verify_commands() {
         rustc cargo go node npm
         rpmbuild rpmlint shellcheck
     )
-    local -a virtualization_commands=(kiwi-ng qemu-system-x86_64 qemu-img)
+    local -a virtualization_commands=(
+        kiwi-ng lsinitrd xorriso
+        qemu-system-x86_64 qemu-img qemu-kvm
+    )
     local command_name
     local failures=0
 
@@ -322,6 +349,73 @@ verify_commands() {
     (( failures == 0 )) || die "one or more required commands are missing"
 }
 
+verify_virtualization_runtime() {
+    (( INSTALL_PACKAGES && INSTALL_VIRTUALIZATION )) || return 0
+
+    local -a firmware_files=(
+        /usr/share/qemu/ovmf-x86_64-4m-code.bin
+        /usr/share/qemu/ovmf-x86_64-4m-vars.bin
+        /usr/share/qemu/ovmf-x86_64-smm-ms-code.bin
+        /usr/share/qemu/ovmf-x86_64-smm-ms-vars.bin
+    )
+    local current_user
+    local current_session_groups
+    local firmware_file
+    local kvm_group_members
+    local failures=0
+
+    current_user=$(id -un)
+    log "Verifying QEMU/KVM runtime"
+
+    if (( DRY_RUN )); then
+        printf '  + verify QEMU GTK, VirtIO VGA, OVMF and /dev/kvm access\n'
+        return
+    fi
+
+    for firmware_file in "${firmware_files[@]}"; do
+        if [[ -r $firmware_file ]]; then
+            printf '  ok  %s\n' "$firmware_file"
+        else
+            printf '  missing  %s\n' "$firmware_file" >&2
+            failures=1
+        fi
+    done
+
+    if qemu-system-x86_64 -display help 2>&1 | grep -Fx gtk >/dev/null; then
+        printf '  ok  QEMU GTK display backend\n'
+    else
+        printf '  missing  QEMU GTK display backend\n' >&2
+        failures=1
+    fi
+
+    if qemu-system-x86_64 -device help 2>&1 |
+        grep -F 'name "virtio-vga"' >/dev/null; then
+        printf '  ok  QEMU VirtIO VGA device\n'
+    else
+        printf '  missing  QEMU VirtIO VGA device\n' >&2
+        failures=1
+    fi
+
+    kvm_group_members=$(getent group kvm 2>/dev/null | cut -d: -f4 | tr ',' '\n' || true)
+    current_session_groups=$(id -nG)
+
+    if [[ -r /dev/kvm && -w /dev/kvm ]]; then
+        printf '  ok  /dev/kvm is available to %s\n' "$current_user"
+    elif [[ -e /dev/kvm ]] &&
+        grep -Fx "$current_user" <<<"$kvm_group_members" >/dev/null &&
+        ! grep -Fw kvm <<<"$current_session_groups" >/dev/null; then
+        printf '  pending  open a new login session to activate /dev/kvm access\n'
+    elif [[ -e /dev/kvm ]]; then
+        printf '  missing  %s has no access to /dev/kvm\n' "$current_user" >&2
+        failures=1
+    else
+        printf '  unavailable  /dev/kvm; enable CPU virtualization and load the KVM module\n' >&2
+        failures=1
+    fi
+
+    (( failures == 0 )) || die "QEMU/KVM is incomplete; see the checks above"
+}
+
 print_next_steps() {
     cat <<EOF
 
@@ -337,6 +431,10 @@ Open a new login session before using libvirt, then complete authentication:
   osc my projects
   codex login
   codex login status
+
+Build a fresh ISO and start its disposable QEMU/KVM machine:
+
+  ./kiwi/test/build-and-run-vm.sh
 
 Credentials are intentionally not copied or embedded by this script.
 EOF
@@ -370,6 +468,7 @@ main() {
     fi
 
     verify_commands
+    verify_virtualization_runtime
     print_next_steps
 }
 

@@ -29,7 +29,8 @@ class ManifestTests(unittest.TestCase):
 
     def test_project_inventory_matches_beta_two_contract(self) -> None:
         self.assertEqual([project.id for project in self.manifest.projects], ["lyra", "vega", "fina"])
-        self.assertEqual(len(self.manifest.project("lyra").packages), 9)
+        self.assertEqual(len(self.manifest.project("lyra").packages), 8)
+        self.assertNotIn("calamares", self.manifest.project("lyra").packages)
         self.assertEqual(self.manifest.project("fina").targets[1].name, "openSUSE_Tumbleweed")
 
     def test_staging_is_never_an_iso_consumer(self) -> None:

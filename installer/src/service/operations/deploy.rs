@@ -1,22 +1,13 @@
 //! Rootfs deployment and target configuration (issue #41): extract the live
-//! squashfs into the mounted target from #40, then reproduce every step
-//! Calamares' real `settings.conf` sequence runs after `fstab` — read
-//! directly from the installed Calamares module tree (including the ones
-//! with no Lyra override, `machineid.conf`/`locale.conf`/`keyboard.conf`/
-//! `dracut.conf`, which come from `calamares-branding-upstream`) rather
-//! than guessed.
+//! squashfs into the mounted target from #40, then configure the installed
+//! system. The initial behavior was audited against the former installer
+//! path and is now owned directly by Lyra rather than depending on it.
 //!
 //! Most steps use `--root`/`-R` flags (`useradd`, `userdel`, `chpasswd`,
 //! `systemctl`) or plain file I/O against paths under the target, avoiding
 //! a chroot entirely. Only `dracut` genuinely needs one — it inspects the
 //! target's own `/lib/modules` — so [`BindMount`] + [`RunDracut`] are the
 //! only operations here that touch `chroot`.
-//!
-//! Deliberately not covered: removing the `calamares`/
-//! `calamares-branding-upstream` RPMs from the target (Calamares'
-//! `packages.conf`). That needs real zypper dependency resolution against
-//! a target this session can't test against — left for #44's parity audit
-//! rather than guessed at.
 
 use std::fs;
 use std::io::Read;
@@ -25,7 +16,7 @@ use std::path::{Path, PathBuf};
 
 use crate::InstallConfig;
 
-use super::{io_error, path_str, ArgvCommand, Executor, OperationError, PrivilegedOperation};
+use super::{ArgvCommand, Executor, OperationError, PrivilegedOperation, io_error, path_str};
 
 const LIVE_SQUASHFS: &str = "/run/overlay/live/LiveOS/squashfs.img";
 const LIVE_NM_CONNECTIONS: &str = "/etc/NetworkManager/system-connections";
@@ -33,21 +24,23 @@ const LIVE_NM_CONNECTIONS: &str = "/etc/NetworkManager/system-connections";
 /// Repos whose priority KIWI sets to 1/2/3 (`kiwi/config.xml`) only so the
 /// image build picks Lyra's own package forks — must drop back down once
 /// installed, or a personal OBS project would keep outranking official
-/// Leap packages on every future `zypper dup`. Mirrors
-/// `installcleanup.conf`'s `zypper modifyrepo --priority 90` sequence.
+/// Leap packages on every future `zypper dup`.
 const LYRA_REPO_ALIASES: &[&str] = &["repo-lyra", "repo-vega", "repo-fina"];
+const INSTALLED_THIRD_PARTY_PRIORITY: u8 = 90;
 
-/// Mirrors `installcleanup.conf`'s final `rm -f` — every file that only
-/// makes sense in the autologin live session.
+/// Files that only make sense in the autologin live session.
 const LIVE_ONLY_ARTIFACTS: &[&str] = &[
     "etc/gdm/custom.conf",
     "etc/xdg/autostart/lyra-installer-autostart.desktop",
-    "etc/polkit-1/rules.d/00-lyra-live-installer.rules",
-    "usr/share/applications/calamares.desktop",
 ];
 
-/// Mirrors `services-systemd.conf` exactly.
-const ENABLED_SERVICES: &[&str] = &["NetworkManager.service", "firewalld.service", "gdm.service", "cups.service"];
+/// Essential services enabled in the installed system.
+const ENABLED_SERVICES: &[&str] = &[
+    "NetworkManager.service",
+    "firewalld.service",
+    "gdm.service",
+    "cups.service",
+];
 
 pub fn deployment_operations(config: &InstallConfig) -> Vec<Box<dyn PrivilegedOperation>> {
     let target_root = PathBuf::from(super::TARGET_ROOT);
@@ -123,9 +116,6 @@ pub fn deployment_operations(config: &InstallConfig) -> Vec<Box<dyn PrivilegedOp
         Box::new(RemoveLiveOnlyArtifacts {
             target_root: target_root.clone(),
         }),
-        Box::new(RemoveCalamaresPackages {
-            target_root: target_root.clone(),
-        }),
         Box::new(CopyNetworkConfig {
             target_root: target_root.clone(),
             source_dir: PathBuf::from(LIVE_NM_CONNECTIONS),
@@ -184,7 +174,10 @@ fn random_bytes(n: usize) -> Result<Vec<u8>, OperationError> {
 }
 
 fn random_hex(n: usize) -> Result<String, OperationError> {
-    Ok(random_bytes(n)?.iter().map(|byte| format!("{byte:02x}")).collect())
+    Ok(random_bytes(n)?
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect())
 }
 
 struct ExtractRootfs {
@@ -198,7 +191,12 @@ impl PrivilegedOperation for ExtractRootfs {
     fn perform(&self, executor: &dyn Executor) -> Result<(), OperationError> {
         executor.run(&ArgvCommand {
             binary: "unsquashfs".to_string(),
-            args: vec!["-f".to_string(), "-d".to_string(), path_str(&self.target_root), LIVE_SQUASHFS.to_string()],
+            args: vec![
+                "-f".to_string(),
+                "-d".to_string(),
+                path_str(&self.target_root),
+                LIVE_SQUASHFS.to_string(),
+            ],
         })?;
         repair_root_permissions(&self.target_root)?;
         Ok(())
@@ -285,8 +283,11 @@ impl PrivilegedOperation for WriteTimezone {
 
         let localtime = etc.join("localtime");
         let _ = fs::remove_file(&localtime);
-        std::os::unix::fs::symlink(format!("../usr/share/zoneinfo/{}", self.timezone), &localtime)
-            .map_err(io_error)?;
+        std::os::unix::fs::symlink(
+            format!("../usr/share/zoneinfo/{}", self.timezone),
+            &localtime,
+        )
+        .map_err(io_error)?;
 
         fs::write(etc.join("timezone"), format!("{}\n", self.timezone)).map_err(io_error)?;
         Ok(())
@@ -378,7 +379,12 @@ impl PrivilegedOperation for WriteKeyboard {
         let (_, xkb_layout, xkb_variant) = crate::KEYBOARD_LAYOUTS
             .iter()
             .find(|(id, ..)| *id == self.keyboard_layout)
-            .ok_or_else(|| OperationError::Io(format!("layout de teclado desconhecido: {}", self.keyboard_layout)))?;
+            .ok_or_else(|| {
+                OperationError::Io(format!(
+                    "layout de teclado desconhecido: {}",
+                    self.keyboard_layout
+                ))
+            })?;
 
         let etc = self.target_root.join("etc");
         fs::create_dir_all(&etc).map_err(io_error)?;
@@ -405,7 +411,11 @@ impl PrivilegedOperation for WriteKeyboard {
 
         let dconf_profile_dir = etc.join("dconf/profile");
         fs::create_dir_all(&dconf_profile_dir).map_err(io_error)?;
-        fs::write(dconf_profile_dir.join("user"), "user-db:user\nsystem-db:local\n").map_err(io_error)?;
+        fs::write(
+            dconf_profile_dir.join("user"),
+            "user-db:user\nsystem-db:local\n",
+        )
+        .map_err(io_error)?;
 
         let dconf_db_dir = etc.join("dconf/db/local.d");
         fs::create_dir_all(&dconf_db_dir).map_err(io_error)?;
@@ -421,7 +431,11 @@ impl PrivilegedOperation for WriteKeyboard {
 
         executor.run(&ArgvCommand {
             binary: "chroot".to_string(),
-            args: vec![path_str(&self.target_root), "dconf".to_string(), "update".to_string()],
+            args: vec![
+                path_str(&self.target_root),
+                "dconf".to_string(),
+                "update".to_string(),
+            ],
         })?;
         Ok(())
     }
@@ -531,14 +545,22 @@ struct BindMount {
 
 impl PrivilegedOperation for BindMount {
     fn describe(&self) -> String {
-        format!("bind-mount {} em {}", self.source.display(), self.dest.display())
+        format!(
+            "bind-mount {} em {}",
+            self.source.display(),
+            self.dest.display()
+        )
     }
 
     fn perform(&self, executor: &dyn Executor) -> Result<(), OperationError> {
         fs::create_dir_all(&self.dest).map_err(io_error)?;
         executor.run(&ArgvCommand {
             binary: "mount".to_string(),
-            args: vec!["--bind".to_string(), path_str(&self.source), path_str(&self.dest)],
+            args: vec![
+                "--bind".to_string(),
+                path_str(&self.source),
+                path_str(&self.dest),
+            ],
         })?;
         Ok(())
     }
@@ -588,7 +610,12 @@ impl PrivilegedOperation for MountVirtualFs {
         fs::create_dir_all(&self.dest).map_err(io_error)?;
         executor.run(&ArgvCommand {
             binary: "mount".to_string(),
-            args: vec!["-t".to_string(), self.fstype.to_string(), self.fstype.to_string(), path_str(&self.dest)],
+            args: vec![
+                "-t".to_string(),
+                self.fstype.to_string(),
+                self.fstype.to_string(),
+                path_str(&self.dest),
+            ],
         })?;
         Ok(())
     }
@@ -602,13 +629,8 @@ impl PrivilegedOperation for MountVirtualFs {
     }
 }
 
-/// `dracut.conf`'s real, active (unoverridden) content sets
-/// `initramfsName: /boot/initramfs-freebsd.img` — an upstream example
-/// value nobody replaced, which means Calamares on this image currently
-/// writes the initramfs to the *wrong* file. Runs plain `dracut -f`
-/// instead (the correct, kernel-versioned default); see
-/// `kiwi/root/etc/calamares/modules/dracut.conf`, added to fix the same
-/// bug for Calamares' own still-active path.
+/// Runs plain `dracut -f`, preserving the correct kernel-versioned default
+/// instead of inheriting an installer-specific output filename.
 struct RunDracut {
     target_root: PathBuf,
 }
@@ -621,7 +643,11 @@ impl PrivilegedOperation for RunDracut {
     fn perform(&self, executor: &dyn Executor) -> Result<(), OperationError> {
         executor.run(&ArgvCommand {
             binary: "chroot".to_string(),
-            args: vec![path_str(&self.target_root), "dracut".to_string(), "-f".to_string()],
+            args: vec![
+                path_str(&self.target_root),
+                "dracut".to_string(),
+                "-f".to_string(),
+            ],
         })?;
         Ok(())
     }
@@ -670,7 +696,13 @@ impl PrivilegedOperation for LowerLyraRepoPriorities {
             let content = fs::read_to_string(&path).map_err(io_error)?;
             let rewritten: String = content
                 .lines()
-                .map(|line| if line.trim_start().starts_with("priority=") { "priority=90" } else { line })
+                .map(|line| {
+                    if line.trim_start().starts_with("priority=") {
+                        format!("priority={INSTALLED_THIRD_PARTY_PRIORITY}")
+                    } else {
+                        line.to_string()
+                    }
+                })
                 .collect::<Vec<_>>()
                 .join("\n");
             fs::write(&path, rewritten + "\n").map_err(io_error)?;
@@ -691,54 +723,8 @@ impl PrivilegedOperation for RemoveLiveOnlyArtifacts {
     fn perform(&self, _executor: &dyn Executor) -> Result<(), OperationError> {
         for artifact in LIVE_ONLY_ARTIFACTS {
             // Best-effort: a missing file here just means there was nothing
-            // to clean up (e.g. Calamares' own desktop entry, once the Rust
-            // installer is what actually shipped this install).
+            // to clean up.
             let _ = fs::remove_file(self.target_root.join(artifact));
-        }
-        Ok(())
-    }
-}
-
-/// Ports the real `packages` module's `zypp` backend (`packages.conf`'s
-/// `try_remove: [calamares, calamares-branding-upstream]`) — read straight
-/// from the installed `main.py`: `PMZypp.remove()` runs, per package,
-/// `zypper --non-interactive remove <pkg>` inside the target chroot
-/// (`check_target_env_call`), and `operation_try_remove()` removes packages
-/// **one at a time**, catching `subprocess.CalledProcessError` per package
-/// rather than aborting the whole operation — the whole point of
-/// `try_remove` over plain `remove` is that a renamed branding package
-/// doesn't fail an otherwise-successful install. This was issue #44's last
-/// documented gap in `deploy.rs` (`RemoveLiveOnlyArtifacts`/
-/// `LowerLyraRepoPriorities` above only ever touched files directly, never
-/// the RPM database) — closing it needed `zypper` added to
-/// `ALLOWED_BINARIES`, since nothing here ran it before.
-const CALAMARES_PACKAGES: &[&str] = &["calamares", "calamares-branding-upstream"];
-
-struct RemoveCalamaresPackages {
-    target_root: PathBuf,
-}
-
-impl PrivilegedOperation for RemoveCalamaresPackages {
-    fn describe(&self) -> String {
-        "remover pacotes do Calamares do sistema instalado".to_string()
-    }
-
-    fn perform(&self, executor: &dyn Executor) -> Result<(), OperationError> {
-        for package in CALAMARES_PACKAGES {
-            // try_remove: one package's failure (already-gone, renamed,
-            // dependency snag) must never block the other or abort the
-            // install - mirrors operation_try_remove's per-package
-            // try/except exactly.
-            let _ = executor.run(&ArgvCommand {
-                binary: "chroot".to_string(),
-                args: vec![
-                    path_str(&self.target_root),
-                    "zypper".to_string(),
-                    "--non-interactive".to_string(),
-                    "remove".to_string(),
-                    package.to_string(),
-                ],
-            });
         }
         Ok(())
     }
@@ -766,7 +752,9 @@ impl PrivilegedOperation for CopyNetworkConfig {
         if !self.source_dir.is_dir() {
             return Ok(());
         }
-        let dest_dir = self.target_root.join("etc/NetworkManager/system-connections");
+        let dest_dir = self
+            .target_root
+            .join("etc/NetworkManager/system-connections");
         fs::create_dir_all(&dest_dir).map_err(io_error)?;
 
         let live_marker = "permissions=user:liveuser:;";
@@ -786,7 +774,13 @@ impl PrivilegedOperation for CopyNetworkConfig {
             let content = fs::read_to_string(entry.path()).map_err(io_error)?;
             let rewritten: String = content
                 .lines()
-                .map(|line| if line.contains(live_marker) { target_marker.as_str() } else { line })
+                .map(|line| {
+                    if line.contains(live_marker) {
+                        target_marker.as_str()
+                    } else {
+                        line
+                    }
+                })
                 .collect::<Vec<_>>()
                 .join("\n");
             fs::write(&dest_path, rewritten + "\n").map_err(io_error)?;
@@ -818,11 +812,18 @@ impl PrivilegedOperation for SetHardwareClock {
     }
 
     fn perform(&self, executor: &dyn Executor) -> Result<(), OperationError> {
-        let adjfile_flag = format!("--adjfile={}", path_str(&self.target_root.join("etc/adjtime")));
+        let adjfile_flag = format!(
+            "--adjfile={}",
+            path_str(&self.target_root.join("etc/adjtime"))
+        );
 
         let rtc = executor.run(&ArgvCommand {
             binary: "hwclock".to_string(),
-            args: vec!["--systohc".to_string(), "--utc".to_string(), adjfile_flag.clone()],
+            args: vec![
+                "--systohc".to_string(),
+                "--utc".to_string(),
+                adjfile_flag.clone(),
+            ],
         });
         if rtc.is_ok() {
             return Ok(());
@@ -830,7 +831,12 @@ impl PrivilegedOperation for SetHardwareClock {
 
         let _ = executor.run(&ArgvCommand {
             binary: "hwclock".to_string(),
-            args: vec!["--systohc".to_string(), "--utc".to_string(), "--directisa".to_string(), adjfile_flag],
+            args: vec![
+                "--systohc".to_string(),
+                "--utc".to_string(),
+                "--directisa".to_string(),
+                adjfile_flag,
+            ],
         });
         Ok(())
     }
@@ -846,7 +852,10 @@ impl PrivilegedOperation for EnableServices {
     }
 
     fn perform(&self, executor: &dyn Executor) -> Result<(), OperationError> {
-        let mut args = vec![format!("--root={}", path_str(&self.target_root)), "enable".to_string()];
+        let mut args = vec![
+            format!("--root={}", path_str(&self.target_root)),
+            "enable".to_string(),
+        ];
         args.extend(ENABLED_SERVICES.iter().map(|service| service.to_string()));
         executor.run(&ArgvCommand {
             binary: "systemctl".to_string(),
@@ -872,10 +881,7 @@ impl PrivilegedOperation for EnableServices {
 /// bug in that module: it separately auto-detects `plymouth` in the target
 /// and appends `"splash"` again on top of an already-`"splash"`-containing
 /// `kernel_params`, producing `'quiet splash splash'`. This writes the
-/// correct value once; `kiwi/root/etc/calamares/modules/grubcfg.conf` also
-/// drops `"splash"` from its own `kernel_params` so Calamares' still-active
-/// path stops duplicating it too (the plymouth auto-detect alone still
-/// adds it back exactly once).
+/// correct value once.
 const GRUB_DEFAULT_KEYS: &[(&str, &str)] = &[
     ("GRUB_TIMEOUT", "5"),
     ("GRUB_DEFAULT", "saved"),
@@ -904,7 +910,14 @@ impl PrivilegedOperation for WriteGrubDefaults {
 
         for line in existing.lines() {
             if line.contains('=') {
-                let key = line.trim_start().trim_start_matches('#').trim_start().split('=').next().unwrap_or("").trim();
+                let key = line
+                    .trim_start()
+                    .trim_start_matches('#')
+                    .trim_start()
+                    .split('=')
+                    .next()
+                    .unwrap_or("")
+                    .trim();
                 if let Some(pos) = remaining.iter().position(|(k, _)| *k == key) {
                     let (k, v) = remaining.remove(pos);
                     lines.push(format!("{k}={v}"));
@@ -995,7 +1008,11 @@ impl PrivilegedOperation for PrepareBtrfsRollback {
     fn perform(&self, executor: &dyn Executor) -> Result<(), OperationError> {
         executor.run(&ArgvCommand {
             binary: "btrfs".to_string(),
-            args: vec!["subvolume".to_string(), "set-default".to_string(), path_str(&self.target_root)],
+            args: vec![
+                "subvolume".to_string(),
+                "set-default".to_string(),
+                path_str(&self.target_root),
+            ],
         })?;
 
         let fstab_path = self.target_root.join("etc/fstab");
@@ -1051,7 +1068,11 @@ impl PrivilegedOperation for MountSnapshotsSubvolume {
     fn perform(&self, executor: &dyn Executor) -> Result<(), OperationError> {
         executor.run(&ArgvCommand {
             binary: "btrfs".to_string(),
-            args: vec!["subvolume".to_string(), "show".to_string(), path_str(&self.target_root.join(".snapshots"))],
+            args: vec![
+                "subvolume".to_string(),
+                "show".to_string(),
+                path_str(&self.target_root.join(".snapshots")),
+            ],
         })?;
 
         let fstab_path = self.target_root.join("etc/fstab");
@@ -1077,7 +1098,12 @@ impl PrivilegedOperation for RegenerateInitramfsWithFstab {
     fn perform(&self, executor: &dyn Executor) -> Result<(), OperationError> {
         executor.run(&ArgvCommand {
             binary: "chroot".to_string(),
-            args: vec![path_str(&self.target_root), "dracut".to_string(), "--force".to_string(), "--fstab".to_string()],
+            args: vec![
+                path_str(&self.target_root),
+                "dracut".to_string(),
+                "--force".to_string(),
+                "--fstab".to_string(),
+            ],
         })?;
         Ok(())
     }
@@ -1122,16 +1148,9 @@ impl PrivilegedOperation for SnapperCreateFirstSnapshot {
     }
 }
 
-/// Neither installer belongs on the installed system, regardless of which
-/// one the user actually ran (issue #43's "sistema instalado não contém
-/// launchers ou privilégios live de nenhum dos dois"). Calamares' own
-/// live-only files (`calamares.desktop`, its live-session polkit rule,
-/// GDM autologin, its autostart entry) are already handled by
-/// `RemoveLiveOnlyArtifacts`, which mirrors `installcleanup.conf`'s
-/// original list — this only needs the files that list never covered:
-/// `/etc/calamares` itself (config, not just the launcher) and every
-/// artifact belonging to this Rust installer, so the Rust path cleans up
-/// after itself exactly as thoroughly as it cleans up after Calamares.
+/// The installer belongs only to the live environment. Remove its GUI,
+/// service, launcher and authorization policy before the first snapshot so
+/// the installed system has no reusable installation privilege.
 const LYRA_INSTALLER_ARTIFACTS: &[&str] = &[
     "usr/bin/lyra-install-lock",
     "usr/bin/lyra-installer",
@@ -1151,8 +1170,10 @@ impl PrivilegedOperation for RemoveTransitionalInstallerArtifacts {
     }
 
     fn perform(&self, _executor: &dyn Executor) -> Result<(), OperationError> {
-        let _ = fs::remove_dir_all(self.target_root.join("etc/calamares"));
-        let _ = fs::remove_file(self.target_root.join("usr/libexec/lyra-configure-btrfs-rollback"));
+        let _ = fs::remove_file(
+            self.target_root
+                .join("usr/libexec/lyra-configure-btrfs-rollback"),
+        );
         for artifact in LYRA_INSTALLER_ARTIFACTS {
             let _ = fs::remove_file(self.target_root.join(artifact));
         }
@@ -1182,10 +1203,17 @@ fn strip_root_subvol_option(fstab: &str) -> Result<String, OperationError> {
                 .split(',')
                 .filter(|opt| !opt.starts_with("subvol=") && !opt.starts_with("subvolid="))
                 .collect();
-            let options = if options.is_empty() { "defaults".to_string() } else { options.join(",") };
+            let options = if options.is_empty() {
+                "defaults".to_string()
+            } else {
+                options.join(",")
+            };
             let dump = fields.get(4).copied().unwrap_or("0");
             let pass = fields.get(5).copied().unwrap_or("0");
-            lines.push(format!("{} {} {} {} {} {}", fields[0], fields[1], fields[2], options, dump, pass));
+            lines.push(format!(
+                "{} {} {} {} {} {}",
+                fields[0], fields[1], fields[2], options, dump, pass
+            ));
         } else {
             lines.push(line.to_string());
         }
@@ -1241,7 +1269,9 @@ fn add_snapshots_line(fstab: &str) -> Result<String, OperationError> {
         options = "defaults".to_string();
     }
 
-    lines.push(format!("{source} /.snapshots btrfs {options},subvol=/@/.snapshots 0 0"));
+    lines.push(format!(
+        "{source} /.snapshots btrfs {options},subvol=/@/.snapshots 0 0"
+    ));
     let mut content = lines.join("\n");
     content.push('\n');
     Ok(content)
@@ -1278,10 +1308,16 @@ mod tests {
             Ok(String::new())
         }
 
-        fn run_with_stdin(&self, command: &ArgvCommand, stdin: &str) -> Result<String, ExecutorError> {
-            self.calls
-                .borrow_mut()
-                .push(format!("{} {} <stdin: {stdin}>", command.binary, command.args.join(" ")));
+        fn run_with_stdin(
+            &self,
+            command: &ArgvCommand,
+            stdin: &str,
+        ) -> Result<String, ExecutorError> {
+            self.calls.borrow_mut().push(format!(
+                "{} {} <stdin: {stdin}>",
+                command.binary,
+                command.args.join(" ")
+            ));
             Ok(String::new())
         }
     }
@@ -1320,7 +1356,10 @@ mod tests {
         op.perform(&executor).unwrap();
         assert_eq!(
             executor.calls(),
-            vec![format!("unsquashfs -f -d {} /run/overlay/live/LiveOS/squashfs.img", temp.0.display())]
+            vec![format!(
+                "unsquashfs -f -d {} /run/overlay/live/LiveOS/squashfs.img",
+                temp.0.display()
+            )]
         );
     }
 
@@ -1329,7 +1368,10 @@ mod tests {
         let temp = TempRoot::new("repair-permissions-777");
         fs::set_permissions(&temp.0, fs::Permissions::from_mode(0o777)).unwrap();
         repair_root_permissions(&temp.0).unwrap();
-        assert_eq!(fs::metadata(&temp.0).unwrap().permissions().mode() & 0o777, 0o755);
+        assert_eq!(
+            fs::metadata(&temp.0).unwrap().permissions().mode() & 0o777,
+            0o755
+        );
 
         let temp2 = TempRoot::new("repair-permissions-700");
         fs::set_permissions(&temp2.0, fs::Permissions::from_mode(0o700)).unwrap();
@@ -1350,12 +1392,19 @@ mod tests {
         op.perform(&FakeExecutor::new()).unwrap();
 
         let id = fs::read_to_string(temp.0.join("etc/machine-id")).unwrap();
-        assert_eq!(id.trim().len(), 32, "machine-id should be a 32-char hex UUID");
+        assert_eq!(
+            id.trim().len(),
+            32,
+            "machine-id should be a 32-char hex UUID"
+        );
         assert!(id.trim().chars().all(|c| c.is_ascii_hexdigit()));
 
         let link = temp.0.join("var/lib/dbus/machine-id");
         assert!(link.symlink_metadata().unwrap().file_type().is_symlink());
-        assert_eq!(fs::read_link(&link).unwrap(), PathBuf::from("../../../etc/machine-id"));
+        assert_eq!(
+            fs::read_link(&link).unwrap(),
+            PathBuf::from("../../../etc/machine-id")
+        );
 
         for seed_dir in ["var/lib/urandom", "var/lib/systemd"] {
             let seed = fs::read(temp.0.join(seed_dir).join("random-seed")).unwrap();
@@ -1386,9 +1435,11 @@ mod tests {
             locale: "en_US.UTF-8".to_string(),
         };
         op2.perform(&FakeExecutor::new()).unwrap();
-        assert!(fs::read_to_string(temp2.0.join("etc/default/locale"))
-            .unwrap()
-            .contains("LANG=en_US.UTF-8"));
+        assert!(
+            fs::read_to_string(temp2.0.join("etc/default/locale"))
+                .unwrap()
+                .contains("LANG=en_US.UTF-8")
+        );
     }
 
     #[test]
@@ -1401,12 +1452,21 @@ mod tests {
         op.perform(&FakeExecutor::new()).unwrap();
 
         let localtime = temp.0.join("etc/localtime");
-        assert!(localtime.symlink_metadata().unwrap().file_type().is_symlink());
+        assert!(
+            localtime
+                .symlink_metadata()
+                .unwrap()
+                .file_type()
+                .is_symlink()
+        );
         assert_eq!(
             fs::read_link(&localtime).unwrap(),
             PathBuf::from("../usr/share/zoneinfo/America/Sao_Paulo")
         );
-        assert_eq!(fs::read_to_string(temp.0.join("etc/timezone")).unwrap(), "America/Sao_Paulo\n");
+        assert_eq!(
+            fs::read_to_string(temp.0.join("etc/timezone")).unwrap(),
+            "America/Sao_Paulo\n"
+        );
     }
 
     #[test]
@@ -1419,7 +1479,10 @@ mod tests {
         let executor = FakeExecutor::new();
         op.perform(&executor).unwrap();
 
-        assert_eq!(fs::read_to_string(temp.0.join("etc/vconsole.conf")).unwrap(), "KEYMAP=br\n");
+        assert_eq!(
+            fs::read_to_string(temp.0.join("etc/vconsole.conf")).unwrap(),
+            "KEYMAP=br\n"
+        );
         assert_eq!(
             fs::read_to_string(temp.0.join("etc/dconf/profile/user")).unwrap(),
             "user-db:user\nsystem-db:local\n"
@@ -1428,8 +1491,14 @@ mod tests {
             fs::read_to_string(temp.0.join("etc/dconf/db/local.d/00-keyboard")).unwrap(),
             "[org/gnome/desktop/input-sources]\nsources=[('xkb', 'br')]\n"
         );
-        assert_eq!(executor.calls(), vec![format!("chroot {} dconf update", temp.0.display())]);
-        assert!(!temp.0.join("etc/default/keyboard").exists(), "no /etc/default dir here, nothing to write into");
+        assert_eq!(
+            executor.calls(),
+            vec![format!("chroot {} dconf update", temp.0.display())]
+        );
+        assert!(
+            !temp.0.join("etc/default/keyboard").exists(),
+            "no /etc/default dir here, nothing to write into"
+        );
     }
 
     #[test]
@@ -1481,8 +1550,15 @@ mod tests {
             hostname: "lyra-os".to_string(),
         };
         op.perform(&FakeExecutor::new()).unwrap();
-        assert_eq!(fs::read_to_string(temp.0.join("etc/hostname")).unwrap(), "lyra-os\n");
-        assert!(fs::read_to_string(temp.0.join("etc/hosts")).unwrap().contains("127.0.1.1\tlyra-os"));
+        assert_eq!(
+            fs::read_to_string(temp.0.join("etc/hostname")).unwrap(),
+            "lyra-os\n"
+        );
+        assert!(
+            fs::read_to_string(temp.0.join("etc/hosts"))
+                .unwrap()
+                .contains("127.0.1.1\tlyra-os")
+        );
     }
 
     #[test]
@@ -1499,13 +1575,22 @@ mod tests {
 
         let calls = executor.calls();
         assert!(calls[0].starts_with("useradd -R"));
-        assert!(!calls[0].contains("harmonia-2026"), "password must never appear in argv");
+        assert!(
+            !calls[0].contains("harmonia-2026"),
+            "password must never appear in argv"
+        );
         assert!(
             calls[0].contains("-G users,lp,video,network,storage,wheel,audio"),
             "must match users.conf's real defaultGroups list, not just wheel: {}",
             calls[0]
         );
-        assert_eq!(calls[1], format!("chpasswd -R {} <stdin: lyra:harmonia-2026\n>", temp.0.display()));
+        assert_eq!(
+            calls[1],
+            format!(
+                "chpasswd -R {} <stdin: lyra:harmonia-2026\n>",
+                temp.0.display()
+            )
+        );
     }
 
     #[test]
@@ -1533,10 +1618,16 @@ mod tests {
         let executor = FakeExecutor::new();
         op.perform(&executor).unwrap();
         assert!(dest.is_dir());
-        assert_eq!(executor.calls(), vec![format!("mount -t efivarfs efivarfs {}", dest.display())]);
+        assert_eq!(
+            executor.calls(),
+            vec![format!("mount -t efivarfs efivarfs {}", dest.display())]
+        );
 
         op.undo(&executor).unwrap();
-        assert_eq!(executor.calls().last().unwrap(), &format!("umount {}", dest.display()));
+        assert_eq!(
+            executor.calls().last().unwrap(),
+            &format!("umount {}", dest.display())
+        );
     }
 
     #[test]
@@ -1550,10 +1641,16 @@ mod tests {
         let executor = FakeExecutor::new();
         op.perform(&executor).unwrap();
         assert!(dest.is_dir());
-        assert_eq!(executor.calls(), vec![format!("mount --bind /proc {}", dest.display())]);
+        assert_eq!(
+            executor.calls(),
+            vec![format!("mount --bind /proc {}", dest.display())]
+        );
 
         op.undo(&executor).unwrap();
-        assert_eq!(executor.calls().last().unwrap(), &format!("umount {}", dest.display()));
+        assert_eq!(
+            executor.calls().last().unwrap(),
+            &format!("umount {}", dest.display())
+        );
     }
 
     #[test]
@@ -1564,7 +1661,10 @@ mod tests {
         let executor = FakeExecutor::new();
         op.perform(&executor).unwrap();
         // No "initramfsName" garbage - see the module doc comment on RunDracut.
-        assert_eq!(executor.calls(), vec!["chroot /run/lyra-installer/target dracut -f"]);
+        assert_eq!(
+            executor.calls(),
+            vec!["chroot /run/lyra-installer/target dracut -f"]
+        );
     }
 
     #[test]
@@ -1590,7 +1690,11 @@ mod tests {
             "[repo-lyra]\nname=Lyra\nenabled=1\npriority=1\nautorefresh=1\n",
         )
         .unwrap();
-        fs::write(repos_dir.join("repo-oss.repo"), "[repo-oss]\nname=OSS\npriority=20\n").unwrap();
+        fs::write(
+            repos_dir.join("repo-oss.repo"),
+            "[repo-oss]\nname=OSS\npriority=20\n",
+        )
+        .unwrap();
 
         let op = LowerLyraRepoPriorities {
             target_root: temp.0.clone(),
@@ -1602,7 +1706,11 @@ mod tests {
         assert!(lyra.contains("name=Lyra"));
         assert!(lyra.contains("autorefresh=1"));
         // Untouched: not one of the three Lyra aliases.
-        assert!(fs::read_to_string(repos_dir.join("repo-oss.repo")).unwrap().contains("priority=20"));
+        assert!(
+            fs::read_to_string(repos_dir.join("repo-oss.repo"))
+                .unwrap()
+                .contains("priority=20")
+        );
     }
 
     #[test]
@@ -1612,13 +1720,16 @@ mod tests {
             target_root: temp.0.clone(),
         };
         // None of LIVE_ONLY_ARTIFACTS exist under this fresh temp root.
-        op.perform(&FakeExecutor::new()).expect("missing files must not be an error");
+        op.perform(&FakeExecutor::new())
+            .expect("missing files must not be an error");
     }
 
     #[test]
     fn remove_live_only_artifacts_removes_files_that_exist() {
         let temp = TempRoot::new("remove-artifacts-present");
-        let path = temp.0.join("usr/share/applications/calamares.desktop");
+        let path = temp
+            .0
+            .join("etc/xdg/autostart/lyra-installer-autostart.desktop");
         fs::create_dir_all(path.parent().unwrap()).unwrap();
         fs::write(&path, "[Desktop Entry]\n").unwrap();
 
@@ -1630,41 +1741,28 @@ mod tests {
     }
 
     #[test]
-    fn remove_calamares_packages_removes_both_chrooted_via_zypper() {
-        let op = RemoveCalamaresPackages {
-            target_root: PathBuf::from("/run/lyra-installer/target"),
-        };
-        let executor = FakeExecutor::new();
-        op.perform(&executor).unwrap();
-        assert_eq!(
-            executor.calls(),
-            vec![
-                "chroot /run/lyra-installer/target zypper --non-interactive remove calamares",
-                "chroot /run/lyra-installer/target zypper --non-interactive remove calamares-branding-upstream",
-            ]
-        );
-    }
-
-    #[test]
-    fn remove_calamares_packages_tries_both_even_if_the_first_fails() {
-        let op = RemoveCalamaresPackages {
-            target_root: PathBuf::from("/run/lyra-installer/target"),
-        };
-        op.perform(&AlwaysFailingExecutor).expect("try_remove must never abort the install");
-    }
-
-    #[test]
     fn copy_network_config_skips_ltsp_and_existing_and_rewrites_permissions() {
         let source = TempRoot::new("nm-source");
-        fs::write(source.0.join("home-wifi.nmconnection"), "[connection]\npermissions=user:liveuser:;\nid=home\n")
-            .unwrap();
+        fs::write(
+            source.0.join("home-wifi.nmconnection"),
+            "[connection]\npermissions=user:liveuser:;\nid=home\n",
+        )
+        .unwrap();
         fs::write(source.0.join("LTSP"), "should be skipped\n").unwrap();
 
         let target = TempRoot::new("nm-target");
         let existing_dest = target.0.join("etc/NetworkManager/system-connections");
         fs::create_dir_all(&existing_dest).unwrap();
-        fs::write(existing_dest.join("already-there.nmconnection"), "id=already-there\n").unwrap();
-        fs::write(source.0.join("already-there.nmconnection"), "id=should-not-overwrite\n").unwrap();
+        fs::write(
+            existing_dest.join("already-there.nmconnection"),
+            "id=already-there\n",
+        )
+        .unwrap();
+        fs::write(
+            source.0.join("already-there.nmconnection"),
+            "id=should-not-overwrite\n",
+        )
+        .unwrap();
 
         let op = CopyNetworkConfig {
             target_root: target.0.clone(),
@@ -1716,7 +1814,9 @@ mod tests {
 
     impl Executor for RtcBrokenExecutor {
         fn run(&self, command: &ArgvCommand) -> Result<String, ExecutorError> {
-            self.calls.borrow_mut().push(format!("{} {}", command.binary, command.args.join(" ")));
+            self.calls
+                .borrow_mut()
+                .push(format!("{} {}", command.binary, command.args.join(" ")));
             if command.args.contains(&"--directisa".to_string()) {
                 Ok(String::new())
             } else {
@@ -1724,7 +1824,11 @@ mod tests {
             }
         }
 
-        fn run_with_stdin(&self, _command: &ArgvCommand, _stdin: &str) -> Result<String, ExecutorError> {
+        fn run_with_stdin(
+            &self,
+            _command: &ArgvCommand,
+            _stdin: &str,
+        ) -> Result<String, ExecutorError> {
             unreachable!("hwclock never uses stdin")
         }
     }
@@ -1735,7 +1839,8 @@ mod tests {
             target_root: PathBuf::from("/run/lyra-installer/target"),
         };
         let executor = RtcBrokenExecutor::new();
-        op.perform(&executor).expect("must not fail even though the RTC attempt did");
+        op.perform(&executor)
+            .expect("must not fail even though the RTC attempt did");
         assert_eq!(
             executor.calls(),
             vec![
@@ -1754,7 +1859,11 @@ mod tests {
             Err(ExecutorError::NonZeroExit(Some(1)))
         }
 
-        fn run_with_stdin(&self, _command: &ArgvCommand, _stdin: &str) -> Result<String, ExecutorError> {
+        fn run_with_stdin(
+            &self,
+            _command: &ArgvCommand,
+            _stdin: &str,
+        ) -> Result<String, ExecutorError> {
             unreachable!("hwclock never uses stdin")
         }
     }
@@ -1764,7 +1873,8 @@ mod tests {
         let op = SetHardwareClock {
             target_root: PathBuf::from("/run/lyra-installer/target"),
         };
-        op.perform(&AlwaysFailingExecutor).expect("real hwclock module logs and returns None, never aborts");
+        op.perform(&AlwaysFailingExecutor)
+            .expect("real hwclock module logs and returns None, never aborts");
     }
 
     #[test]
@@ -1776,7 +1886,9 @@ mod tests {
         op.perform(&executor).unwrap();
         assert_eq!(
             executor.calls(),
-            vec!["systemctl --root=/run/lyra-installer/target enable NetworkManager.service firewalld.service gdm.service cups.service"]
+            vec![
+                "systemctl --root=/run/lyra-installer/target enable NetworkManager.service firewalld.service gdm.service cups.service"
+            ]
         );
     }
 
@@ -1797,12 +1909,24 @@ mod tests {
         op.perform(&FakeExecutor::new()).unwrap();
 
         let content = fs::read_to_string(grub_dir.join("grub")).unwrap();
-        assert!(content.contains("GRUB_TIMEOUT=5"), "existing key should be replaced, not duplicated");
+        assert!(
+            content.contains("GRUB_TIMEOUT=5"),
+            "existing key should be replaced, not duplicated"
+        );
         assert!(!content.contains("GRUB_TIMEOUT=10"));
-        assert!(content.contains("GRUB_DISABLE_RECOVERY=true"), "commented key should be uncommented and replaced");
+        assert!(
+            content.contains("GRUB_DISABLE_RECOVERY=true"),
+            "commented key should be uncommented and replaced"
+        );
         assert!(!content.contains("#GRUB_DISABLE_RECOVERY"));
-        assert!(content.contains("GRUB_ENABLE_CRYPTODISK=n"), "unmanaged key must be left untouched");
-        assert!(content.contains("GRUB_DEFAULT=saved"), "missing managed key should be appended");
+        assert!(
+            content.contains("GRUB_ENABLE_CRYPTODISK=n"),
+            "unmanaged key must be left untouched"
+        );
+        assert!(
+            content.contains("GRUB_DEFAULT=saved"),
+            "missing managed key should be appended"
+        );
         // The real grubcfg module's plymouth auto-detect bug would produce
         // "quiet splash splash" - confirm we never do that.
         assert_eq!(content.matches("splash").count(), 1);
@@ -1830,7 +1954,9 @@ mod tests {
         op.perform(&executor).unwrap();
         assert_eq!(
             executor.calls(),
-            vec!["chroot /run/lyra-installer/target shim-install --efi-directory=/boot/efi --config-file=/boot/grub2/grub.cfg"]
+            vec![
+                "chroot /run/lyra-installer/target shim-install --efi-directory=/boot/efi --config-file=/boot/grub2/grub.cfg"
+            ]
         );
     }
 
@@ -1859,7 +1985,10 @@ mod tests {
         let fstab = fs::read_to_string(etc.join("fstab")).unwrap();
         assert!(fstab.contains("UUID=1111 / btrfs compress=zstd 0 0"));
         assert!(!fstab.contains("subvol=/@"));
-        assert!(fstab.contains("UUID=2222 /boot/efi vfat defaults,umask=0077 0 2"), "other lines untouched");
+        assert!(
+            fstab.contains("UUID=2222 /boot/efi vfat defaults,umask=0077 0 2"),
+            "other lines untouched"
+        );
     }
 
     #[test]
@@ -1868,7 +1997,7 @@ mod tests {
         let etc = temp.0.join("etc");
         fs::create_dir_all(&etc).unwrap();
         fs::create_dir_all(temp.0.join(".snapshots")).unwrap();
-        fs::write(&etc.join("fstab"), "UUID=1111 / btrfs compress=zstd 0 0\n").unwrap();
+        fs::write(etc.join("fstab"), "UUID=1111 / btrfs compress=zstd 0 0\n").unwrap();
 
         let op = MountSnapshotsSubvolume {
             target_root: temp.0.clone(),
@@ -1878,10 +2007,15 @@ mod tests {
 
         assert_eq!(
             executor.calls(),
-            vec![format!("btrfs subvolume show {}", temp.0.join(".snapshots").display())]
+            vec![format!(
+                "btrfs subvolume show {}",
+                temp.0.join(".snapshots").display()
+            )]
         );
         let fstab = fs::read_to_string(etc.join("fstab")).unwrap();
-        assert!(fstab.contains("UUID=1111 /.snapshots btrfs compress=zstd,subvol=/@/.snapshots 0 0"));
+        assert!(
+            fstab.contains("UUID=1111 /.snapshots btrfs compress=zstd,subvol=/@/.snapshots 0 0")
+        );
     }
 
     #[test]
@@ -1891,7 +2025,10 @@ mod tests {
         };
         let executor = FakeExecutor::new();
         op.perform(&executor).unwrap();
-        assert_eq!(executor.calls(), vec!["chroot /run/lyra-installer/target dracut --force --fstab"]);
+        assert_eq!(
+            executor.calls(),
+            vec!["chroot /run/lyra-installer/target dracut --force --fstab"]
+        );
     }
 
     #[test]
@@ -1922,16 +2059,13 @@ mod tests {
     #[test]
     fn remove_transitional_installer_artifacts_is_best_effort() {
         let temp = TempRoot::new("remove-transitional");
-        let calamares_dir = temp.0.join("etc/calamares");
-        fs::create_dir_all(&calamares_dir).unwrap();
-        fs::write(calamares_dir.join("settings.conf"), "---\n").unwrap();
 
         let op = RemoveTransitionalInstallerArtifacts {
             target_root: temp.0.clone(),
         };
         // Missing helper script must not be an error.
-        op.perform(&FakeExecutor::new()).expect("missing helper script must not fail");
-        assert!(!calamares_dir.exists());
+        op.perform(&FakeExecutor::new())
+            .expect("missing helper script must not fail");
     }
 
     #[test]
@@ -1949,13 +2083,17 @@ mod tests {
         op.perform(&FakeExecutor::new()).unwrap();
 
         for artifact in LYRA_INSTALLER_ARTIFACTS {
-            assert!(!temp.0.join(artifact).exists(), "{artifact} should have been removed");
+            assert!(
+                !temp.0.join(artifact).exists(),
+                "{artifact} should have been removed"
+            );
         }
     }
 
     #[test]
     fn strip_root_subvol_option_rejects_a_fstab_without_exactly_one_root_line() {
-        let error = strip_root_subvol_option("UUID=1111 /home btrfs subvol=/@/home 0 0\n").unwrap_err();
+        let error =
+            strip_root_subvol_option("UUID=1111 /home btrfs subvol=/@/home 0 0\n").unwrap_err();
         assert!(matches!(error, OperationError::Io(_)));
     }
 
@@ -1971,22 +2109,49 @@ mod tests {
     #[test]
     fn deployment_operations_orders_timezone_before_keyboard_before_locale() {
         let config = InstallConfig::default();
-        let describe: Vec<String> = deployment_operations(&config).iter().map(|op| op.describe()).collect();
+        let describe: Vec<String> = deployment_operations(&config)
+            .iter()
+            .map(|op| op.describe())
+            .collect();
 
-        let timezone_index = describe.iter().position(|d| d.starts_with("configurar fuso horário")).unwrap();
-        let keyboard_index = describe.iter().position(|d| d == "configurar layout de teclado").unwrap();
-        let locale_index = describe.iter().position(|d| d.starts_with("configurar locale")).unwrap();
-        assert!(timezone_index < keyboard_index, "real settings.conf runs locale (timezone) before keyboard");
-        assert!(keyboard_index < locale_index, "real settings.conf runs keyboard before localecfg");
+        let timezone_index = describe
+            .iter()
+            .position(|d| d.starts_with("configurar fuso horário"))
+            .unwrap();
+        let keyboard_index = describe
+            .iter()
+            .position(|d| d == "configurar layout de teclado")
+            .unwrap();
+        let locale_index = describe
+            .iter()
+            .position(|d| d.starts_with("configurar locale"))
+            .unwrap();
+        assert!(
+            timezone_index < keyboard_index,
+            "real settings.conf runs locale (timezone) before keyboard"
+        );
+        assert!(
+            keyboard_index < locale_index,
+            "real settings.conf runs keyboard before localecfg"
+        );
     }
 
     #[test]
     fn deployment_operations_runs_grub_and_snapper_after_liveuser_cleanup() {
         let config = InstallConfig::default();
-        let describe: Vec<String> = deployment_operations(&config).iter().map(|op| op.describe()).collect();
+        let describe: Vec<String> = deployment_operations(&config)
+            .iter()
+            .map(|op| op.describe())
+            .collect();
 
-        let cleanup_index = describe.iter().position(|d| d == "remover conta liveuser").unwrap();
-        let first_snapshot_index = describe.iter().position(|d| d == "criar primeiro snapshot somente leitura").unwrap();
+        let cleanup_index = describe
+            .iter()
+            .position(|d| d == "remover conta liveuser")
+            .unwrap();
+        let first_snapshot_index = describe
+            .iter()
+            .position(|d| d == "criar primeiro snapshot somente leitura")
+            .unwrap();
         assert!(
             cleanup_index < first_snapshot_index,
             "the first snapshot must be taken after liveuser cleanup, or it would capture it"
@@ -1995,11 +2160,18 @@ mod tests {
         // grub2-mkconfig runs twice: once before shim-install, once again
         // after the first snapshot exists (so it shows up in the rollback
         // submenu).
-        let grub_indexes: Vec<usize> =
-            describe.iter().enumerate().filter(|(_, d)| *d == "gerar configuração do GRUB").map(|(i, _)| i).collect();
+        let grub_indexes: Vec<usize> = describe
+            .iter()
+            .enumerate()
+            .filter(|(_, d)| *d == "gerar configuração do GRUB")
+            .map(|(i, _)| i)
+            .collect();
         assert_eq!(grub_indexes.len(), 2);
         assert!(grub_indexes[1] > first_snapshot_index);
 
-        assert_eq!(describe.last().unwrap(), "remover artefatos transitórios do instalador");
+        assert_eq!(
+            describe.last().unwrap(),
+            "remover artefatos transitórios do instalador"
+        );
     }
 }

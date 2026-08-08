@@ -12,7 +12,10 @@ use std::process::Command;
 
 use serde::Deserialize;
 
-use super::device::{Disk, DeviceRole, LogicalVolume, Partition, RaidArray, RaidLevel, StorageSnapshot, Transport, VolumeGroup};
+use super::device::{
+    DeviceRole, Disk, LogicalVolume, Partition, RaidArray, RaidLevel, StorageSnapshot, Transport,
+    VolumeGroup,
+};
 
 #[derive(Debug)]
 pub enum DiscoveryError {
@@ -78,9 +81,16 @@ impl DiscoveryBackend for SystemDiscoveryBackend {
 /// already discovered so it isn't mistaken for a free, installable disk.
 /// Partition-level membership doesn't need this: a disk with any partition
 /// at all is already `Unsupported` from `disk_from_lsblk`.
-fn apply_membership_roles(disks: &mut [Disk], raid_arrays: &[RaidArray], volume_groups: &[VolumeGroup]) {
+fn apply_membership_roles(
+    disks: &mut [Disk],
+    raid_arrays: &[RaidArray],
+    volume_groups: &[VolumeGroup],
+) {
     let raid_members: Vec<&PathBuf> = raid_arrays.iter().flat_map(|r| r.members.iter()).collect();
-    let pv_members: Vec<&PathBuf> = volume_groups.iter().flat_map(|vg| vg.physical_volumes.iter()).collect();
+    let pv_members: Vec<&PathBuf> = volume_groups
+        .iter()
+        .flat_map(|vg| vg.physical_volumes.iter())
+        .collect();
 
     for disk in disks.iter_mut() {
         if disk.role != DeviceRole::Free {
@@ -172,9 +182,7 @@ fn disk_from_lsblk(device: LsblkDevice, live_media: &[String]) -> Disk {
         .map(partition_from_lsblk)
         .collect();
 
-    let role = if is_live_media {
-        DeviceRole::Unsupported
-    } else if !partitions.is_empty() {
+    let role = if is_live_media || !partitions.is_empty() {
         DeviceRole::Unsupported
     } else {
         DeviceRole::Free
@@ -222,7 +230,9 @@ fn transport_from_str(tran: Option<&str>) -> Transport {
 }
 
 fn non_empty(value: Option<String>) -> Option<String> {
-    value.map(|v| v.trim().to_string()).filter(|v| !v.is_empty())
+    value
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty())
 }
 
 /// The partition number suffix of a device name, e.g. `"3"` from both
@@ -230,7 +240,13 @@ fn non_empty(value: Option<String>) -> Option<String> {
 /// it meets (`"nvme0n1p3"` has one right after `nvme`), so this reads from
 /// the end instead.
 fn trailing_digits(name: &str) -> String {
-    name.chars().rev().take_while(|c| c.is_ascii_digit()).collect::<Vec<_>>().into_iter().rev().collect()
+    name.chars()
+        .rev()
+        .take_while(|c| c.is_ascii_digit())
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .collect()
 }
 
 /// Resolve the disk(s) backing the current root and the live boot media, by
@@ -242,8 +258,12 @@ fn live_media_disks() -> Vec<String> {
 
     for line in mounts.lines() {
         let mut fields = line.split_whitespace();
-        let Some(source) = fields.next() else { continue };
-        let Some(mount_point) = fields.next() else { continue };
+        let Some(source) = fields.next() else {
+            continue;
+        };
+        let Some(mount_point) = fields.next() else {
+            continue;
+        };
 
         if mount_point != "/" && !mount_point.starts_with("/run/overlay") {
             continue;
@@ -260,16 +280,14 @@ fn live_media_disks() -> Vec<String> {
 /// fallback when the sysfs symlink itself isn't readable.
 fn parent_disk_kname(kname: &str) -> String {
     let sys_path = format!("/sys/class/block/{kname}");
-    if let Ok(target) = fs::read_link(&sys_path) {
-        if let Some(parent) = target
+    if let Ok(target) = fs::read_link(&sys_path)
+        && let Some(parent) = target
             .parent()
             .and_then(|p| p.file_name())
             .and_then(|f| f.to_str())
-        {
-            if parent != kname {
-                return parent.to_string();
-            }
-        }
+        && parent != kname
+    {
+        return parent.to_string();
     }
     kname
         .trim_end_matches(|c: char| c.is_ascii_digit())
@@ -388,12 +406,14 @@ fn discover_lvm() -> (Vec<VolumeGroup>, Vec<LogicalVolume>) {
         .map(|rows| {
             group_vg_rows(rows)
                 .into_iter()
-                .map(|(name, physical_volumes, size_bytes, free_bytes)| VolumeGroup {
-                    name,
-                    physical_volumes: physical_volumes.into_iter().map(PathBuf::from).collect(),
-                    size_bytes,
-                    free_bytes,
-                })
+                .map(
+                    |(name, physical_volumes, size_bytes, free_bytes)| VolumeGroup {
+                        name,
+                        physical_volumes: physical_volumes.into_iter().map(PathBuf::from).collect(),
+                        size_bytes,
+                        free_bytes,
+                    },
+                )
                 .collect()
         })
         .unwrap_or_default();
@@ -454,11 +474,23 @@ fn run_lvs() -> Option<Vec<LvRow>> {
 /// against a real Leap-family desktop, where the bare command name silently
 /// resolved to "not found" (verified against a real system, not guessed).
 fn lvm_command(command: &str, fields: &str) -> Option<Vec<u8>> {
-    let candidates = [command.to_string(), format!("/usr/sbin/{command}"), format!("/sbin/{command}")];
+    let candidates = [
+        command.to_string(),
+        format!("/usr/sbin/{command}"),
+        format!("/sbin/{command}"),
+    ];
 
     for candidate in candidates {
         let Ok(output) = Command::new(&candidate)
-            .args(["--reportformat", "json", "--units", "b", "--nosuffix", "-o", fields])
+            .args([
+                "--reportformat",
+                "json",
+                "--units",
+                "b",
+                "--nosuffix",
+                "-o",
+                fields,
+            ])
             .output()
         else {
             continue;
@@ -481,7 +513,9 @@ mod tests {
     #[test]
     #[ignore]
     fn system_backend_produces_a_snapshot_on_this_machine() {
-        let snapshot = SystemDiscoveryBackend.snapshot().expect("discovery should not fail");
+        let snapshot = SystemDiscoveryBackend
+            .snapshot()
+            .expect("discovery should not fail");
         assert!(!snapshot.disks.is_empty(), "expected at least one disk");
         println!("{snapshot:#?}");
     }

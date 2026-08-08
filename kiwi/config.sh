@@ -56,7 +56,7 @@ EOF
 # therefore leave the path absent.  Snapper still opens /etc/mtab while
 # detecting the filesystem for `create-config`; point it at the kernel's live
 # mount table, as on a normally installed system.  The relative target keeps
-# the link valid both in the live image and in Calamares' target chroot.
+# the link valid both in the live image and in the installer's target root.
 ln -sfn ../proc/self/mounts /etc/mtab
 
 # Networking / firewall - Leap defaults, enabled explicitly for the live boot
@@ -68,8 +68,8 @@ baseUpdateSysConfig /etc/sysconfig/displaymanager DISPLAYMANAGER gdm
 suseInsertService gdm
 
 # Live-session autologin as liveuser. This is a live-boot convenience
-# only; the installed system's login/account model is set up by
-# Calamares (root disabled, sudo user), not here.
+# only; the installed system's login/account model is set up by the Lyra
+# Installer (root disabled, sudo user), not here.
 mkdir -p /etc/gdm
 cat > /etc/gdm/custom.conf <<EOF
 [daemon]
@@ -89,7 +89,7 @@ fi
 
 # Compile the image-owned GNOME defaults after KIWI has overlaid root/.
 # This activates the system-installed Sheliak extension for the live account
-# and for users subsequently created by Calamares, while still allowing each
+# and for users subsequently created by the installer, while allowing each
 # user to disable it normally.
 glib-compile-schemas /usr/share/glib-2.0/schemas
 

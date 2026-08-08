@@ -41,9 +41,10 @@ fallback. O tempo de userspace vem do systemd. RAM idle é
 durante a janela configurada. O JSON também preserva `systemd-analyze blame`,
 critical chain e os processos que mais consomem CPU para explicar regressões.
 
-O Calamares grava automaticamente em `/run/lyra-performance/installation.jsonl`
-os limites de armazenamento, cópia do rootfs, configuração do target, boot e
-finalização. Depois de uma instalação, capture a série com:
+O gate do instalador deve converter seus eventos estruturados em
+`/run/lyra-performance/installation.jsonl`, cobrindo armazenamento, cópia do
+rootfs, configuração do target, boot e finalização. Depois de uma instalação,
+capture a série com:
 
 ```bash
 lyra-performance capture \

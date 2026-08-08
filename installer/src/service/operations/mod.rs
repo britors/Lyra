@@ -22,28 +22,38 @@ mod deploy;
 pub const TARGET_ROOT: &str = "/run/lyra-installer/target";
 const STAGING_ROOT: &str = "/run/lyra-installer/staging";
 
-pub fn plan_to_operations(plan: &InstallPlan) -> Result<Vec<Box<dyn PrivilegedOperation>>, OperationError> {
+pub fn plan_to_operations(
+    plan: &InstallPlan,
+) -> Result<Vec<Box<dyn PrivilegedOperation>>, OperationError> {
     let disk = match &plan.raw_target {
         Some(RawTarget::Disk(path)) => path.clone(),
         Some(RawTarget::NewRaid { .. }) => {
-            return Err(OperationError::NotImplemented("RAID novo como alvo bruto".to_string()))
+            return Err(OperationError::NotImplemented(
+                "RAID novo como alvo bruto".to_string(),
+            ));
         }
         Some(RawTarget::ExistingRaid { .. }) => {
-            return Err(OperationError::NotImplemented("RAID existente como alvo bruto".to_string()))
+            return Err(OperationError::NotImplemented(
+                "RAID existente como alvo bruto".to_string(),
+            ));
         }
         None => {
             return Err(OperationError::NotImplemented(
                 "volume group existente como alvo direto".to_string(),
-            ))
+            ));
         }
     };
     match &plan.volume_layer {
         VolumeLayer::Direct => {}
         VolumeLayer::NewVolumeGroup { .. } => {
-            return Err(OperationError::NotImplemented("criar volume group LVM".to_string()))
+            return Err(OperationError::NotImplemented(
+                "criar volume group LVM".to_string(),
+            ));
         }
         VolumeLayer::ExistingVolumeGroup { .. } => {
-            return Err(OperationError::NotImplemented("volume group LVM existente".to_string()))
+            return Err(OperationError::NotImplemented(
+                "volume group LVM existente".to_string(),
+            ));
         }
     }
 
@@ -120,7 +130,9 @@ pub fn plan_to_operations(plan: &InstallPlan) -> Result<Vec<Box<dyn PrivilegedOp
 /// deployment (`deploy`, issue #41) + a final `sync`. Kept apart from
 /// `plan_to_operations` so #40's own tests can still check the
 /// partitioning-only sequence without the identity data `deploy` needs.
-pub fn build(request: &super::ExecutionRequest) -> Result<Vec<Box<dyn PrivilegedOperation>>, OperationError> {
+pub fn build(
+    request: &super::ExecutionRequest,
+) -> Result<Vec<Box<dyn PrivilegedOperation>>, OperationError> {
     let mut operations = plan_to_operations(&request.plan)?;
     operations.extend(deploy::deployment_operations(&request.config));
     operations.push(Box::new(SyncAndFinish));
@@ -131,8 +143,15 @@ pub fn build(request: &super::ExecutionRequest) -> Result<Vec<Box<dyn Privileged
 /// standard Linux partition naming (a `p` separator only when the disk name
 /// itself ends in a digit).
 fn partition_path(disk: &Path, number: u32) -> PathBuf {
-    let name = disk.file_name().and_then(|n| n.to_str()).unwrap_or_default();
-    let separator = if name.ends_with(|c: char| c.is_ascii_digit()) { "p" } else { "" };
+    let name = disk
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or_default();
+    let separator = if name.ends_with(|c: char| c.is_ascii_digit()) {
+        "p"
+    } else {
+        ""
+    };
     disk.with_file_name(format!("{name}{separator}{number}"))
 }
 
@@ -176,7 +195,11 @@ impl PrivilegedOperation for CreatePartitionTable {
             let esp_mib = esp_size_bytes / (1024 * 1024);
             executor.run(&ArgvCommand {
                 binary: "sgdisk".to_string(),
-                args: vec![format!("-n1:0:+{esp_mib}M"), "-t1:ef00".to_string(), disk.clone()],
+                args: vec![
+                    format!("-n1:0:+{esp_mib}M"),
+                    "-t1:ef00".to_string(),
+                    disk.clone(),
+                ],
             })?;
             executor.run(&ArgvCommand {
                 binary: "sgdisk".to_string(),
@@ -249,13 +272,19 @@ impl PrivilegedOperation for CreateSubvolumes {
         })?;
 
         for subvolume in &self.subvolumes {
-            let leaf = self.staging.join(subvolume.subvolume.trim_start_matches('/'));
+            let leaf = self
+                .staging
+                .join(subvolume.subvolume.trim_start_matches('/'));
             if let Some(parent) = leaf.parent() {
                 fs::create_dir_all(parent).map_err(io_error)?;
             }
             executor.run(&ArgvCommand {
                 binary: "btrfs".to_string(),
-                args: vec!["subvolume".to_string(), "create".to_string(), path_str(&leaf)],
+                args: vec![
+                    "subvolume".to_string(),
+                    "create".to_string(),
+                    path_str(&leaf),
+                ],
             })?;
         }
 
@@ -277,7 +306,11 @@ struct MountSubvolume {
 
 impl PrivilegedOperation for MountSubvolume {
     fn describe(&self) -> String {
-        format!("montar {} em {}", self.subvolume, self.mount_point.display())
+        format!(
+            "montar {} em {}",
+            self.subvolume,
+            self.mount_point.display()
+        )
     }
 
     fn perform(&self, executor: &dyn Executor) -> Result<(), OperationError> {
@@ -293,7 +326,12 @@ impl PrivilegedOperation for MountSubvolume {
         };
         executor.run(&ArgvCommand {
             binary: "mount".to_string(),
-            args: vec!["-o".to_string(), options, path_str(&self.partition), path_str(&dest)],
+            args: vec![
+                "-o".to_string(),
+                options,
+                path_str(&self.partition),
+                path_str(&dest),
+            ],
         })?;
         Ok(())
     }
@@ -384,14 +422,20 @@ impl PrivilegedOperation for WriteFstab {
 
         let mut content = String::from("# Gerado pelo Lyra Installer\n");
         for subvolume in &self.subvolumes {
-            let options = if subvolume.nodatacow { "nodatacow" } else { "compress=zstd" };
+            let options = if subvolume.nodatacow {
+                "nodatacow"
+            } else {
+                "compress=zstd"
+            };
             content.push_str(&format!(
                 "UUID={root_uuid} {} btrfs subvol={},{options} 0 0\n",
                 subvolume.mount_point.display(),
                 subvolume.subvolume,
             ));
         }
-        content.push_str(&format!("UUID={esp_uuid} /boot/efi vfat defaults,umask=0077 0 2\n"));
+        content.push_str(&format!(
+            "UUID={esp_uuid} /boot/efi vfat defaults,umask=0077 0 2\n"
+        ));
 
         let etc = self.target_root.join("etc");
         fs::create_dir_all(&etc).map_err(io_error)?;
@@ -426,8 +470,8 @@ mod tests {
 
     use super::*;
     use crate::storage::{
-        DeviceRole, Disk, GuidedChoice, LogicalVolumePlan, PlanBuilder, RaidArray, RaidLevel, SizePolicy,
-        StorageSnapshot, Transport, VolumeGroup,
+        DeviceRole, Disk, GuidedChoice, LogicalVolumePlan, PlanBuilder, RaidArray, RaidLevel,
+        SizePolicy, StorageSnapshot, Transport, VolumeGroup,
     };
 
     /// Records every command it's asked to run and returns a distinct fake
@@ -449,7 +493,10 @@ mod tests {
     }
 
     impl Executor for FakeExecutor {
-        fn run(&self, command: &ArgvCommand) -> Result<String, crate::service::executor::ExecutorError> {
+        fn run(
+            &self,
+            command: &ArgvCommand,
+        ) -> Result<String, crate::service::executor::ExecutorError> {
             self.calls
                 .borrow_mut()
                 .push(format!("{} {}", command.binary, command.args.join(" ")));
@@ -466,9 +513,11 @@ mod tests {
             command: &ArgvCommand,
             stdin: &str,
         ) -> Result<String, crate::service::executor::ExecutorError> {
-            self.calls
-                .borrow_mut()
-                .push(format!("{} {} <stdin: {stdin}>", command.binary, command.args.join(" ")));
+            self.calls.borrow_mut().push(format!(
+                "{} {} <stdin: {stdin}>",
+                command.binary,
+                command.args.join(" ")
+            ));
             Ok(String::new())
         }
     }
@@ -526,13 +575,16 @@ mod tests {
             raw_target: Some(RawTarget::Disk(PathBuf::from("/dev/sda"))),
             volume_layer: VolumeLayer::Direct,
         };
-        PlanBuilder::new(&snapshot).build(&choice).expect("fixture plan should be valid")
+        PlanBuilder::new(&snapshot)
+            .build(&choice)
+            .expect("fixture plan should be valid")
     }
 
     #[test]
     fn whole_disk_with_new_esp_produces_operations_in_mount_safe_order() {
         let plan = whole_disk_plan_with_new_esp();
-        let operations = plan_to_operations(&plan).expect("direct whole-disk plan should translate");
+        let operations =
+            plan_to_operations(&plan).expect("direct whole-disk plan should translate");
 
         let describe: Vec<String> = operations.iter().map(|op| op.describe()).collect();
         assert_eq!(describe[0], "criar tabela de partições em /dev/sda");
@@ -545,7 +597,10 @@ mod tests {
         assert_eq!(describe[describe.len() - 2], "montar ESP em /boot/efi");
 
         // 21 default subvolumes (see storage::plan::default_subvolumes).
-        let mount_count = describe.iter().filter(|d| d.starts_with("montar /@")).count();
+        let mount_count = describe
+            .iter()
+            .filter(|d| d.starts_with("montar /@"))
+            .count();
         assert_eq!(mount_count, 21);
 
         let index_of = |needle: &str| describe.iter().position(|d| d == needle).unwrap();
@@ -578,7 +633,10 @@ mod tests {
         // deployment starts right after with the rootfs extraction; the
         // whole thing ends with the sync that plan_to_operations no longer
         // includes on its own.
-        let fstab_index = describe.iter().position(|d| d == "gerar /etc/fstab").unwrap();
+        let fstab_index = describe
+            .iter()
+            .position(|d| d == "gerar /etc/fstab")
+            .unwrap();
         assert_eq!(describe[fstab_index + 1], "extrair rootfs da sessão live");
         assert_eq!(describe.last().unwrap(), "sincronizar dispositivos");
         assert!(describe.iter().any(|d| d == "gerar initramfs (dracut)"));
@@ -590,7 +648,9 @@ mod tests {
         let operations = plan_to_operations(&plan).unwrap();
         let executor = FakeExecutor::new();
 
-        operations[0].perform(&executor).expect("partition table creation should succeed");
+        operations[0]
+            .perform(&executor)
+            .expect("partition table creation should succeed");
 
         assert_eq!(
             executor.calls(),
@@ -627,11 +687,15 @@ mod tests {
             raw_target: Some(RawTarget::Disk(PathBuf::from("/dev/sdb"))),
             volume_layer: VolumeLayer::Direct,
         };
-        let plan = PlanBuilder::new(&snapshot).build(&choice).expect("fixture plan should be valid");
+        let plan = PlanBuilder::new(&snapshot)
+            .build(&choice)
+            .expect("fixture plan should be valid");
 
         let operations = plan_to_operations(&plan).expect("plan should translate");
         assert!(
-            !operations.iter().any(|op| op.describe().contains("formatar ESP")),
+            !operations
+                .iter()
+                .any(|op| op.describe().contains("formatar ESP")),
             "reusing an existing ESP must never format it"
         );
 
@@ -639,7 +703,11 @@ mod tests {
         operations[0].perform(&executor).unwrap();
         assert_eq!(
             executor.calls(),
-            vec!["wipefs -a /dev/sdb", "sgdisk --zap-all /dev/sdb", "sgdisk -n1:0:0 -t1:8300 /dev/sdb"],
+            vec![
+                "wipefs -a /dev/sdb",
+                "sgdisk --zap-all /dev/sdb",
+                "sgdisk -n1:0:0 -t1:8300 /dev/sdb"
+            ],
             "the target disk gets only a root partition; the existing ESP on the other disk is untouched"
         );
     }
@@ -665,7 +733,9 @@ mod tests {
             }),
             volume_layer: VolumeLayer::Direct,
         };
-        let raid_plan = PlanBuilder::new(&raid_snapshot).build(&raid_choice).expect("valid raid plan");
+        let raid_plan = PlanBuilder::new(&raid_snapshot)
+            .build(&raid_choice)
+            .expect("valid raid plan");
         assert!(matches!(
             plan_to_operations(&raid_plan),
             Err(OperationError::NotImplemented(_))
@@ -694,7 +764,9 @@ mod tests {
                 }],
             },
         };
-        let vg_plan = PlanBuilder::new(&vg_snapshot).build(&vg_choice).expect("valid vg plan");
+        let vg_plan = PlanBuilder::new(&vg_snapshot)
+            .build(&vg_choice)
+            .expect("valid vg plan");
         assert!(matches!(
             plan_to_operations(&vg_plan),
             Err(OperationError::NotImplemented(_))
@@ -717,7 +789,10 @@ mod tests {
         assert!(temp.0.join("home").is_dir());
         assert_eq!(
             executor.calls(),
-            vec!["mount -o subvol=/@/home,compress=zstd /dev/sda2 ".to_string() + &temp.0.join("home").to_string_lossy()]
+            vec![
+                "mount -o subvol=/@/home,compress=zstd /dev/sda2 ".to_string()
+                    + &temp.0.join("home").to_string_lossy()
+            ]
         );
 
         op.undo(&executor).expect("undo should succeed");
@@ -805,11 +880,15 @@ mod tests {
         };
         let executor = FakeExecutor::new();
 
-        op.perform(&executor).expect("fstab generation should succeed");
+        op.perform(&executor)
+            .expect("fstab generation should succeed");
 
-        let content = fs::read_to_string(temp.0.join("etc/fstab")).expect("fstab should have been written");
+        let content =
+            fs::read_to_string(temp.0.join("etc/fstab")).expect("fstab should have been written");
         assert!(content.contains("UUID-FOR-/dev/sda2 / btrfs subvol=/@,compress=zstd 0 0"));
-        assert!(content.contains("UUID-FOR-/dev/sda2 /var/lib/mariadb btrfs subvol=/@/var/lib/mariadb,nodatacow 0 0"));
+        assert!(content.contains(
+            "UUID-FOR-/dev/sda2 /var/lib/mariadb btrfs subvol=/@/var/lib/mariadb,nodatacow 0 0"
+        ));
         assert!(content.contains("UUID-FOR-/dev/sda1 /boot/efi vfat defaults,umask=0077 0 2"));
     }
 
@@ -835,7 +914,8 @@ mod tests {
         };
         let executor = FakeExecutor::new();
 
-        op.perform(&executor).expect("subvolume creation should succeed");
+        op.perform(&executor)
+            .expect("subvolume creation should succeed");
 
         assert_eq!(
             executor.calls(),

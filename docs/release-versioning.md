@@ -2,7 +2,7 @@
 
 O arquivo [`release.toml`](../release.toml) é a única fonte editável da
 identidade de uma release do Lyra OS. Não altere versões diretamente no KIWI,
-no Calamares, na interface do instalador ou no arquivo gerado
+na interface do instalador ou no arquivo gerado
 `kiwi/root/usr/lib/lyra-os/release`.
 
 ## Convenção
@@ -65,7 +65,7 @@ O renderizador mantém alinhados:
 - nome produzido para a ISO;
 - `PRETTY_NAME`, `VERSION_ID`, `BUILD_ID`, `IMAGE_ID` e `IMAGE_VERSION` em
   `/etc/os-release`;
-- strings de versão do Calamares e da interface do instalador;
+- strings de versão da interface do instalador;
 - identificação corrente nos READMEs.
 
 O workflow de CI executa o modo `check` e os testes. Assim, editar um arquivo

@@ -17,7 +17,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MANIFEST = ROOT / "obs/projects.toml"
 IMAGE_CONFIG = ROOT / "kiwi/config.xml"
-INSTALL_CLEANUP = ROOT / "kiwi/root/etc/calamares/modules/installcleanup.conf"
+INSTALLER_DEPLOY = ROOT / "installer/src/service/operations/deploy.rs"
 GOOD_PACKAGE_STATES = {"succeeded", "excluded"}
 
 
@@ -178,11 +178,24 @@ def check_local_priorities(manifest: Manifest) -> None:
     if {name: repositories.get(name) for name in expected} != expected:
         raise PolicyError(f"KIWI repository priorities differ from policy: {expected}")
 
-    cleanup = INSTALL_CLEANUP.read_text(encoding="utf-8")
+    deployment = INSTALLER_DEPLOY.read_text(encoding="utf-8")
     installed = manifest.priorities["installed_third_party"]
+    priority = re.search(
+        r"const INSTALLED_THIRD_PARTY_PRIORITY:\s*u8\s*=\s*(\d+);",
+        deployment,
+    )
+    if priority is None or int(priority.group(1)) != installed:
+        raise PolicyError(f"installed-system priority differs from policy: {installed}")
+
+    aliases = re.search(
+        r"const LYRA_REPO_ALIASES:\s*&\[&str\]\s*=\s*&\[(.*?)\];",
+        deployment,
+        re.DOTALL,
+    )
+    if aliases is None:
+        raise PolicyError("installer repository allow-list is missing")
     for alias in ("repo-lyra", "repo-vega", "repo-fina"):
-        pattern = rf"modifyrepo\s+--priority\s+{installed}\s+{re.escape(alias)}"
-        if not re.search(pattern, cleanup):
+        if f'"{alias}"' not in aliases.group(1):
             raise PolicyError(f"installed-system priority missing for {alias}: {installed}")
 
 

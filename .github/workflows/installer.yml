@@ -1,0 +1,50 @@
+name: Lyra Installer
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  installer:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: installer
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Tauri and packaging dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes \
+            desktop-file-utils \
+            libappindicator3-dev \
+            librsvg2-dev \
+            libssl-dev \
+            libwebkit2gtk-4.1-dev \
+            patchelf
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy,rustfmt
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Lint all targets
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Test workspace
+        run: cargo test --workspace
+
+      - name: Build both installer binaries
+        run: cargo build --workspace --locked
+
+      - name: Validate desktop launcher and shell helpers
+        run: |
+          desktop-file-validate packaging/org.lyraos.LyraInstaller.desktop
+          bash -n packaging/lyra-install-lock service/test-loop-device.sh

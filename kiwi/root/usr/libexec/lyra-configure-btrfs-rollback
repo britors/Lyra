@@ -19,8 +19,8 @@ rewrite_fstab() {
 }
 
 prepare_root() {
-    # Calamares mounted /@ explicitly while installing. Make that currently
-    # mounted root the initial Btrfs default; future `snapper rollback` calls
+    # The installer mounted /@ explicitly. Make that currently mounted root
+    # the initial Btrfs default; future `snapper rollback` calls
     # will replace the default with their new read-write rollback snapshot.
     /usr/sbin/btrfs subvolume set-default /
 

@@ -12,7 +12,7 @@
 Name:           lyra-installer
 Version:        0.1.0
 Release:        0
-Summary:        Instalador nativo do Lyra OS (experimental)
+Summary:        Instalador nativo do Lyra OS
 License:        GPL-3.0-only
 Group:          System/Boot/Installation
 URL:            https://github.com/britors/Lyra
@@ -39,10 +39,8 @@ Requires:       util-linux
 %description
 Lyra Installer é o instalador nativo do Lyra OS, escrito em Rust com Tauri
 (interface) e um serviço privilegiado separado autorizado por polkit
-(operações de disco). Durante a Beta 2 é uma opção experimental/opt-in na
-sessão live - o Calamares continua sendo o instalador padrão até o gate de
-paridade da issue #44. Veja docs/installer-architecture.md no repositório
-para a arquitetura completa.
+(operações de disco). É o único instalador da sessão live na Beta 2. Veja
+docs/installer-architecture.md no repositório para a arquitetura completa.
 
 %prep
 # -a1 extracts Source0, then unpacks Source1 (vendor.tar.zst) on top of it.

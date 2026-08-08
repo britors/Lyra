@@ -59,6 +59,46 @@ class ImagePolicyTests(unittest.TestCase):
         self.assertIsNotNone(image_packages.find("package[@name='dracut-kiwi-live']"))
         self.assertIsNone(root.find("packages[@type='iso']/package[@name='dracut-kiwi-live']"))
 
+    def test_beta_two_uses_only_the_rust_installer(self) -> None:
+        root = ET.parse(ROOT / "kiwi/config.xml").getroot()
+        packages = {node.attrib["name"] for node in root.findall("packages/package")}
+        self.assertIn("lyra-installer", packages)
+        self.assertNotIn("calamares", packages)
+        self.assertFalse((ROOT / "kiwi/root/etc/calamares").exists())
+        self.assertFalse(
+            (ROOT / "kiwi/root/usr/share/applications/calamares.desktop").exists()
+        )
+
+        autostart = (
+            ROOT / "kiwi/root/etc/xdg/autostart/lyra-installer-autostart.desktop"
+        ).read_text(encoding="utf-8")
+        self.assertIn("TryExec=/usr/bin/lyra-installer", autostart)
+        self.assertIn("Exec=/usr/bin/lyra-install-lock /usr/bin/lyra-installer", autostart)
+        self.assertNotIn("pkexec", autostart)
+
+        packaged_wrapper = ROOT / "installer/packaging/lyra-install-lock"
+        image_wrapper = ROOT / "kiwi/root/usr/bin/lyra-install-lock"
+        self.assertEqual(image_wrapper.read_bytes(), packaged_wrapper.read_bytes())
+        wrapper = image_wrapper.read_text(encoding="utf-8")
+        self.assertIn("XDG_RUNTIME_DIR", wrapper)
+        self.assertNotIn("/run/lock/lyra-install.lock", wrapper)
+        self.assertNotEqual(image_wrapper.stat().st_mode & 0o111, 0)
+
+        packaged_launcher = ROOT / "installer/packaging/org.lyraos.LyraInstaller.desktop"
+        image_launcher = (
+            ROOT
+            / "kiwi/root/usr/share/applications/org.lyraos.LyraInstaller.desktop"
+        )
+        self.assertEqual(image_launcher.read_bytes(), packaged_launcher.read_bytes())
+
+        packaged_icon = ROOT / "installer/src-tauri/icons/256x256.png"
+        image_icon = (
+            ROOT
+            / "kiwi/root/usr/share/icons/hicolor/256x256/apps"
+            / "org.lyraos.LyraInstaller.png"
+        )
+        self.assertEqual(image_icon.read_bytes(), packaged_icon.read_bytes())
+
     def test_export_is_derived_from_canonical_kiwi_without_duplicate_package_list(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             destination = Path(temporary) / "export"

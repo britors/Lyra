@@ -10,11 +10,11 @@
 use std::env;
 use std::path::PathBuf;
 
+use lyra_installer_core::InstallConfig;
 use lyra_installer_core::service::ExecutionRequest;
 use lyra_installer_core::storage::{
     DiscoveryBackend, GuidedChoice, PlanBuilder, RawTarget, SystemDiscoveryBackend, VolumeLayer,
 };
-use lyra_installer_core::InstallConfig;
 
 fn main() {
     let disk = env::args().nth(1).unwrap_or_else(|| "/dev/sda".to_string());
@@ -28,10 +28,12 @@ fn main() {
         raw_target: Some(RawTarget::Disk(PathBuf::from(&disk))),
         volume_layer: VolumeLayer::Direct,
     };
-    let plan = PlanBuilder::new(&snapshot).build(&choice).unwrap_or_else(|error| {
-        eprintln!("plano inválido para {disk}: {:?}", error.0);
-        std::process::exit(1);
-    });
+    let plan = PlanBuilder::new(&snapshot)
+        .build(&choice)
+        .unwrap_or_else(|error| {
+            eprintln!("plano inválido para {disk}: {:?}", error.0);
+            std::process::exit(1);
+        });
 
     let config = InstallConfig {
         full_name: "Lyra Test".to_string(),
@@ -40,6 +42,13 @@ fn main() {
         ..InstallConfig::default()
     };
 
-    let request = ExecutionRequest { choice, plan, config };
-    println!("{}", serde_json::to_string(&request).expect("request always serializes"));
+    let request = ExecutionRequest {
+        choice,
+        plan,
+        config,
+    };
+    println!(
+        "{}",
+        serde_json::to_string(&request).expect("request always serializes")
+    );
 }

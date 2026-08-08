@@ -43,17 +43,30 @@ the embedded source identity.
 
 ## Build and test the ISO
 
-For the standard interactive build, VM installation, and first-boot test, use:
+For an interactive development build with the current installer workspace,
+VM installation, and first-boot test, use:
 
 ```sh
 ./kiwi/test/build-and-run-vm.sh
 ```
 
+The helper compiles the local Rust installer before KIWI and records
+`local-installer-build` in that development image. A release candidate must
+instead consume the signed installer RPM published by OBS:
+
+```sh
+./kiwi/test/build-and-run-vm.sh --published-installer
+```
+
 The script builds directly from `kiwi/`, retains the previous usable ISO until
-its replacement is ready, starts QEMU with a fresh installation disk, and
-records logs below `kiwi/.kiwi/`. CI uses the deterministic export gate to
-prove that the same committed inputs are selected without publishing an image
-to OBS.
+its replacement is ready, creates a 24 GiB installation disk plus isolated
+OVMF state, starts QEMU, and records logs below `kiwi/.kiwi/`. Every invocation
+stops its previous QEMU process and deletes that VM's disk and NVRAM before the
+build. The ISO is selected only for the first boot; reboot the guest in the
+same QEMU session to test the installed disk. `--help` lists the environment
+overrides for disk, RAM and virtual CPUs. CI uses the deterministic export gate
+to prove that the same committed inputs are selected without publishing an
+image to OBS.
 
 Signature verification is mandatory through `rpm-check-signatures`,
 `repository_gpgcheck`, and `package_gpgcheck`. The KIWI description uses the

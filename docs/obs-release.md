@@ -29,14 +29,14 @@ failed flavor, an unpublished repository, or a target mismatch fails the gate.
 ## Repository priorities
 
 During image construction, KIWI uses priorities 1, 2, and 3 for Lyra, Vega,
-and Fina because the image deliberately needs Lyra's Qt 6 Calamares fork.
-Official Leap OSS and non-OSS use 20 and 21. This build-only exception is
-allowlisted by the OBS package inventory.
+and Fina so the image consumes the reviewed Lyra packages. Official Leap OSS
+and non-OSS use 20 and 21. This build-only exception is allowlisted by the OBS
+package inventory.
 
-Before the installed system is finalized, Calamares changes all three personal
-OBS repositories to priority 90. Official Leap therefore wins every later
-same-name resolution. `obs-release.py validate` checks both sides of this
-contract and fails CI if they drift.
+Before the installed system is finalized, the Rust installer changes all three
+personal OBS repositories to priority 90. Official Leap therefore wins every
+later same-name resolution. `obs-release.py validate` checks both sides of
+this contract and fails CI if they drift.
 
 ## Credentials and responsibility
 

@@ -2,7 +2,7 @@
 # Real, destructive integration test for lyra-installer-service against a
 # disposable disk image, via losetup — the "testes de integração sobre loop
 # devices/imagens descartáveis" docs/installer-architecture.md already lists
-# as a requirement to replace Calamares.
+# as a mandatory Beta 2 release requirement.
 #
 # Since service::operations::build() now covers partitioning (#40) AND
 # rootfs deployment (#41), this exercises the whole thing: partition, format,

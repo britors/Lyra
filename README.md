@@ -13,9 +13,8 @@ o instalador da edição **Odisseia Beta 2** para computadores x86_64.
 ## Principais características
 
 - openSUSE Leap 16 com GNOME 48 ou superior;
-- sessão live e instalador nativo em Rust/Tauri (com HTML/CSS integrado ao
-  WebKitGTK do sistema; em migração a partir do Calamares usado nas imagens de
-  desenvolvimento atuais);
+- sessão live e instalador nativo em Rust/Tauri, com HTML/CSS integrado ao
+  WebKitGTK do sistema;
 - Btrfs com Snapper e snapshots automáticos durante operações do Zypper;
 - recuperação por snapshots no menu do GRUB;
 - inicialização UEFI e suporte ao Secure Boot com o shim do openSUSE;
@@ -31,13 +30,13 @@ prioridade sobre os repositórios OBS do ecossistema Lyra no sistema instalado.
 
 ## Estado atual
 
-A configuração da imagem e a integração transitória do Calamares estão
-implementadas. O Lyra Installer nativo já possui o primeiro frontend e o
-modelo de configuração em [`installer/`](installer/); ele só substituirá o
-Calamares na ISO quando o backend privilegiado atingir paridade e passar por
-testes de instalação destrutivos em VM. Builds anteriores já orientaram
-correções no boot da imagem live, na autorização do instalador e na
-configuração do Snapper.
+A Beta 2 usa exclusivamente o Lyra Installer nativo em
+[`installer/`](installer/). A imagem já instala seu RPM e abre o frontend na
+sessão live; o backend privilegiado, a interface de progresso e os testes
+destrutivos em VM ainda precisam atingir o gate de release. A antiga
+configuração do Calamares foi retirada de `kiwi/root/` e preservada apenas em
+[`docs/calamares-reference/`](docs/calamares-reference/) para auditoria
+histórica.
 
 Ainda estão pendentes:
 
@@ -91,17 +90,26 @@ Para testar com Secure Boot:
 ./kiwi/test/build-and-run-vm.sh --secure-boot
 ```
 
-Depois de concluir a instalação e fechar a VM, inicialize somente o sistema
-instalado, preservando o estado UEFI correspondente:
+O comando faz as três etapas em sequência: constrói a ISO, cria disco/NVRAM
+novos e executa a VM. Toda nova chamada encerra uma instância anterior desse
+helper e apaga seus artefatos. Depois de concluir a instalação, reinicie o
+guest sem fechar o QEMU: a ISO é usada somente no primeiro boot da execução e
+o reinício segue pelo disco instalado, preservando o estado UEFI desse teste.
+
+Para desenvolvimento, o helper compila e injeta automaticamente o instalador
+do workspace, evitando abrir uma versão antiga publicada no OBS. Um candidato
+de release deve obrigatoriamente testar o RPM publicado, sem override local:
 
 ```bash
-./kiwi/test/build-and-run-vm.sh --boot-disk --secure-boot
+./kiwi/test/build-and-run-vm.sh --published-installer
 ```
 
 O helper espera KVM disponível para o usuário atual, uma sessão gráfica, 8 GiB
-de memória para a VM e espaço para um disco virtual de 20 GiB. Os builds, ISOs,
+de memória para a VM e espaço para um disco virtual de 24 GiB. Os builds, ISOs,
 discos e logs ficam em `kiwi/.kiwi/test-<uid>/` e não são versionados. Use
-`--skip-build` para reiniciar a ISO existente sem recompilá-la.
+`--skip-build` para reutilizar a ISO existente em uma VM nova. Execute com
+`--help` para consultar os ajustes de disco, memória e CPUs por variável de
+ambiente.
 
 Também é possível executar somente o build do KIWI:
 
@@ -130,7 +138,9 @@ imagem. O helper recomendado também gera, ao lado da ISO, um manifesto
 | [`performance.toml`](performance.toml) | orçamento de regressão para boot, RAM, instalação, CPU e I/O |
 | [`docs/performance.md`](docs/performance.md) | ambiente, repetições, agregação e publicação do baseline |
 | [`installer/`](installer/) | frontend Rust/GTK e núcleo do novo Lyra Installer |
-| [`docs/installer-architecture.md`](docs/installer-architecture.md) | arquitetura e critérios da migração do Calamares |
+| [`docs/installer-architecture.md`](docs/installer-architecture.md) | arquitetura e gates do Lyra Installer |
+| [`docs/installer-state-machine.md`](docs/installer-state-machine.md) | estados, contratos, cancelamento e recuperação |
+| [`docs/adr/`](docs/adr/) | decisões técnicas aceitas do instalador |
 | [`PROMPT-LYRA-OS.md`](PROMPT-LYRA-OS.md) | especificação de produto da primeira versão |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | preparação da estação e fluxo de contribuição |
 

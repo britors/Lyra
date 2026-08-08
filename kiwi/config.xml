@@ -5,8 +5,8 @@
 
   Scope of this file: base Leap 16 system, kernel-default, GNOME live
   session, Btrfs/Snapper and zram-generator packages present, official
-  Leap 16 repos + the Lyra OBS repos, Calamares installed with
-  Lyra-specific config (root/etc/calamares/), Vega/Sheliak/Fina + a
+  Leap 16 repos + the Lyra OBS repos, the native Lyra Installer,
+  Vega/Sheliak/Fina + a
   curated GNOME app set + Firefox/LibreOffice/CUPS/Flatpak pre-installed. See
   kiwi/README.md for the remaining gaps (installer artwork, multimedia
   codecs pending upstream, release automation, and end-to-end testing).
@@ -56,7 +56,7 @@
     <!--
       root is locked in the image itself (build/live concern only).
       The spec's "root disabled, sudo user created at install time" is
-      a Calamares behavior on the installed system, not this file.
+      an installer behavior on the installed system, not this file.
     -->
     <user name="root" password="!" pwdformat="encrypted" home="/root" shell="/bin/bash"/>
     <!--
@@ -93,17 +93,11 @@
 
     Priorities below (1-3) are deliberately lower than repo-oss/repo-non-oss
     (20-21) above - in zypper, lower number wins. These repos ship forked
-    versions of packages that also exist upstream (e.g. calamares, built
-    here with -DWITH_QT6=ON against Leap 16's Qt6-only kpmcore so the
-    partition module actually exists; upstream's stock Leap 16 calamares
-    package silently drops it). Without this override, zypper prefers the
-    official repo on a same-name conflict regardless of version, which
-    silently pulls in the stock package and breaks Calamares at runtime
-    (missing partition/bootloader modules - see erro.png/2026-07-28).
-    shellprocess@installcleanup resets all three OBS repos to priority 90
-    in the installed system. The broad override is therefore limited to
-    image construction; normal updates continue to prefer official Leap
-    packages (priorities 20-21) when a same-name package exists.
+    versions of packages that can also exist upstream. The installer resets
+    all three OBS repos to priority 90 in the installed system. The broad
+    override is therefore limited to image construction; normal updates
+    continue to prefer official Leap packages (priorities 20-21) when a
+    same-name package exists.
   -->
   <repository alias="repo-lyra" priority="1" type="rpm-md" imageinclude="true"
               repository_gpgcheck="true" package_gpgcheck="true">
@@ -174,26 +168,18 @@
 
     <!--
       Required for the "root disabled, sudo user created at install"
-      model (PROMPT-LYRA-OS.md) to actually work on the installed
-      system: root/etc/calamares/modules/users.conf sets
-      sudoersGroup: wheel, which makes Calamares write
-      /etc/sudoers.d/10-installer on the target during install. Without
-      this package, /etc/sudoers.d/ doesn't exist on the target and that
-      write fails outright ("Não foi possível criar arquivo sudoers
-      para gravação" - confirmed in a live install run, 2026-07-29).
-      This image doubles as the installed system's rootfs (unpackfs
-      copies the whole live squashfs over, see
-      root/etc/calamares/modules/unpackfs.conf) - there's no separate
-      target-only package list, so sudo ends up in the live session too
-      even though liveuser's password is locked and never used there.
+      model (PROMPT-LYRA-OS.md) to work on the installed system. The Rust
+      installer writes /etc/sudoers.d/10-installer on the target; without
+      this package the directory is absent. The image doubles as the target
+      rootfs, so sudo is also present in the live session even though
+      liveuser's password is locked and never used there.
     -->
     <package name="sudo"/>
 
     <!--
       Filesystem / snapshots. Btrfs itself stays the Leap default; the
-      Snapper *config* on the installed system is bootstrapped by
-      Calamares (root/etc/calamares/modules/snapshotcfg.conf) since
-      there's no YaST/Agama here to do it automatically.
+      Snapper config on the installed system is bootstrapped by the Rust
+      installer since there is no YaST/Agama here to do it automatically.
       grub2-snapper-plugin provides /etc/grub.d/80_suse_btrfs_snapshot,
       which SUSE_BTRFS_SNAPSHOT_BOOTING (grubcfg.conf) turns on - this
       is what makes the GRUB panic-button rollback menu exist at all.
@@ -231,17 +217,8 @@
          initrd and caused the boot regression at "Loading initial ramdisk". -->
     <package name="plymouth"/>
 
-    <!--
-      Installer. Config at root/etc/calamares/; UEFI installation uses
-      Leap's native shim-install via shellprocess@uefibootloader rather
-      than Calamares' generic GRUB-only path. Launched from the live
-      GDM session via root/usr/share/applications/calamares.desktop
-      (pkexec) + root/etc/polkit-1/rules.d/00-lyra-live-installer.rules
-      (grants liveuser that one action without a password prompt it
-      couldn't satisfy anyway). See README.md "Known gaps" for what's
-      still unverified here.
-    -->
-    <package name="calamares"/>
+    <!-- The Rust installer's privileged service is authorized separately;
+         the graphical process continues to run as liveuser. -->
     <package name="polkit"/>
 
     <!--
@@ -365,14 +342,12 @@
     <package name="fina"/>
 
     <!--
-      Lyra Installer, the native Rust/Tauri installer (issue #43). Ships
-      as an experimental, opt-in launcher in the live session -
-      root/usr/share/applications/calamares.desktop stays the default,
-      and both launchers' Exec= now go through the lyra-install-lock wrapper
-      shipped by that RPM, so only one installer can ever run at once.
-      Package name confirmed against home:rodrigosbrito:lyra's real
-      OBS package list (created for this issue, see
-      installer/packaging/lyra-installer.spec).
+      Lyra Installer, the native Rust/Tauri installer and the only installer
+      in the Beta 2 live session. Its RPM ships the GUI, privileged service,
+      desktop entry, polkit policy and lock wrapper. The overlay pins the
+      wrapper, launcher and icon so repository publication lag cannot break
+      the GDM autostart or branding; tests require those copies to remain
+      byte-identical to their package sources.
     -->
     <package name="lyra-installer"/>
 

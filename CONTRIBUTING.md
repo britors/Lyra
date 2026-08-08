@@ -57,7 +57,8 @@ bash scripts/bootstrap-development.sh --help
   npm e Python 3;
 - aplicações nativas: GTK4, libadwaita, VTE, WebKitGTK, libsoup, OpenSSL,
   D-Bus, polkit, Secret Service e ferramentas AppStream;
-- Lyra OS: KIWI, QEMU/OVMF, libvirt e utilitários para validar a ISO;
+- Lyra OS: KIWI, QEMU/KVM com interface GTK, OVMF normal/Secure Boot,
+  libvirt, `xorriso`, `lsinitrd` e utilitários para construir e validar a ISO;
 - contêineres e utilitários: Podman, Buildah, ripgrep, fd, fzf, bat, tmux e
   ShellCheck;
 - Codex CLI oficial, instalado pelo npm no prefixo de usuário `~/.local`.
@@ -201,6 +202,13 @@ Boot de teste com disco novo:
 
 ```bash
 ./kiwi/test/build-and-run-vm.sh --fresh-disk
+```
+
+Esse modo injeta o instalador compilado do workspace e serve para
+desenvolvimento. Para validar exatamente o RPM disponível no OBS:
+
+```bash
+./kiwi/test/build-and-run-vm.sh --published-installer
 ```
 
 Teste com Secure Boot:

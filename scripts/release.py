@@ -213,23 +213,6 @@ def render_files(release: Release) -> dict[Path, str]:
     )
     rendered[xml_path] = xml
 
-    branding_path = REPOSITORY / "kiwi/root/etc/calamares/branding/lyra/branding.desc"
-    branding = branding_path.read_text(encoding="utf-8")
-    replacements = {
-        "version": release.codename_version,
-        "shortVersion": release.display_version,
-        "versionedName": f"Lyra OS {release.codename_version}",
-        "shortVersionedName": f"Lyra OS {release.display_version}",
-    }
-    for key, value in replacements.items():
-        branding = replace_once(
-            branding,
-            rf"^(\s*{key}:\s*).*$",
-            f"    {key + ':':<21}{value}",
-            branding_path,
-        )
-    rendered[branding_path] = branding
-
     ui_path = REPOSITORY / "installer/ui/index.html"
     ui = ui_path.read_text(encoding="utf-8")
     ui = replace_once(
@@ -249,17 +232,6 @@ def render_files(release: Release) -> dict[Path, str]:
         readme_path,
     )
     rendered[readme_path] = readme
-
-    kiwi_readme_path = REPOSITORY / "kiwi/README.md"
-    kiwi_readme = kiwi_readme_path.read_text(encoding="utf-8")
-    kiwi_readme = replace_once(
-        kiwi_readme,
-        r'^KIWI image description for the Lyra OS ".*" .* [A-Za-z0-9_]+ live/installer$',
-        f'KIWI image description for the Lyra OS "{release.codename}" '
-        f"{release.display_version} {release.architecture} live/installer",
-        kiwi_readme_path,
-    )
-    rendered[kiwi_readme_path] = kiwi_readme
 
     rendered[REPOSITORY / "kiwi/root/usr/lib/lyra-os/release"] = release_environment(release)
     return rendered

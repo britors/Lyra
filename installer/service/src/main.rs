@@ -1,7 +1,6 @@
 //! Privileged backend for the Lyra Installer. Launched via
 //! `pkexec /usr/libexec/lyra-installer-service` by the Tauri frontend for
-//! the duration of plan execution only — never the whole UI, unlike the
-//! Calamares launcher this project is moving away from (see
+//! the duration of plan execution only — never the whole UI (see
 //! `docs/installer-architecture.md`).
 //!
 //! Protocol: one JSON `ExecutionRequest` line on stdin, then one JSON
@@ -9,11 +8,12 @@
 //! `ExecutionControl::Cancel` line may follow on the same stdin stream.
 
 use std::io::{self, BufRead, Write};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use lyra_installer_core::service::{
-    build, execute, ExecutionControl, ExecutionEvent, ExecutionOutcome, ExecutionRequest, RealExecutor,
+    ExecutionControl, ExecutionEvent, ExecutionOutcome, ExecutionRequest, RealExecutor, build,
+    execute,
 };
 use lyra_installer_core::storage::{DiscoveryBackend, SystemDiscoveryBackend};
 
@@ -58,7 +58,14 @@ fn main() {
             std::process::exit(1);
         }
     };
-    let outcome = execute(&request, &snapshot, &operations, &RealExecutor, &cancel_requested, emit);
+    let outcome = execute(
+        &request,
+        &snapshot,
+        &operations,
+        &RealExecutor,
+        &cancel_requested,
+        emit,
+    );
 
     std::process::exit(match outcome {
         ExecutionOutcome::Completed => 0,

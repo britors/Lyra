@@ -12,13 +12,14 @@ pub mod discovery;
 pub mod plan;
 
 pub use device::{
-    Disk, DeviceRole, LogicalVolume, Partition, RaidArray, RaidLevel, StorageSnapshot, Transport,
+    DeviceRole, Disk, LogicalVolume, Partition, RaidArray, RaidLevel, StorageSnapshot, Transport,
     VolumeGroup,
 };
 pub use discovery::{DiscoveryBackend, DiscoveryError, SystemDiscoveryBackend};
 pub use plan::{
-    DestructiveSummary, EspPlan, FilesystemPlan, GuidedChoice, InstallPlan, LogicalVolumePlan,
-    PlanBuilder, PlanError, RawTarget, SizePolicy, SubvolumePlan, VolumeLayer,
+    DestructiveSummary, EspPlan, FilesystemPlan, GuidedChoice, INSTALL_PLAN_SCHEMA_VERSION,
+    InstallPlan, LogicalVolumePlan, PlanBuilder, PlanError, RawTarget, SizePolicy, SubvolumePlan,
+    VolumeLayer,
 };
 
 #[cfg(test)]
@@ -70,9 +71,24 @@ mod tests {
             .build(&whole_disk_choice("/dev/sda"))
             .expect("empty disk should be accepted");
 
-        assert_eq!(plan.raw_target, Some(RawTarget::Disk(PathBuf::from("/dev/sda"))));
+        assert_eq!(
+            plan.raw_target,
+            Some(RawTarget::Disk(PathBuf::from("/dev/sda")))
+        );
         assert!(plan.destructive_summary.erased.is_empty());
+        assert_eq!(plan.schema_version, INSTALL_PLAN_SCHEMA_VERSION);
         assert_eq!(plan.root_filesystem, FilesystemPlan::default());
+    }
+
+    #[test]
+    fn serialized_plan_carries_an_explicit_schema_version() {
+        let snapshot = snapshot_with_disks(vec![disk("sda", LARGE)]);
+        let plan = PlanBuilder::new(&snapshot)
+            .build(&whole_disk_choice("/dev/sda"))
+            .expect("fixture plan should be valid");
+
+        let json = serde_json::to_value(plan).expect("plan should serialize");
+        assert_eq!(json["schema_version"], INSTALL_PLAN_SCHEMA_VERSION);
     }
 
     #[test]
@@ -94,7 +110,12 @@ mod tests {
             .build(&whole_disk_choice("/dev/sda"))
             .unwrap_err();
 
-        assert!(error.0.iter().any(|reason| reason.contains("partições ou dados")));
+        assert!(
+            error
+                .0
+                .iter()
+                .any(|reason| reason.contains("partições ou dados"))
+        );
     }
 
     #[test]
@@ -133,7 +154,12 @@ mod tests {
             .build(&whole_disk_choice("/dev/sda"))
             .unwrap_err();
 
-        assert!(error.0.iter().any(|reason| reason.contains("espaço insuficiente")));
+        assert!(
+            error
+                .0
+                .iter()
+                .any(|reason| reason.contains("espaço insuficiente"))
+        );
     }
 
     #[test]
@@ -146,7 +172,12 @@ mod tests {
             .build(&whole_disk_choice("/dev/sdz"))
             .unwrap_err();
 
-        assert!(error.0.iter().any(|reason| reason.contains("mídia de instalação")));
+        assert!(
+            error
+                .0
+                .iter()
+                .any(|reason| reason.contains("mídia de instalação"))
+        );
     }
 
     #[test]
@@ -171,7 +202,9 @@ mod tests {
             volume_layer: VolumeLayer::Direct,
         };
 
-        let plan = PlanBuilder::new(&snapshot).build(&choice).expect("healthy array should be accepted");
+        let plan = PlanBuilder::new(&snapshot)
+            .build(&choice)
+            .expect("healthy array should be accepted");
         assert_eq!(
             plan.raw_target,
             Some(RawTarget::ExistingRaid {
@@ -225,9 +258,14 @@ mod tests {
             },
         };
 
-        let plan = PlanBuilder::new(&snapshot).build(&choice).expect("RAID1 + LVM should be accepted");
+        let plan = PlanBuilder::new(&snapshot)
+            .build(&choice)
+            .expect("RAID1 + LVM should be accepted");
         assert!(matches!(plan.raw_target, Some(RawTarget::NewRaid { .. })));
-        assert!(matches!(plan.volume_layer, VolumeLayer::NewVolumeGroup { .. }));
+        assert!(matches!(
+            plan.volume_layer,
+            VolumeLayer::NewVolumeGroup { .. }
+        ));
     }
 
     #[test]
