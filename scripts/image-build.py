@@ -326,11 +326,13 @@ def publish(manifest: Manifest, execute: bool) -> None:
         run([*osc, "meta", "pkg", manifest.project, manifest.package, "-F", str(package_file)])
         checkout_root = temporary / "checkout"
         checkout_root.mkdir()
-        run([*osc, "checkout", manifest.project, manifest.package], cwd=checkout_root)
-        checkouts = list(checkout_root.rglob(".osc"))
-        if len(checkouts) != 1:
+        checkout = checkout_root / "package"
+        run(
+            [*osc, "checkout", manifest.project, manifest.package, "--output-dir", str(checkout)],
+            cwd=checkout_root,
+        )
+        if not (checkout / ".osc/_package").is_file():
             raise PolicyError("could not identify the OBS package checkout")
-        checkout = checkouts[0].parent
         for child in checkout.iterdir():
             if child.name != ".osc":
                 if child.is_dir() and not child.is_symlink():
