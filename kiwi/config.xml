@@ -29,7 +29,7 @@
     <keytable>us</keytable>
     <timezone>UTC</timezone>
     <!--
-      Selects lyra-enterprise-theme's "Lyra-Enterprise" assets. The
+      Selects lyra-os-theme's "Lyra-OS" assets. The
       bootloader theme is active in the live GRUB menu. The bootsplash
       selection records the desired default in the image root, but the
       live initrd deliberately excludes Plymouth: adding plymouth-dracut
@@ -37,8 +37,8 @@
       and its firmware, producing a 138 MiB initrd that stalls visibly in
       GRUB. See the package-list comment and kiwi/README.md.
     -->
-    <bootloader-theme>Lyra-Enterprise</bootloader-theme>
-    <bootsplash-theme>Lyra-Enterprise</bootsplash-theme>
+    <bootloader-theme>Lyra-OS</bootloader-theme>
+    <bootsplash-theme>Lyra-OS</bootsplash-theme>
     <type
       image="iso"
       primary="true"
@@ -377,12 +377,12 @@
       names, dependency, and behavior confirmed against that repo's real
       packaging/opensuse/*.spec and install-rpm.sh, not assumed:
 
-      - lyra-enterprise-theme's %post already sets GRUB_THEME in
+      - lyra-os-theme's %post already sets GRUB_THEME in
         /etc/default/grub + runs grub2-mkconfig, and selects the
-        Lyra-Enterprise Plymouth theme. The live initrd intentionally omits
+        Lyra-OS Plymouth theme. The live initrd intentionally omits
         plymouth-dracut; only the GRUB theme is enabled on the live path.
       - It also ships a compiled-in gsettings default
-        (/usr/share/glib-2.0/schemas/99-lyra-enterprise.gschema.override:
+        (/usr/share/glib-2.0/schemas/99-lyra-os.gschema.override:
         icon-theme, accent-color, color-scheme=prefer-dark, both
         picture-uri/picture-uri-dark wallpapers) - this is what actually
         satisfies "dark and light both installed, one active by
@@ -391,19 +391,16 @@
         picks one for v1, and the dark palette is the one described in
         more detail there, so accepting the package default was the
         reasonable call rather than fighting it.
-      - GDM is untouched by any of this: the gschema override only
-        covers org.gnome.desktop.interface/background for user
-        sessions, not org.gnome.login-screen - matches the spec's "GDM
-        out of scope" explicitly.
-      - Requires lyra-enterprise-icons + plymouth-plugin-script
+      - Its %post also installs the GDM dconf defaults and branded logo.
+      - Requires lyra-os-icons + plymouth-plugin-two-step
         automatically (RPM deps); fastfetch is only a Recommends in the
         spec file so it's made explicit here. Neofetch is left out
         deliberately (Suggests-only upstream, and it's an archived/EOL
         project - fastfetch is the maintained one and is what the theme
         package's own README leads with).
     -->
-    <package name="lyra-enterprise-theme"/>
-    <package name="lyra-enterprise-icons"/>
+    <package name="lyra-os-theme"/>
+    <package name="lyra-os-icons"/>
     <package name="fastfetch"/>
   </packages>
 

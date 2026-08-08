@@ -254,18 +254,18 @@ if [ "$BOOT_DISK_ONLY" -eq 0 ] && [ "$SKIP_BUILD" -eq 0 ]; then
   xorriso -osirrox on -indev "$BUILT_ISO" \
     -extract /boot/grub2/grub.cfg "$ISO_GRUB_CFG" >/dev/null 2>&1
   xorriso -osirrox on -indev "$BUILT_ISO" \
-    -extract /boot/grub2/themes/Lyra-Enterprise/theme.txt \
+    -extract /boot/grub2/themes/Lyra-OS/theme.txt \
     "$ISO_GRUB_THEME" >/dev/null 2>&1
   xorriso -osirrox on -indev "$BUILT_ISO" \
     -extract /boot/x86_64/loader/initrd "$ISO_INITRD" >/dev/null 2>&1
 
-  if ! grep -F 'set theme=($root)/boot/grub2/themes/Lyra-Enterprise/theme.txt' \
+  if ! grep -F 'set theme=($root)/boot/grub2/themes/Lyra-OS/theme.txt' \
       "$ISO_GRUB_CFG" >/dev/null; then
-    echo "!!! generated GRUB config does not activate the Lyra-Enterprise theme" >&2
+    echo "!!! generated GRUB config does not activate the Lyra-OS theme" >&2
     exit 1
   fi
   if ! grep -F 'desktop-image: "background.png"' "$ISO_GRUB_THEME" >/dev/null; then
-    echo "!!! generated ISO contains an invalid Lyra-Enterprise GRUB theme" >&2
+    echo "!!! generated ISO contains an invalid Lyra-OS GRUB theme" >&2
     exit 1
   fi
   if grep -Eq '^[[:space:]]*linux .* (quiet|splash)( |$)' "$ISO_GRUB_CFG"; then

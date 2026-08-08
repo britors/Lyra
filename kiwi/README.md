@@ -244,24 +244,22 @@ packages unrelated to codecs) right now - there's no codecs package to
 point at yet. Nothing was substituted in its place (no Packman, per the
 spec). This is upstream-blocked, not a decision made here.
 
-**Flatpak**: the `flatpak` package is installed, and the Flathub remote
-is registered in `config.sh` at image-build time (not as a Calamares
-step) - see the comment there for why that also covers every installed
-system, and the network-access requirement it implies for the KIWI
-build itself.
+**Flatpak**: the `flatpak` package is installed, and the signed Flathub remote
+definition is versioned under `root/etc/flatpak/remotes.d/`. It is copied to
+the live and installed systems without a network request from `config.sh`.
 
 ### Branding (Lyra-Theme)
 
-`lyra-enterprise-theme` and `lyra-enterprise-icons` are installed from the
+`lyra-os-theme` and `lyra-os-icons` are installed from the
 already-configured `lyra` OBS repo. Everything here is grounded in the
 real [britors/Lyra-Theme](https://github.com/britors/Lyra-Theme) repo -
 its `packaging/opensuse/*.spec` files and `install-rpm.sh` - not assumed
 from the product spec's prose description:
 
 - **GRUB theming is enabled; Plymouth stays out of the live initrd.**
-  `lyra-enterprise-theme`'s own RPM `%post` scriptlet sets `GRUB_THEME` in
+  `lyra-os-theme`'s own RPM `%post` scriptlet sets `GRUB_THEME` in
   `/etc/default/grub`, runs `grub2-mkconfig`, and runs
-  `plymouth-set-default-theme -R Lyra-Enterprise` automatically on
+  `plymouth-set-default-theme -R Lyra-OS` automatically on
   install. However, explicitly adding Leap's `plymouth-dracut` to this
   non-host-only live image makes dracut pull its `drm` dependency, all generic
   GPU modules and their firmware into the initrd. The resulting 138 MiB
@@ -272,15 +270,14 @@ from the product spec's prose description:
   using `console` there disables `GRUB_THEME`.
 - **Dark/light "both installed, one default" is handled by the package
   itself**, not by anything in this repo: it ships a compiled-in
-  `/usr/share/glib-2.0/schemas/99-lyra-enterprise.gschema.override`
+  `/usr/share/glib-2.0/schemas/99-lyra-os.gschema.override`
   setting `icon-theme`, `accent-color`, `color-scheme=prefer-dark`, and
   both `picture-uri`/`picture-uri-dark` wallpaper paths as the system-wide
   GNOME defaults. Dark being the default is the package's own hardcoded
   choice, accepted here rather than overridden - the spec doesn't pick
   one for v1, and the dark palette is the one it describes in more detail.
-- **GDM stays untouched**, consistent with the spec: the gschema override
-  only covers `org.gnome.desktop.interface`/`background` (regular user
-  sessions), not `org.gnome.login-screen`.
+- **GDM uses the package defaults**: the RPM `%post` installs the GDM dconf
+  profile, interface/background defaults, and branded login-screen logo.
 - **Fastfetch** is installed explicitly (it's only a `Recommends` in the
   theme's spec file); its config is dropped into every new user's
   `~/.config` automatically via the package's own `/etc/skel/` files - no
@@ -305,7 +302,7 @@ from the product spec's prose description:
   on family detection still works. `HOME_URL`, `BUG_REPORT_URL`, and
   `LOGO` were deliberately left out rather than filled with guesses -
   there's no confirmed project website/tracker URL, and no icon name
-  confirmed to exist under `lyra-enterprise-icons` for `LOGO` to point at.
+  confirmed to exist under `lyra-os-icons` for `LOGO` to point at.
 - **Calamares' own installer UI branding** (product name/logo in the
   wizard itself, as opposed to the desktop/boot theming above): product
   strings are done (`branding: lyra`), images/slideshow still aren't -

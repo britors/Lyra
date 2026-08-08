@@ -101,7 +101,7 @@ glib-compile-schemas /usr/share/glib-2.0/schemas
 #
 # Deliberately no HOME_URL/BUG_REPORT_URL/LOGO here: there's no
 # confirmed project website, issue tracker, or a matching icon name
-# shipped by lyra-enterprise-icons to point them at - adding guessed
+# shipped by lyra-os-icons to point them at - adding guessed
 # URLs/icon names felt worse than leaving these optional fields out.
 cat > /etc/os-release <<EOF
 NAME="Lyra OS"
