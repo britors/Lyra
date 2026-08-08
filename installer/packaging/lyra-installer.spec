@@ -34,6 +34,7 @@ BuildRequires:  zstd
 # runtime; no polkit *library* is linked (lyra-installer-service shells out
 # to pkexec's caller side, not libpolkit).
 Requires:       polkit
+Requires:       util-linux
 
 %description
 Lyra Installer é o instalador nativo do Lyra OS, escrito em Rust com Tauri
@@ -64,6 +65,8 @@ install -Dm0755 target/release/lyra-installer \
     %{buildroot}%{_bindir}/lyra-installer
 install -Dm0755 target/release/lyra-installer-service \
     %{buildroot}%{_libexecdir}/lyra-installer-service
+install -Dm0755 packaging/lyra-install-lock \
+    %{buildroot}%{_bindir}/lyra-install-lock
 install -Dm0644 packaging/org.lyraos.LyraInstaller.desktop \
     %{buildroot}%{_datadir}/applications/org.lyraos.LyraInstaller.desktop
 install -Dm0644 src-tauri/icons/256x256.png \
@@ -85,16 +88,11 @@ desktop-file-validate \
 # engine/executor/operations).
 cargo test --offline -p lyra-installer-core
 
-%post
-%desktop_database_post
-
-%postun
-%desktop_database_postun
-
 %files
 %license LICENSE
 %doc README.md
 %{_bindir}/lyra-installer
+%{_bindir}/lyra-install-lock
 %{_libexecdir}/lyra-installer-service
 %{_datadir}/applications/org.lyraos.LyraInstaller.desktop
 %{_datadir}/icons/hicolor/256x256/apps/org.lyraos.LyraInstaller.png
@@ -107,6 +105,6 @@ cargo test --offline -p lyra-installer-core
 # polkit itself provides it) - claim them explicitly rather than assume.
 %dir %{_sysconfdir}/polkit-1
 %dir %{_sysconfdir}/polkit-1/rules.d
-%{_sysconfdir}/polkit-1/rules.d/01-lyra-installer-service.rules
+%config(noreplace) %{_sysconfdir}/polkit-1/rules.d/01-lyra-installer-service.rules
 
 %changelog

@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Lyra OS - Odisseia (v1)
+# Prevent Calamares and Lyra Installer from running at the same time.
+
+set -euo pipefail
+
+lock_file=/run/lock/lyra-install.lock
+exec {lock_fd}>"$lock_file"
+
+if ! flock -n "$lock_fd"; then
+    notify-send --icon=drive-harddisk \
+        "Instalador já em execução" \
+        "Feche o outro instalador do Lyra OS antes de abrir este." \
+        2>/dev/null || true
+    echo "lyra-install-lock: another installer already holds $lock_file" >&2
+    exit 1
+fi
+
+exec "$@"

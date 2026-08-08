@@ -1,0 +1,6 @@
+# The installer is experimental and only grants its narrowly scoped action to
+# the locked live-session account. The policy pins pkexec to the exact service
+# path; it is not submitted for inclusion in a SUSE product. A future product
+# submission still requires the upstream SUSE security review.
+addFilter("lyra-installer.*polkit-untracked-privilege")
+addFilter("lyra-installer.*polkit-file-unauthorized")

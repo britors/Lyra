@@ -12,7 +12,3 @@ tauri-build = { version = "2.6.3", features = [] }
 lyra-installer-core = { package = "lyra-installer-core", path = ".." }
 serde_json = "1"
 tauri = { version = "2.11.5", features = [] }
-
-[profile.release]
-lto = "thin"
-strip = "debuginfo"
