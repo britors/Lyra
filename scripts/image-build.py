@@ -81,6 +81,8 @@ class Manifest:
         identifiers = (self.image_name, self.architecture, self.required_flavor, self.package)
         if any(not re.fullmatch(r"[A-Za-z0-9_.-]+", value) for value in identifiers):
             raise PolicyError("invalid image identifier")
+        if self.description != f"{self.package}.kiwi":
+            raise PolicyError("OBS description must be named after the package with a .kiwi suffix")
         flavors = (self.required_flavor, *self.optional_flavors)
         if len(set(flavors)) != len(flavors):
             raise PolicyError("image flavors must be unique")
@@ -222,7 +224,7 @@ def export(manifest: Manifest, destination: Path, commit: str, allow_dirty: bool
     for name in ("config.sh",):
         shutil.copy2(KIWI / name, destination / name)
     shutil.copytree(KIWI / "root", destination / "root", symlinks=True)
-    (destination / "config.xml").write_bytes(render_obs_config(manifest))
+    (destination / manifest.description).write_bytes(render_obs_config(manifest))
     (destination / "build-source.json").write_text(
         json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
@@ -242,7 +244,7 @@ def verify_export(manifest: Manifest, directory: Path) -> None:
     metadata = json.loads((directory / "build-source.json").read_text(encoding="utf-8"))
     if metadata.get("dirty") is not False or not re.fullmatch(r"[0-9a-f]{40}", metadata.get("commit", "")):
         raise PolicyError("export has invalid source identity")
-    root = ET.parse(directory / "config.xml").getroot()
+    root = ET.parse(directory / manifest.description).getroot()
     profiles = {node.attrib["name"]: node.attrib for node in root.findall("profiles/profile")}
     if profiles.get(manifest.required_flavor, {}).get("import") != "true":
         raise PolicyError("standard profile is not the imported default")

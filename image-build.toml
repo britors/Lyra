@@ -2,7 +2,7 @@ schema = 1
 
 [image]
 name = "lyra-os"
-description = "kiwi"
+description = "lyra-image.kiwi"
 architecture = "x86_64"
 required_flavor = "standard"
 optional_flavors = ["nvidia"]

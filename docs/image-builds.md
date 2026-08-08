@@ -5,7 +5,8 @@ installed repositories, and package selection. `release.toml` owns the release
 identity. `image-build.toml` owns only the OBS image project, build-path order,
 architecture, flavors, and required evidence.
 
-The exported OBS package is generated; do not edit it by hand. Its five HTTPS
+The exported OBS package is generated as `lyra-image.kiwi`; do not edit it by
+hand. Its five HTTPS
 repositories are marked `imageonly=true`, so they remain configured in the
 resulting system but cannot affect dependency resolution in OBS. The single
 `obsrepositories:/` source is injected for the build. OBS resolves that source

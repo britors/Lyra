@@ -47,7 +47,7 @@ class ImagePolicyTests(unittest.TestCase):
                 image_build.export(self.manifest, destination, "HEAD", allow_dirty=False)
             image_build.verify_export(self.manifest, destination)
             canonical = ET.parse(ROOT / "kiwi/config.xml").getroot()
-            exported = ET.parse(destination / "config.xml").getroot()
+            exported = ET.parse(destination / self.manifest.description).getroot()
             canonical_packages = [node.attrib["name"] for node in canonical.findall("packages/package")]
             exported_packages = [node.attrib["name"] for node in exported.findall("packages/package")]
             self.assertEqual(exported_packages, canonical_packages)
