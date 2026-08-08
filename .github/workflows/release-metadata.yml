@@ -16,5 +16,9 @@ jobs:
         run: ./scripts/release.py check
       - name: Test release conventions and traceability
         run: python3 -m unittest discover -s tests -v
+      - name: Verify image performance budget
+        run: |
+          cmp performance.toml kiwi/root/usr/share/lyra-os/performance.toml
+          ./kiwi/root/usr/bin/lyra-performance --budget performance.toml check
       - name: Validate shell syntax
         run: bash -n kiwi/config.sh kiwi/test/build-and-run-vm.sh kiwi/root/usr/bin/lyra-report

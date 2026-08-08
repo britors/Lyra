@@ -127,6 +127,8 @@ imagem. O helper recomendado também gera, ao lado da ISO, um manifesto
 | [`release.toml`](release.toml) | fonte única da versão e do nome dos artefatos |
 | [`docs/release-versioning.md`](docs/release-versioning.md) | convenção para Beta, RC, release, tags e notas |
 | [`docs/diagnostics.md`](docs/diagnostics.md) | coleta, anonimização, revisão e compartilhamento de diagnósticos |
+| [`performance.toml`](performance.toml) | orçamento de regressão para boot, RAM, instalação, CPU e I/O |
+| [`docs/performance.md`](docs/performance.md) | ambiente, repetições, agregação e publicação do baseline |
 | [`installer/`](installer/) | frontend Rust/GTK e núcleo do novo Lyra Installer |
 | [`docs/installer-architecture.md`](docs/installer-architecture.md) | arquitetura e critérios da migração do Calamares |
 | [`PROMPT-LYRA-OS.md`](PROMPT-LYRA-OS.md) | especificação de produto da primeira versão |

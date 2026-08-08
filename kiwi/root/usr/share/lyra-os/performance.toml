@@ -1,0 +1,40 @@
+schema_version = 1
+minimum_runs = 5
+settle_seconds = 30
+sample_seconds = 10
+max_coefficient_of_variation = 0.10
+
+[metrics.boot_to_desktop_seconds]
+direction = "lower"
+warning_percent = 10
+blocking_percent = 20
+
+[metrics.boot_userspace_seconds]
+direction = "lower"
+warning_percent = 10
+blocking_percent = 20
+
+[metrics.idle_memory_mib]
+direction = "lower"
+warning_percent = 10
+blocking_percent = 20
+
+[metrics.installation_total_seconds]
+direction = "lower"
+warning_percent = 10
+blocking_percent = 20
+
+[metrics.cpu_busy_percent]
+direction = "lower"
+warning_percent = 15
+blocking_percent = 30
+
+[metrics.disk_read_mib_per_second]
+direction = "informational"
+warning_percent = 0
+blocking_percent = 0
+
+[metrics.disk_write_mib_per_second]
+direction = "informational"
+warning_percent = 0
+blocking_percent = 0

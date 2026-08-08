@@ -1,0 +1,466 @@
+#!/usr/bin/env python3
+"""Capture and aggregate opt-in Lyra OS performance measurements."""
+
+from __future__ import annotations
+
+import argparse
+import datetime as dt
+import json
+import os
+import platform
+import re
+import statistics
+import subprocess
+import sys
+import time
+import tomllib
+from pathlib import Path
+from typing import Any
+
+
+SCHEMA_VERSION = 1
+DEFAULT_BUDGET = Path("/usr/share/lyra-os/performance.toml")
+DEFAULT_TRACE = Path("/run/lyra-performance/installation.jsonl")
+REQUIRED_METRICS = {
+    "live": {
+        "boot_to_desktop_seconds",
+        "boot_userspace_seconds",
+        "idle_memory_mib",
+        "cpu_busy_percent",
+        "disk_read_mib_per_second",
+        "disk_write_mib_per_second",
+    },
+    "installed": {
+        "boot_to_desktop_seconds",
+        "boot_userspace_seconds",
+        "idle_memory_mib",
+        "cpu_busy_percent",
+        "disk_read_mib_per_second",
+        "disk_write_mib_per_second",
+    },
+    "installation": {
+        "installation_total_seconds",
+        "installation_storage_seconds",
+        "installation_rootfs_seconds",
+        "installation_target_seconds",
+        "installation_boot_seconds",
+        "installation_complete_seconds",
+    },
+}
+
+
+def read_toml(path: Path) -> dict[str, Any]:
+    with path.open("rb") as stream:
+        return tomllib.load(stream)
+
+
+def validate_budget(budget: dict[str, Any]) -> None:
+    if int(budget.get("schema_version", 0)) != SCHEMA_VERSION:
+        raise ValueError("unsupported performance budget schema")
+    if int(budget.get("minimum_runs", 0)) < 3:
+        raise ValueError("minimum_runs must be at least 3")
+    if float(budget.get("settle_seconds", -1)) < 0 or float(budget.get("sample_seconds", 0)) <= 0:
+        raise ValueError("invalid settle/sample duration")
+    maximum_variation = float(budget.get("max_coefficient_of_variation", 0))
+    if not 0 < maximum_variation <= 1:
+        raise ValueError("max_coefficient_of_variation must be between 0 and 1")
+    for name, rules in budget.get("metrics", {}).items():
+        direction = rules.get("direction")
+        if direction not in {"lower", "informational"}:
+            raise ValueError(f"invalid direction for {name}")
+        warning = float(rules.get("warning_percent", -1))
+        blocking = float(rules.get("blocking_percent", -1))
+        if direction == "lower" and (warning < 0 or blocking <= warning):
+            raise ValueError(f"invalid warning/blocking thresholds for {name}")
+
+
+def read_key_values(path: Path) -> dict[str, str]:
+    values: dict[str, str] = {}
+    if not path.is_file():
+        return values
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        values[key] = value.strip().strip("'\"")
+    return values
+
+
+def command(*arguments: str) -> str:
+    try:
+        result = subprocess.run(
+            arguments,
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            env={**os.environ, "LC_ALL": "C"},
+        )
+    except OSError:
+        return ""
+    return result.stdout.strip() if result.returncode == 0 else ""
+
+
+def atomic_json(path: Path, document: dict[str, Any]) -> None:
+    if path.exists() or path.is_symlink():
+        raise ValueError(f"refusing to overwrite: {path}")
+    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    temporary = path.with_name(f".{path.name}.new")
+    temporary.write_text(json.dumps(document, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    temporary.chmod(0o600)
+    temporary.replace(path)
+
+
+def detect_context() -> str:
+    root_type = command("findmnt", "-n", "-o", "FSTYPE", "/")
+    if root_type.startswith(("overlay", "squashfs")) or (
+        Path("/etc/gdm/custom.conf").exists() and command("getent", "passwd", "liveuser")
+    ):
+        return "live"
+    return "installed"
+
+
+def source_identity() -> dict[str, Any]:
+    release = read_key_values(Path("/usr/lib/lyra-os/release"))
+    os_release = read_key_values(Path("/etc/os-release"))
+    build = read_key_values(Path("/usr/lib/lyra-os/build-info"))
+    version = release.get("LYRA_VERSION_ID") or os_release.get("VERSION_ID") or "unknown"
+    commit = build.get("LYRA_SOURCE_COMMIT", "")
+    dirty: bool | str = "unknown"
+    if build.get("LYRA_SOURCE_DIRTY") in {"0", "1"}:
+        dirty = build["LYRA_SOURCE_DIRTY"] == "1"
+    if not re.fullmatch(r"[0-9a-f]{40}", commit):
+        commit = command("git", "rev-parse", "HEAD")
+        if re.fullmatch(r"[0-9a-f]{40}", commit):
+            dirty = bool(command("git", "status", "--porcelain", "--untracked-files=normal"))
+    if not re.fullmatch(r"[0-9a-f]{40}", commit):
+        commit = "unknown"
+    return {
+        "version": version,
+        "commit": commit,
+        "dirty": dirty,
+        "kernel": platform.release(),
+        "image_built_at": build.get("LYRA_IMAGE_BUILT_AT", "unknown"),
+    }
+
+
+def cpu_model() -> str:
+    try:
+        for line in Path("/proc/cpuinfo").read_text(encoding="utf-8").splitlines():
+            if line.startswith("model name"):
+                return line.split(":", 1)[1].strip()
+    except OSError:
+        pass
+    return platform.processor() or "unknown"
+
+
+def meminfo() -> dict[str, int]:
+    values: dict[str, int] = {}
+    for line in Path("/proc/meminfo").read_text(encoding="utf-8").splitlines():
+        match = re.match(r"^(\w+):\s+(\d+)", line)
+        if match:
+            values[match.group(1)] = int(match.group(2))
+    return values
+
+
+def environment_identity() -> dict[str, Any]:
+    memory = meminfo()
+    return {
+        "architecture": platform.machine(),
+        "cpu_model": cpu_model(),
+        "cpu_count": os.cpu_count() or 0,
+        "memory_total_mib": round(memory.get("MemTotal", 0) / 1024),
+        "virtualization": command("systemd-detect-virt") or "none",
+    }
+
+
+def boot_to_desktop_seconds() -> float | None:
+    active = command(
+        "systemctl",
+        "--user",
+        "show",
+        "graphical-session.target",
+        "--property=ActiveEnterTimestampMonotonic",
+        "--value",
+    )
+    if active.isdigit() and int(active) > 0:
+        return round(int(active) / 1_000_000, 3)
+
+    # Fallback for sessions that do not expose graphical-session.target.
+    ticks = os.sysconf(os.sysconf_names["SC_CLK_TCK"])
+    for process in Path("/proc").iterdir():
+        if not process.name.isdigit():
+            continue
+        try:
+            if process.stat().st_uid != os.getuid():
+                continue
+            if (process / "comm").read_text(encoding="utf-8").strip() != "gnome-shell":
+                continue
+            stat = (process / "stat").read_text(encoding="utf-8")
+            tail = stat[stat.rfind(")") + 2 :].split()
+            return round(int(tail[19]) / ticks, 3)
+        except (FileNotFoundError, IndexError, OSError, ValueError):
+            continue
+    return None
+
+
+def duration_seconds(value: str, unit: str) -> float:
+    number = float(value)
+    return number / 1000 if unit == "ms" else number * 60 if unit == "min" else number
+
+
+def boot_userspace_seconds() -> float | None:
+    output = command("systemd-analyze", "time")
+    match = re.search(r"([0-9.]+)(ms|s|min) \(userspace\)", output)
+    return round(duration_seconds(*match.groups()), 3) if match else None
+
+
+def cpu_counters() -> tuple[int, int]:
+    fields = Path("/proc/stat").read_text(encoding="utf-8").splitlines()[0].split()[1:]
+    counters = [int(value) for value in fields]
+    idle = counters[3] + (counters[4] if len(counters) > 4 else 0)
+    return sum(counters), idle
+
+
+def disk_sectors() -> tuple[int, int]:
+    read = write = 0
+    for line in Path("/proc/diskstats").read_text(encoding="utf-8").splitlines():
+        fields = line.split()
+        if len(fields) < 14 or re.search(r"(?:loop|ram|zram|sr)\d+$", fields[2]):
+            continue
+        if (Path("/sys/class/block") / fields[2] / "partition").exists():
+            continue
+        read += int(fields[5])
+        write += int(fields[9])
+    return read, write
+
+
+def sample_activity(seconds: float) -> dict[str, float]:
+    total_before, idle_before = cpu_counters()
+    read_before, write_before = disk_sectors()
+    started = time.monotonic()
+    time.sleep(seconds)
+    elapsed = max(time.monotonic() - started, 0.001)
+    total_after, idle_after = cpu_counters()
+    read_after, write_after = disk_sectors()
+    total_delta = total_after - total_before
+    busy = 0.0 if total_delta <= 0 else 100 * (1 - (idle_after - idle_before) / total_delta)
+    return {
+        "cpu_busy_percent": round(busy, 3),
+        "disk_read_mib_per_second": round(max(0, read_after - read_before) * 512 / 1048576 / elapsed, 3),
+        "disk_write_mib_per_second": round(max(0, write_after - write_before) * 512 / 1048576 / elapsed, 3),
+    }
+
+
+def parse_installation_trace(path: Path) -> dict[str, float]:
+    if not path.is_file():
+        return {}
+    events: dict[str, float] = {}
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        try:
+            event = json.loads(line)
+            events[event["stage"]] = float(event["monotonic_seconds"])
+        except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+            continue
+    order = ("start", "storage", "rootfs", "target", "boot", "complete")
+    if any(stage not in events for stage in order):
+        return {}
+    metrics = {"installation_total_seconds": round(events["complete"] - events["start"], 3)}
+    for previous, current in zip(order, order[1:]):
+        metrics[f"installation_{current}_seconds"] = round(events[current] - events[previous], 3)
+    return metrics
+
+
+def detail_lines(program: str, *arguments: str, limit: int = 20) -> list[str]:
+    output = command(program, *arguments)
+    return output.splitlines()[:limit] if output else []
+
+
+def capture(args: argparse.Namespace, budget: dict[str, Any]) -> int:
+    settle = budget["settle_seconds"] if args.settle_seconds is None else args.settle_seconds
+    sample = budget["sample_seconds"] if args.sample_seconds is None else args.sample_seconds
+    if settle < 0 or sample <= 0:
+        raise ValueError("settle must be non-negative and sample must be positive")
+    if settle:
+        time.sleep(settle)
+    memory = meminfo()
+    metrics: dict[str, float] = {
+        "boot_uptime_seconds": round(float(Path("/proc/uptime").read_text().split()[0]), 3),
+        "idle_memory_mib": round((memory.get("MemTotal", 0) - memory.get("MemAvailable", 0)) / 1024, 3),
+    }
+    desktop = boot_to_desktop_seconds()
+    userspace = boot_userspace_seconds()
+    if desktop is not None:
+        metrics["boot_to_desktop_seconds"] = desktop
+    if userspace is not None:
+        metrics["boot_userspace_seconds"] = userspace
+    metrics.update(sample_activity(sample))
+    trace = args.trace or DEFAULT_TRACE
+    metrics.update(parse_installation_trace(trace))
+    phase = detect_context() if args.phase == "auto" else args.phase
+    document = {
+        "schema_version": SCHEMA_VERSION,
+        "captured_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
+        "phase": phase,
+        "source": source_identity(),
+        "environment": environment_identity(),
+        "parameters": {"settle_seconds": settle, "sample_seconds": sample},
+        "metrics": metrics,
+        "details": {
+            "systemd_blame": detail_lines("systemd-analyze", "blame", "--no-pager"),
+            "critical_chain": detail_lines("systemd-analyze", "critical-chain", "--no-pager"),
+            "top_processes": detail_lines(
+                "ps", "-eo", "pid,comm,%cpu,%mem", "--sort=-%cpu", limit=21
+            ),
+        },
+    }
+    atomic_json(args.output, document)
+    print(args.output)
+    return 0
+
+
+def mark(args: argparse.Namespace) -> int:
+    if not re.fullmatch(r"[a-z][a-z0-9-]*", args.stage):
+        raise ValueError("stage must be machine-safe")
+    args.trace.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
+    if args.trace.is_symlink():
+        raise ValueError("refusing symbolic-link trace")
+    event = {
+        "stage": args.stage,
+        "monotonic_seconds": round(time.clock_gettime(time.CLOCK_BOOTTIME), 6),
+        "wall_utc": dt.datetime.now(dt.timezone.utc).isoformat(timespec="microseconds"),
+    }
+    flags = os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NOFOLLOW
+    if args.stage == "start":
+        flags |= os.O_TRUNC
+    descriptor = os.open(args.trace, flags, 0o600)
+    with os.fdopen(descriptor, "a", encoding="utf-8") as stream:
+        stream.write(json.dumps(event, sort_keys=True) + "\n")
+    return 0
+
+
+def median_absolute_deviation(values: list[float]) -> float:
+    center = statistics.median(values)
+    return statistics.median(abs(value - center) for value in values)
+
+
+def aggregate(args: argparse.Namespace, budget: dict[str, Any]) -> int:
+    documents = [json.loads(path.read_text(encoding="utf-8")) for path in args.inputs]
+    minimum = int(budget["minimum_runs"])
+    if len(documents) < minimum:
+        raise ValueError(f"at least {minimum} runs are required, got {len(documents)}")
+    phases = {document["phase"] for document in documents}
+    versions = {document["source"]["version"] for document in documents}
+    commits = {document["source"]["commit"] for document in documents}
+    kernels = {document["source"].get("kernel", "unknown") for document in documents}
+    environments = {json.dumps(document["environment"], sort_keys=True) for document in documents}
+    if len(phases) != 1 or len(versions) != 1 or len(commits) != 1 or len(kernels) != 1 or len(environments) != 1:
+        raise ValueError("runs must have the same phase, version, commit, kernel, and environment")
+    if "unknown" in versions or "unknown" in commits or "unknown" in kernels:
+        raise ValueError("runs must identify a release version, source commit, and kernel")
+    if any(document["source"].get("dirty", "unknown") is not False for document in documents):
+        raise ValueError("baseline series requires clean source builds")
+    metric_names = set.intersection(*(set(document["metrics"]) for document in documents))
+    missing = REQUIRED_METRICS.get(next(iter(phases)), set()) - metric_names
+    if missing:
+        raise ValueError(f"series is missing required metrics: {', '.join(sorted(missing))}")
+    metrics: dict[str, Any] = {}
+    noisy = False
+    for name in sorted(metric_names):
+        values = [float(document["metrics"][name]) for document in documents]
+        median = statistics.median(values)
+        coefficient = statistics.pstdev(values) / median if median else 0.0
+        if coefficient > float(budget["max_coefficient_of_variation"]):
+            noisy = True
+        metrics[name] = {
+            "median": round(median, 3),
+            "median_absolute_deviation": round(median_absolute_deviation(values), 3),
+            "coefficient_of_variation": round(coefficient, 4),
+            "minimum": round(min(values), 3),
+            "maximum": round(max(values), 3),
+        }
+    result: dict[str, Any] = {
+        "schema_version": SCHEMA_VERSION,
+        "generated_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
+        "phase": phases.pop(),
+        "source": documents[0]["source"],
+        "environment": documents[0]["environment"],
+        "run_count": len(documents),
+        "noisy": noisy,
+        "metrics": metrics,
+        "budget": {"status": "not-compared", "comparisons": {}},
+    }
+    status = "pass"
+    if args.baseline:
+        baseline = json.loads(args.baseline.read_text(encoding="utf-8"))
+        if baseline["phase"] != result["phase"] or baseline["environment"] != result["environment"]:
+            raise ValueError("baseline phase and environment must match the current series")
+        comparisons: dict[str, Any] = {}
+        for name, rules in budget.get("metrics", {}).items():
+            if rules["direction"] == "informational" or name not in metrics or name not in baseline["metrics"]:
+                continue
+            current = metrics[name]["median"]
+            previous = float(baseline["metrics"][name]["median"])
+            change = 0.0 if previous == 0 else 100 * (current - previous) / previous
+            level = "pass"
+            if change >= float(rules["blocking_percent"]):
+                level = "blocking"
+                status = "blocking"
+            elif change >= float(rules["warning_percent"]):
+                level = "warning"
+                if status == "pass":
+                    status = "warning"
+            comparisons[name] = {"baseline": previous, "current": current, "change_percent": round(change, 2), "status": level}
+        result["budget"] = {"status": status, "comparisons": comparisons}
+    atomic_json(args.output, result)
+    print(args.output)
+    if noisy:
+        print("measurement series exceeds the allowed variation", file=sys.stderr)
+        return 2
+    if status == "blocking" or (status == "warning" and args.fail_on == "warning"):
+        return 2
+    return 0
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--budget", type=Path, default=DEFAULT_BUDGET)
+    commands = parser.add_subparsers(dest="command", required=True)
+    commands.add_parser("check")
+    capture_parser = commands.add_parser("capture")
+    capture_parser.add_argument("--phase", choices=("auto", "live", "installed", "installation"), default="auto")
+    capture_parser.add_argument("--output", required=True, type=Path)
+    capture_parser.add_argument("--trace", type=Path)
+    capture_parser.add_argument("--settle-seconds", type=float)
+    capture_parser.add_argument("--sample-seconds", type=float)
+    mark_parser = commands.add_parser("mark")
+    mark_parser.add_argument("--trace", type=Path, default=DEFAULT_TRACE)
+    mark_parser.add_argument("--stage", required=True)
+    aggregate_parser = commands.add_parser("aggregate")
+    aggregate_parser.add_argument("--output", required=True, type=Path)
+    aggregate_parser.add_argument("--baseline", type=Path)
+    aggregate_parser.add_argument("--fail-on", choices=("warning", "blocking"), default="blocking")
+    aggregate_parser.add_argument("inputs", nargs="+", type=Path)
+    return parser
+
+
+def main() -> int:
+    args = build_parser().parse_args()
+    try:
+        budget = read_toml(args.budget)
+        validate_budget(budget)
+        if args.command == "check":
+            print("performance budget is valid")
+            return 0
+        if args.command == "capture":
+            return capture(args, budget)
+        if args.command == "mark":
+            return mark(args)
+        return aggregate(args, budget)
+    except (OSError, ValueError, KeyError, json.JSONDecodeError) as error:
+        print(f"lyra-performance: {error}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -146,6 +146,9 @@ EOF
 
 collect_file os-release /etc/os-release
 collect_file lyra-release /usr/lib/lyra-os/release
+collect_file lyra-build-info /usr/lib/lyra-os/build-info
+collect_file performance-budget /usr/share/lyra-os/performance.toml
+collect_file installation-performance /run/lyra-performance/installation.jsonl
 collect kernel /usr/bin/uname -a
 collect cpu /usr/bin/lscpu
 collect memory /usr/bin/free -h

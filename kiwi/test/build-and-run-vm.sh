@@ -88,6 +88,13 @@ if [ "$BOOT_DISK_ONLY" -eq 0 ]; then
   fi
   "$RELEASE_TOOL" check
   EXPECTED_ISO_NAME="$("$RELEASE_TOOL" field iso_filename)"
+  BUILD_SOURCE_COMMIT="$(git -C "$REPO_ROOT" rev-parse HEAD)"
+  if [ -n "$(git -C "$REPO_ROOT" status --porcelain --untracked-files=normal)" ]; then
+    BUILD_SOURCE_DIRTY=1
+  else
+    BUILD_SOURCE_DIRTY=0
+  fi
+  IMAGE_BUILT_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 fi
 
 if [ "$SECURE_BOOT" -eq 1 ]; then
@@ -193,7 +200,11 @@ if [ "$BOOT_DISK_ONLY" -eq 0 ] && [ "$SKIP_BUILD" -eq 0 ]; then
   ISO_PATH=""
 
   echo "--- building ISO with kiwi-ng (will prompt for sudo password) ---"
-  if sudo kiwi-ng system build \
+  if sudo kiwi-ng \
+      --setenv="LYRA_BUILD_SOURCE_COMMIT=$BUILD_SOURCE_COMMIT" \
+      --setenv="LYRA_BUILD_SOURCE_DIRTY=$BUILD_SOURCE_DIRTY" \
+      --setenv="LYRA_IMAGE_BUILT_AT=$IMAGE_BUILT_AT" \
+      system build \
       --description "$KIWI_DESC" \
       --target-dir "$BUILD_DIR"; then
     BUILD_STATUS=0
@@ -214,6 +225,11 @@ if [ "$BOOT_DISK_ONLY" -eq 0 ] && [ "$SKIP_BUILD" -eq 0 ]; then
   if ! grep -Fx "VERSION_ID=\"$("$RELEASE_TOOL" field version_id)\"" \
       "$IMAGE_OS_RELEASE" >/dev/null; then
     echo "!!! built image /etc/os-release does not match release.toml" >&2
+    exit 1
+  fi
+  if ! grep -Fx "LYRA_SOURCE_COMMIT=\"$BUILD_SOURCE_COMMIT\"" \
+      "$BUILD_DIR/build/image-root/usr/lib/lyra-os/build-info" >/dev/null; then
+    echo "!!! built image does not identify source commit $BUILD_SOURCE_COMMIT" >&2
     exit 1
   fi
 

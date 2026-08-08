@@ -165,6 +165,9 @@
     <package name="usbutils"/>
     <package name="less"/>
 
+    <!-- Opt-in local performance capture and aggregation (issue #49). -->
+    <package name="procps"/>
+
     <!--
       Required for the "root disabled, sudo user created at install"
       model (PROMPT-LYRA-OS.md) to actually work on the installed

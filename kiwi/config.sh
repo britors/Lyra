@@ -23,6 +23,22 @@ if [ "$kiwi_iversion" != "$LYRA_VERSION_ID" ]; then
     exit 1
 fi
 
+LYRA_BUILD_SOURCE_COMMIT="${LYRA_BUILD_SOURCE_COMMIT:-unknown}"
+LYRA_IMAGE_BUILT_AT="${LYRA_IMAGE_BUILT_AT:-unknown}"
+LYRA_BUILD_SOURCE_DIRTY="${LYRA_BUILD_SOURCE_DIRTY:-unknown}"
+if ! [[ "$LYRA_BUILD_SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
+    LYRA_BUILD_SOURCE_COMMIT=unknown
+fi
+if [[ "$LYRA_BUILD_SOURCE_DIRTY" != 0 && "$LYRA_BUILD_SOURCE_DIRTY" != 1 ]]; then
+    LYRA_BUILD_SOURCE_DIRTY=unknown
+fi
+cat > /usr/lib/lyra-os/build-info <<EOF
+# Generated during the KIWI build; do not edit.
+LYRA_SOURCE_COMMIT="$LYRA_BUILD_SOURCE_COMMIT"
+LYRA_SOURCE_DIRTY="$LYRA_BUILD_SOURCE_DIRTY"
+LYRA_IMAGE_BUILT_AT="$LYRA_IMAGE_BUILT_AT"
+EOF
+
 # Leap's filesystem package does not own /etc/mtab, and a KIWI-built root can
 # therefore leave the path absent.  Snapper still opens /etc/mtab while
 # detecting the filesystem for `create-config`; point it at the kernel's live
