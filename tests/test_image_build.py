@@ -67,6 +67,24 @@ class ImagePolicyTests(unittest.TestCase):
             source = json.loads((destination / "build-source.json").read_text(encoding="utf-8"))
             self.assertRegex(source["commit"], r"^[0-9a-f]{40}$")
             self.assertFalse(source["dirty"])
+            self.assertTrue((destination / "root.tar.gz").is_file())
+
+    def test_root_archive_is_deterministic(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            first = Path(temporary) / "first"
+            second = Path(temporary) / "second"
+            real_git = image_build.git
+            with mock.patch.object(
+                image_build,
+                "git",
+                side_effect=lambda *args: "" if args[0] == "status" else real_git(*args),
+            ):
+                image_build.export(self.manifest, first, "HEAD", allow_dirty=False)
+                image_build.export(self.manifest, second, "HEAD", allow_dirty=False)
+            self.assertEqual(
+                image_build.sha256(first / "root.tar.gz"),
+                image_build.sha256(second / "root.tar.gz"),
+            )
 
     def test_export_refuses_nonempty_destination(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

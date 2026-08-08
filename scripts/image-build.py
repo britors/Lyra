@@ -6,12 +6,14 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import datetime as dt
+import gzip
 import hashlib
 import json
 import re
 import shutil
 import subprocess
 import sys
+import tarfile
 import tempfile
 import tomllib
 import xml.etree.ElementTree as ET
@@ -226,6 +228,30 @@ def ensure_export_target(destination: Path) -> None:
     destination.mkdir(parents=True, exist_ok=True)
 
 
+def write_root_archive(root: Path, archive: Path, epoch: int) -> None:
+    """Create the deterministic root.tar.gz format consumed by OBS/KIWI."""
+
+    def normalize(member: tarfile.TarInfo) -> tarfile.TarInfo:
+        member.uid = 0
+        member.gid = 0
+        member.uname = "root"
+        member.gname = "root"
+        member.mtime = epoch
+        member.pax_headers = {}
+        return member
+
+    with archive.open("wb") as raw:
+        with gzip.GzipFile(filename="", mode="wb", fileobj=raw, mtime=epoch) as compressed:
+            with tarfile.open(fileobj=compressed, mode="w", format=tarfile.PAX_FORMAT) as output:
+                for source in sorted(root.rglob("*"), key=lambda path: path.relative_to(root).as_posix()):
+                    output.add(
+                        source,
+                        arcname=source.relative_to(root).as_posix(),
+                        recursive=False,
+                        filter=normalize,
+                    )
+
+
 def export(manifest: Manifest, destination: Path, commit: str, allow_dirty: bool) -> None:
     validate_sources(manifest)
     dirty = bool(git("status", "--porcelain", "--untracked-files=normal"))
@@ -246,6 +272,7 @@ def export(manifest: Manifest, destination: Path, commit: str, allow_dirty: bool
     embedded = destination / "root/usr/lib/lyra-os/build-source"
     embedded.parent.mkdir(parents=True, exist_ok=True)
     embedded.write_text(environment, encoding="utf-8")
+    write_root_archive(destination / "root", destination / "root.tar.gz", metadata["source_epoch"])
     multibuild = ET.Element("multibuild")
     ET.SubElement(multibuild, "flavor").text = manifest.required_flavor
     ET.indent(multibuild, space="  ")
@@ -285,6 +312,14 @@ def verify_export(manifest: Manifest, directory: Path) -> None:
     embedded = directory / "root/usr/lib/lyra-os/build-source"
     if metadata["commit"] not in embedded.read_text(encoding="utf-8"):
         raise PolicyError("embedded source identity differs from export manifest")
+    with tarfile.open(directory / "root.tar.gz", mode="r:gz") as archive:
+        names = archive.getnames()
+        required = {"usr/lib/lyra-os/release", "usr/lib/lyra-os/build-source"}
+        if not required.issubset(names):
+            raise PolicyError("OBS root archive lacks generated release metadata")
+        archived_source = archive.extractfile("usr/lib/lyra-os/build-source")
+        if archived_source is None or metadata["commit"].encode() not in archived_source.read():
+            raise PolicyError("archived source identity differs from export manifest")
     print(f"OK: deterministic {manifest.required_flavor} export at {metadata['commit']}")
 
 

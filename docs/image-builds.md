@@ -30,7 +30,9 @@ inspection and marks that export dirty; it cannot pass `verify-export` or be
 published. The export records the checked-out full Git commit, commit epoch,
 and deterministic UTC build timestamp in `build-source.json` and in
 `root/usr/lib/lyra-os/build-source`. The latter becomes
-`/usr/lib/lyra-os/build-info` inside the image.
+`/usr/lib/lyra-os/build-info` inside the image. The root overlay is also
+exported as a normalized, deterministic `root.tar.gz`, which is the source
+format OBS passes to KIWI.
 
 Signature verification is mandatory (`rpm-check-signatures`,
 `repository_gpgcheck`, and `package_gpgcheck`). Missing dependencies, invalid
