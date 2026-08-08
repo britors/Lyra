@@ -339,6 +339,11 @@
     -->
     <package name="vega-gtk"/>
 
+    <!-- Lyra's native remote-access clients, pinned in the default GNOME
+         favorites together with Vega, Firefox and LibreOffice Writer. -->
+    <package name="beam"/>
+    <package name="sulafat"/>
+
     <!--
       Sheliak, Lyra's GNOME 48 dock. Installing a system extension alone
       does not enable it for users, so the image also ships a GNOME Shell
