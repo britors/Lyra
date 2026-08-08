@@ -291,8 +291,14 @@ def package_meta(manifest: Manifest) -> str:
 
 def project_config() -> str:
     # RPM repositories otherwise default to spec recipes; image URLs should
-    # also remain stable across rebuilds.
-    return "Type: kiwi\nRepotype: staticlinks\n"
+    # also remain stable across rebuilds. OBS deliberately refuses ambiguous
+    # providers, so keep the two Leap branding choices explicit.
+    return (
+        "Type: kiwi\n"
+        "Repotype: staticlinks\n"
+        "Prefer: plymouth-branding-openSUSE\n"
+        "Prefer: MozillaFirefox-branding-openSUSE\n"
+    )
 
 
 def run(command: list[str], *, cwd: Path | None = None) -> str:

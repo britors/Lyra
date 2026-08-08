@@ -78,7 +78,11 @@ class ImagePolicyTests(unittest.TestCase):
                 image_build.verify_export(self.manifest, destination)
 
     def test_obs_project_uses_static_image_links(self) -> None:
-        self.assertEqual(image_build.project_config(), "Type: kiwi\nRepotype: staticlinks\n")
+        config = image_build.project_config()
+        self.assertIn("Type: kiwi\n", config)
+        self.assertIn("Repotype: staticlinks\n", config)
+        self.assertIn("Prefer: plymouth-branding-openSUSE\n", config)
+        self.assertIn("Prefer: MozillaFirefox-branding-openSUSE\n", config)
 
 
 class ArtifactTests(unittest.TestCase):
