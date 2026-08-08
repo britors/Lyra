@@ -62,6 +62,8 @@ install -Dm0755 target/release/lyra-installer-service \
     %{buildroot}%{_libexecdir}/lyra-installer-service
 install -Dm0644 packaging/org.lyraos.LyraInstaller.desktop \
     %{buildroot}%{_datadir}/applications/org.lyraos.LyraInstaller.desktop
+install -Dm0644 src-tauri/icons/256x256.png \
+    %{buildroot}%{_datadir}/icons/hicolor/256x256/apps/org.lyraos.LyraInstaller.png
 install -Dm0644 packaging/io.lyra.Installer.policy \
     %{buildroot}%{_datadir}/polkit-1/actions/io.lyra.Installer.policy
 install -Dm0644 packaging/01-lyra-installer-service.rules \
@@ -89,6 +91,7 @@ cargo test --offline -p lyra-installer-core
 %{_bindir}/lyra-installer
 %{_libexecdir}/lyra-installer-service
 %{_datadir}/applications/org.lyraos.LyraInstaller.desktop
+%{_datadir}/icons/hicolor/256x256/apps/org.lyraos.LyraInstaller.png
 %{_datadir}/polkit-1/actions/io.lyra.Installer.policy
 # The build root's directory-ownership check flagged /etc/polkit-1 and
 # /etc/polkit-1/rules.d as unowned by any package present at build time
