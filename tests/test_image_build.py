@@ -38,7 +38,13 @@ class ImagePolicyTests(unittest.TestCase):
     def test_project_prefers_the_live_module_from_the_kiwi_repository(self) -> None:
         config = image_build.project_config()
         self.assertIn("Prefer: dracut-kiwi-live\n", config)
-        self.assertIn("Support: dracut-kiwi-live\n", config)
+
+    def test_live_module_is_part_of_the_installed_image(self) -> None:
+        root = ET.parse(ROOT / "kiwi/config.xml").getroot()
+        image_packages = root.find("packages[@type='image']")
+        assert image_packages is not None
+        self.assertIsNotNone(image_packages.find("package[@name='dracut-kiwi-live']"))
+        self.assertIsNone(root.find("packages[@type='iso']/package[@name='dracut-kiwi-live']"))
 
     def test_export_is_derived_from_canonical_kiwi_without_duplicate_package_list(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

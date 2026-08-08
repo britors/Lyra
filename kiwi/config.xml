@@ -142,6 +142,10 @@
     <namedCollection name="base"/>
     <namedCollection name="enhanced_base"/>
     <package name="kernel-default"/>
+    <!-- Keep the live dracut module in the image package set, matching the
+         official openSUSE live recipe. OBS then stages its RPM for KIWI and
+         the module remains available to both live boot and the installer. -->
+    <package name="dracut-kiwi-live"/>
     <!-- kernel-default only Recommends firmware; onlyRequired would produce
          an ISO that boots in the VM but loses Wi-Fi/GPU/storage support on
          common physical hardware. CPU microcode is likewise explicit. -->
@@ -403,11 +407,5 @@
     <package name="lyra-os-icons"/>
     <package name="fastfetch"/>
   </packages>
-
-  <packages type="iso">
-    <!-- Required dracut module for KIWI live (overlay) boot -->
-    <package name="dracut-kiwi-live"/>
-  </packages>
-
 
 </image>
