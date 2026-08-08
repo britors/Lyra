@@ -4,6 +4,10 @@ KIWI image description for the Lyra OS "Odisseia" Beta 2 x86_64 live/installer
 ISO, built on openSUSE Leap 16. See `/PROMPT-LYRA-OS.md` at the repo root
 for the full product spec this implements.
 
+The reproducible local/OBS workflow, source identity, signature gates, image
+flavors, and artifact evidence are documented in
+[`docs/image-builds.md`](../docs/image-builds.md).
+
 ## Scope of this directory (current state)
 
 Current implementation: a KIWI description for an ISO based on Leap 16,

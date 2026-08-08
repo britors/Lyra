@@ -23,7 +23,16 @@ if [ "$kiwi_iversion" != "$LYRA_VERSION_ID" ]; then
     exit 1
 fi
 
+BUILD_SOURCE_METADATA=/usr/lib/lyra-os/build-source
+if [ -r "$BUILD_SOURCE_METADATA" ]; then
+    # OBS receives this generated file with the exported KIWI description.
+    # Local builds keep using the environment fallbacks below.
+    # shellcheck source=/dev/null
+    . "$BUILD_SOURCE_METADATA"
+fi
+
 LYRA_BUILD_SOURCE_COMMIT="${LYRA_BUILD_SOURCE_COMMIT:-unknown}"
+LYRA_BUILD_SOURCE_EPOCH="${LYRA_BUILD_SOURCE_EPOCH:-unknown}"
 LYRA_IMAGE_BUILT_AT="${LYRA_IMAGE_BUILT_AT:-unknown}"
 LYRA_BUILD_SOURCE_DIRTY="${LYRA_BUILD_SOURCE_DIRTY:-unknown}"
 if ! [[ "$LYRA_BUILD_SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
@@ -32,10 +41,14 @@ fi
 if [[ "$LYRA_BUILD_SOURCE_DIRTY" != 0 && "$LYRA_BUILD_SOURCE_DIRTY" != 1 ]]; then
     LYRA_BUILD_SOURCE_DIRTY=unknown
 fi
+if ! [[ "$LYRA_BUILD_SOURCE_EPOCH" =~ ^[0-9]+$ ]]; then
+    LYRA_BUILD_SOURCE_EPOCH=unknown
+fi
 cat > /usr/lib/lyra-os/build-info <<EOF
 # Generated during the KIWI build; do not edit.
 LYRA_SOURCE_COMMIT="$LYRA_BUILD_SOURCE_COMMIT"
 LYRA_SOURCE_DIRTY="$LYRA_BUILD_SOURCE_DIRTY"
+LYRA_SOURCE_EPOCH="$LYRA_BUILD_SOURCE_EPOCH"
 LYRA_IMAGE_BUILT_AT="$LYRA_IMAGE_BUILT_AT"
 EOF
 
@@ -67,14 +80,12 @@ EOF
 # zram-generator activates its own systemd generator at boot from
 # /etc/systemd/zram-generator.conf - no service to enable here.
 
-# Flathub as the third-party app channel (PROMPT-LYRA-OS.md). Registered
-# here, at image-build time, rather than as a Calamares install step:
-# unpackfs later rsyncs this whole live root - including whatever ends
-# up under /etc/flatpak and /var/lib/flatpak - onto the installed
-# system, so this one remote-add covers both the live session and every
-# installed system built from this image. Needs network access during
-# the KIWI build (fetches flathub.flatpakrepo) - see kiwi/README.md.
-flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+# Flathub is shipped as a versioned remote definition in root/. Keeping its
+# URL and signing key in the source prevents a network fetch during the build.
+if [ ! -r /etc/flatpak/remotes.d/flathub.flatpakrepo ]; then
+    echo "Missing versioned Flathub remote definition" >&2
+    exit 1
+fi
 
 # Compile the image-owned GNOME defaults after KIWI has overlaid root/.
 # This activates the system-installed Sheliak extension for the live account

@@ -16,6 +16,12 @@ jobs:
         run: ./scripts/release.py check
       - name: Verify OBS staging and repository policy
         run: ./scripts/obs-release.py validate
+      - name: Verify reproducible KIWI image policy
+        run: |
+          ./scripts/image-build.py validate
+          export_dir="$(mktemp -d)"
+          ./scripts/image-build.py export "$export_dir/image"
+          ./scripts/image-build.py verify-export "$export_dir/image"
       - name: Test release conventions and traceability
         run: python3 -m unittest discover -s tests -v
       - name: Verify image performance budget

@@ -89,12 +89,13 @@ if [ "$BOOT_DISK_ONLY" -eq 0 ]; then
   "$RELEASE_TOOL" check
   EXPECTED_ISO_NAME="$("$RELEASE_TOOL" field iso_filename)"
   BUILD_SOURCE_COMMIT="$(git -C "$REPO_ROOT" rev-parse HEAD)"
+  BUILD_SOURCE_EPOCH="$(git -C "$REPO_ROOT" show -s --format=%ct "$BUILD_SOURCE_COMMIT")"
   if [ -n "$(git -C "$REPO_ROOT" status --porcelain --untracked-files=normal)" ]; then
     BUILD_SOURCE_DIRTY=1
   else
     BUILD_SOURCE_DIRTY=0
   fi
-  IMAGE_BUILT_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  IMAGE_BUILT_AT="$(date -u -d "@$BUILD_SOURCE_EPOCH" +%Y-%m-%dT%H:%M:%SZ)"
 fi
 
 if [ "$SECURE_BOOT" -eq 1 ]; then
@@ -203,6 +204,7 @@ if [ "$BOOT_DISK_ONLY" -eq 0 ] && [ "$SKIP_BUILD" -eq 0 ]; then
   if sudo kiwi-ng \
       --setenv="LYRA_BUILD_SOURCE_COMMIT=$BUILD_SOURCE_COMMIT" \
       --setenv="LYRA_BUILD_SOURCE_DIRTY=$BUILD_SOURCE_DIRTY" \
+      --setenv="LYRA_BUILD_SOURCE_EPOCH=$BUILD_SOURCE_EPOCH" \
       --setenv="LYRA_IMAGE_BUILT_AT=$IMAGE_BUILT_AT" \
       system build \
       --description "$KIWI_DESC" \
