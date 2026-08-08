@@ -37,7 +37,9 @@ Signature verification is mandatory (`rpm-check-signatures`,
 repository metadata, or bad package signatures therefore fail KIWI/OBS instead
 of creating a release candidate. The SUSE 16 package-signing key used during
 the OBS bootstrap is pinned by SHA-256 and exported with the recipe; it is not
-replaced by a trust-all switch. Flathub's URL and signing key are versioned at
+replaced by a trust-all switch. It is attached to the preserved `repo-oss`
+entry because `obs-build` replaces `obsrepositories:/` with its command-line
+repository list before invoking KIWI. Flathub's URL and signing key are versioned at
 `kiwi/root/etc/flatpak/remotes.d/flathub.flatpakrepo`; no network command runs
 from `config.sh`.
 

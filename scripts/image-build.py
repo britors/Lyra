@@ -203,13 +203,17 @@ def render_obs_config(manifest: Manifest) -> bytes:
     for repository in root.findall("repository"):
         repository.attrib.pop("imageinclude", None)
         repository.set("imageonly", "true")
+        if repository.attrib.get("alias") == "repo-oss":
+            source = repository.find("source")
+            if source is None:
+                raise PolicyError("repo-oss has no source element")
+            ET.SubElement(
+                source,
+                "signing",
+                {"key": f"file:///usr/src/packages/SOURCES/{PACKAGE_SIGNING_KEY_EXPORT}"},
+            )
     build_repository = ET.Element("repository", {"alias": "obs-build", "type": "rpm-md"})
-    build_source = ET.SubElement(build_repository, "source", {"path": "obsrepositories:/"})
-    ET.SubElement(
-        build_source,
-        "signing",
-        {"key": f"file:///usr/src/packages/SOURCES/{PACKAGE_SIGNING_KEY_EXPORT}"},
-    )
+    ET.SubElement(build_repository, "source", {"path": "obsrepositories:/"})
     first_packages = next(index for index, node in enumerate(root) if node.tag == "packages")
     root.insert(first_packages, build_repository)
     ET.indent(tree, space="  ")
@@ -268,10 +272,11 @@ def verify_export(manifest: Manifest, directory: Path) -> None:
     ]
     if len(build_repos) != 1:
         raise PolicyError("export must have one OBS-injected build repository")
-    signing = build_repos[0].find("source/signing")
+    repo_oss = root.find("repository[@alias='repo-oss']")
+    signing = None if repo_oss is None else repo_oss.find("source/signing")
     expected_key = f"file:///usr/src/packages/SOURCES/{PACKAGE_SIGNING_KEY_EXPORT}"
     if signing is None or signing.attrib.get("key") != expected_key:
-        raise PolicyError("OBS build repository lacks the pinned SUSE package-signing key")
+        raise PolicyError("preserved repository lacks the pinned SUSE package-signing key")
     if sha256(directory / PACKAGE_SIGNING_KEY_EXPORT) != PACKAGE_SIGNING_KEY_SHA256:
         raise PolicyError("exported SUSE package-signing key failed its checksum")
     installed = [node for node in root.findall("repository") if node.attrib.get("alias") != "obs-build"]
