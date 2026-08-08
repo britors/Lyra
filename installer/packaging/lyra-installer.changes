@@ -1,4 +1,10 @@
 -------------------------------------------------------------------
+Sat Aug  8 23:55:00 UTC 2026 - Rodrigo Brito <rodrigo@w3ti.com.br>
+
+- Allow the main Tauri window to listen for live installation events.
+- Center the decorated installer window within GNOME's monitor work area.
+
+-------------------------------------------------------------------
 Sat Aug  8 20:40:00 UTC 2026 - Rodrigo Brito <rodrigo@w3ti.com.br>
 
 - Align the account form into balanced, responsive rows.

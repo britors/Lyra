@@ -102,10 +102,11 @@ CSS.
 `window.__TAURI__` precisou ser
 habilitado (`withGlobalTauri: true` em `tauri.conf.json`) porque este
 frontend é HTML/JS estático sem bundler, então não há import de
-`@tauri-apps/api`; comandos definidos no próprio binário (via
-`invoke_handler`) não passam pelo sistema de ACL do Tauri 2, só os das
-plugins, então nenhuma entrada de capability foi necessária para os dois
-comandos.
+`@tauri-apps/api`. Comandos definidos no próprio binário (via
+`invoke_handler`) não passam pelo sistema de ACL do Tauri 2, mas a API de
+eventos passa: `src-tauri/capabilities/main.json` libera somente `listen` e
+`unlisten` para a janela principal, necessários para acompanhar ao vivo os
+eventos de progresso emitidos por `execute_plan`.
 
 `service/` já traz o arcabouço de execução segura do plano
 (`lyra-installer-core::service`): protocolo em JSON lines, revalidação do

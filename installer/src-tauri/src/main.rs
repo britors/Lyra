@@ -165,9 +165,60 @@ fn fitted_window_size(
     )
 }
 
+fn fitted_window_position(
+    fitted_inner: tauri::PhysicalSize<u32>,
+    current_inner: tauri::PhysicalSize<u32>,
+    current_outer: tauri::PhysicalSize<u32>,
+    current_inner_position: tauri::PhysicalPosition<i32>,
+    current_outer_position: tauri::PhysicalPosition<i32>,
+    work_area_position: tauri::PhysicalPosition<i32>,
+    work_area_size: tauri::PhysicalSize<u32>,
+) -> tauri::PhysicalPosition<i32> {
+    // GTK can report the client size as the outer size while GNOME's
+    // server-side title bar is still visible. The difference between the
+    // client and frame positions preserves that missing decoration extent.
+    let left_decoration = current_inner_position
+        .x
+        .saturating_sub(current_outer_position.x)
+        .max(0) as u32;
+    let top_decoration = current_inner_position
+        .y
+        .saturating_sub(current_outer_position.y)
+        .max(0) as u32;
+    let horizontal_decoration = current_outer
+        .width
+        .saturating_sub(current_inner.width)
+        .max(left_decoration.saturating_mul(2));
+    let vertical_decoration = current_outer
+        .height
+        .saturating_sub(current_inner.height)
+        .max(top_decoration);
+    let fitted_outer = tauri::PhysicalSize::new(
+        fitted_inner.width.saturating_add(horizontal_decoration),
+        fitted_inner.height.saturating_add(vertical_decoration),
+    );
+
+    tauri::PhysicalPosition::new(
+        work_area_position.x.saturating_add(
+            work_area_size
+                .width
+                .saturating_sub(fitted_outer.width)
+                .saturating_div(2) as i32,
+        ),
+        work_area_position.y.saturating_add(
+            work_area_size
+                .height
+                .saturating_sub(fitted_outer.height)
+                .saturating_div(2) as i32,
+        ),
+    )
+}
+
 /// Keeps the entire installer inside the monitor work area after the VM or
 /// desktop changes resolution. The margin accounts for GNOME's title bar and
 /// leaves the wizard footer reachable instead of allowing it below the screen.
+/// Positioning is explicit because Tauri's generic `center()` can omit GNOME's
+/// server-side title bar and leave the decorated window visibly too low.
 #[tauri::command]
 fn fit_window_to_monitor(window: tauri::WebviewWindow) -> Result<(), String> {
     let current_monitor = window
@@ -180,11 +231,26 @@ fn fit_window_to_monitor(window: tauri::WebviewWindow) -> Result<(), String> {
             .map_err(|error| error.to_string())?
             .ok_or("não foi possível detectar o monitor atual")?,
     };
-    let current = window.inner_size().map_err(|error| error.to_string())?;
-    let size = fitted_window_size(current, monitor.work_area().size);
+    let work_area = monitor.work_area();
+    let current_inner = window.inner_size().map_err(|error| error.to_string())?;
+    let current_outer = window.outer_size().map_err(|error| error.to_string())?;
+    let current_inner_position = window.inner_position().map_err(|error| error.to_string())?;
+    let current_outer_position = window.outer_position().map_err(|error| error.to_string())?;
+    let size = fitted_window_size(current_inner, work_area.size);
+    let position = fitted_window_position(
+        size,
+        current_inner,
+        current_outer,
+        current_inner_position,
+        current_outer_position,
+        work_area.position,
+        work_area.size,
+    );
 
     window.set_size(size).map_err(|error| error.to_string())?;
-    window.center().map_err(|error| error.to_string())?;
+    window
+        .set_position(position)
+        .map_err(|error| error.to_string())?;
     Ok(())
 }
 
@@ -376,6 +442,38 @@ mod tests {
         );
 
         assert_eq!(fitted, tauri::PhysicalSize::new(800, 600));
+    }
+
+    #[test]
+    fn fitted_window_position_accounts_for_a_gnome_title_bar() {
+        let position = fitted_window_position(
+            tauri::PhysicalSize::new(1180, 880),
+            tauri::PhysicalSize::new(1180, 880),
+            // This is the misleading outer size observed under GTK: it does
+            // not include the 47 px frame visible in the position delta.
+            tauri::PhysicalSize::new(1180, 880),
+            tauri::PhysicalPosition::new(369, 170),
+            tauri::PhysicalPosition::new(369, 123),
+            tauri::PhysicalPosition::new(0, 40),
+            tauri::PhysicalSize::new(1920, 1040),
+        );
+
+        assert_eq!(position, tauri::PhysicalPosition::new(370, 96));
+    }
+
+    #[test]
+    fn fitted_window_position_uses_a_correctly_reported_outer_size() {
+        let position = fitted_window_position(
+            tauri::PhysicalSize::new(1180, 880),
+            tauri::PhysicalSize::new(1180, 880),
+            tauri::PhysicalSize::new(1180, 927),
+            tauri::PhysicalPosition::new(369, 170),
+            tauri::PhysicalPosition::new(369, 123),
+            tauri::PhysicalPosition::new(0, 40),
+            tauri::PhysicalSize::new(1920, 1040),
+        );
+
+        assert_eq!(position, tauri::PhysicalPosition::new(370, 96));
     }
 
     #[test]
