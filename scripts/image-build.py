@@ -323,6 +323,7 @@ def project_config() -> str:
         "Prefer: plymouth-branding-openSUSE\n"
         "Prefer: MozillaFirefox-branding-openSUSE\n"
         "Prefer: dracut-kiwi-live\n"
+        "Support: dracut-kiwi-live\n"
     )
 
 

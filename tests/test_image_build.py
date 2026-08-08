@@ -36,7 +36,9 @@ class ImagePolicyTests(unittest.TestCase):
         self.assertIn("nvidia", self.manifest.optional_flavors)
 
     def test_project_prefers_the_live_module_from_the_kiwi_repository(self) -> None:
-        self.assertIn("Prefer: dracut-kiwi-live\n", image_build.project_config())
+        config = image_build.project_config()
+        self.assertIn("Prefer: dracut-kiwi-live\n", config)
+        self.assertIn("Support: dracut-kiwi-live\n", config)
 
     def test_export_is_derived_from_canonical_kiwi_without_duplicate_package_list(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

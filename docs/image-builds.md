@@ -82,7 +82,9 @@ explicitly and uses `Repotype: staticlinks`, which gives published images
 stable download paths. It also pins the openSUSE providers for Plymouth and
 Firefox branding, plus `dracut-kiwi-live` from
 `Virtualization:Appliances:Builder`, so OBS cannot choose differently when
-multiple providers or source-package variants are available.
+multiple providers or source-package variants are available. The live module
+is also declared as an OBS `Support:` package so its signed RPM is present in
+the local repository passed to KIWI.
 
 `standard` is the only `_multibuild` entry for Beta 2. The `nvidia` profile is
 declared but optional and not submitted, so work tracked in #32 can reuse the
