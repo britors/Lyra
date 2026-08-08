@@ -13,11 +13,11 @@
         "title": "Instalar o Lyra OS",
         "width": 1180,
         "height": 880,
-        "minWidth": 900,
-        "minHeight": 700,
+        "minWidth": 640,
+        "minHeight": 440,
         "resizable": true,
-        "maximizable": false,
-        "minimizable": false,
+        "maximizable": true,
+        "minimizable": true,
         "center": true,
         "fullscreen": false
       }

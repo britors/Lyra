@@ -1,4 +1,16 @@
 -------------------------------------------------------------------
+Sat Aug  8 20:40:00 UTC 2026 - Rodrigo Brito <rodrigo@w3ti.com.br>
+
+- Keep the Tauri window responsive while the privileged install runs.
+- Move blocking process and pipe handling to Tauri's blocking task pool.
+- Never present zram, RAM disks, swap devices, or normal loop devices as
+  installation destinations.
+- Keep disposable loop-device testing behind an explicit test-only opt-in.
+- Fit and recenter the installer when the VM display resolution changes.
+- Keep the wizard footer reachable on short screens with a compact layout.
+- Enable the standard minimize and maximize window controls.
+
+-------------------------------------------------------------------
 Sat Aug  8 20:21:55 UTC 2026 - Rodrigo Brito <rodrigo@w3ti.com.br>
 
 - Skip optional desktop groups absent from the extracted Leap system.

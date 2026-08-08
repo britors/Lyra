@@ -23,6 +23,15 @@ let selectedPlan=null;
 let summaryConfigValid=false;
 let installing=false;
 let installationTerminal=false;
+let knownScreenSize=`${screen.availWidth}x${screen.availHeight}`;
+
+async function fitWindowToMonitor(){
+  try{
+    await invoke('fit_window_to_monitor');
+  }catch(error){
+    console.error('Não foi possível ajustar a janela à área útil do monitor',error);
+  }
+}
 
 const keyboardLayouts=[
   ['br-abnt2','Português (Brasil)','ABNT2 · Português brasileiro','Português','Q W E R T Y Ç ⌫'],
@@ -419,6 +428,7 @@ async function executeInstallation(){
       installationTerminal=true;
       setInstallationStatus('completed','Lyra OS instalado. Reinicie para usar o novo sistema.');
       install.textContent='Instalação concluída';
+      await fitWindowToMonitor();
     }else{
       throw new Error('o serviço não informou se a instalação foi concluída');
     }
@@ -439,6 +449,13 @@ back.addEventListener('click',()=>{if(!installing&&!installationTerminal&&curren
 steps.forEach(step=>step.addEventListener('click',()=>{const index=Number(step.dataset.step);if(!installing&&!installationTerminal&&index<=current)show(index)}));
 installConfirm.addEventListener('change',updateInstallButtonState);
 install.addEventListener('click',executeInstallation);
+window.addEventListener('resize',()=>{
+  const currentScreenSize=`${screen.availWidth}x${screen.availHeight}`;
+  if(currentScreenSize!==knownScreenSize){
+    knownScreenSize=currentScreenSize;
+    void fitWindowToMonitor();
+  }
+});
 document.querySelectorAll('.choice input').forEach(input=>input.addEventListener('change',()=>{document.querySelectorAll('.choice').forEach(choice=>choice.classList.toggle('selected',choice.querySelector('input').checked))}));
 document.querySelector('#keyboard-cards').addEventListener('change',event=>{if(event.target.matches('input'))document.querySelectorAll('.keyboard-card').forEach(card=>card.classList.toggle('selected',card.querySelector('input').checked))});
 document.querySelector('#keyboard-search').addEventListener('input',event=>renderKeyboardCards(event.target.value));
@@ -555,3 +572,4 @@ updateLayoutVisibility();
 loadInstallerLogo();
 discoverStorage();
 show(0);
+void fitWindowToMonitor();

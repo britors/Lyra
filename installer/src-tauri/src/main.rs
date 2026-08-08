@@ -139,14 +139,71 @@ fn installer_logo() -> Vec<u8> {
     include_bytes!("../icons/256x256.png").to_vec()
 }
 
-/// Launches the privileged service via `pkexec` for the duration of this
-/// one call only — never the whole UI (see `docs/installer-architecture.md`). Sends the
-/// confirmed plan on stdin, collects every event from stdout, and returns
-/// once the child exits. The frontend shows an indeterminate running state
-/// while this call is active and renders the structured events afterwards;
-/// live event streaming remains a separate improvement.
+const PREFERRED_WINDOW_WIDTH: u32 = 1180;
+const PREFERRED_WINDOW_HEIGHT: u32 = 880;
+const WINDOW_HORIZONTAL_MARGIN: u32 = 48;
+const WINDOW_VERTICAL_MARGIN: u32 = 72;
+
+fn fitted_window_size(
+    current: tauri::PhysicalSize<u32>,
+    work_area: tauri::PhysicalSize<u32>,
+) -> tauri::PhysicalSize<u32> {
+    let available_width = work_area.width.saturating_sub(WINDOW_HORIZONTAL_MARGIN);
+    let available_height = work_area.height.saturating_sub(WINDOW_VERTICAL_MARGIN);
+
+    tauri::PhysicalSize::new(
+        current
+            .width
+            .min(PREFERRED_WINDOW_WIDTH)
+            .min(available_width),
+        current
+            .height
+            .min(PREFERRED_WINDOW_HEIGHT)
+            .min(available_height),
+    )
+}
+
+/// Keeps the entire installer inside the monitor work area after the VM or
+/// desktop changes resolution. The margin accounts for GNOME's title bar and
+/// leaves the wizard footer reachable instead of allowing it below the screen.
 #[tauri::command]
-fn execute_plan(request: ExecutionRequest) -> Result<Vec<ExecutionEvent>, String> {
+fn fit_window_to_monitor(window: tauri::WebviewWindow) -> Result<(), String> {
+    let current_monitor = window
+        .current_monitor()
+        .map_err(|error| error.to_string())?;
+    let monitor = match current_monitor {
+        Some(monitor) => monitor,
+        None => window
+            .primary_monitor()
+            .map_err(|error| error.to_string())?
+            .ok_or("não foi possível detectar o monitor atual")?,
+    };
+    let current = window.inner_size().map_err(|error| error.to_string())?;
+    let size = fitted_window_size(current, monitor.work_area().size);
+
+    window.set_size(size).map_err(|error| error.to_string())?;
+    window.center().map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+/// Moves the blocking child-process/pipe loop off the Tauri command thread.
+/// Keeping it in a synchronous command made WebKit's window stop repainting,
+/// so GNOME repeatedly offered an "Aguarde" response while the installation
+/// itself continued normally in the background.
+#[tauri::command]
+async fn execute_plan(request: ExecutionRequest) -> Result<Vec<ExecutionEvent>, String> {
+    tauri::async_runtime::spawn_blocking(move || execute_plan_blocking(request))
+        .await
+        .map_err(|error| format!("a tarefa de instalação foi interrompida: {error}"))?
+}
+
+/// Launches the privileged service via `pkexec` for the duration of this one
+/// call only — never the whole UI (see `docs/installer-architecture.md`).
+/// Sends the confirmed plan on stdin, collects every event from stdout, and
+/// returns once the child exits. The frontend remains responsive and shows
+/// its indeterminate animation while this function runs on the blocking pool;
+/// live event streaming remains a separate improvement.
+fn execute_plan_blocking(request: ExecutionRequest) -> Result<Vec<ExecutionEvent>, String> {
     let (mut trace, trace_path) = create_install_trace(&request)?;
     append_trace(&mut trace, "frontend=starting privileged service");
 
@@ -232,6 +289,7 @@ fn main() {
             plan_install,
             validate_install_config,
             installer_logo,
+            fit_window_to_monitor,
             execute_plan
         ])
         .run(tauri::generate_context!())
@@ -255,5 +313,25 @@ mod tests {
         let summary = redacted_config(&config);
         assert_eq!(summary["password"], "<redacted>");
         assert!(!summary.to_string().contains(&config.password));
+    }
+
+    #[test]
+    fn fitted_window_leaves_room_for_desktop_chrome() {
+        let fitted = fitted_window_size(
+            tauri::PhysicalSize::new(1180, 880),
+            tauri::PhysicalSize::new(1024, 728),
+        );
+
+        assert_eq!(fitted, tauri::PhysicalSize::new(976, 656));
+    }
+
+    #[test]
+    fn fitted_window_does_not_enlarge_a_user_resized_window() {
+        let fitted = fitted_window_size(
+            tauri::PhysicalSize::new(800, 600),
+            tauri::PhysicalSize::new(1920, 1040),
+        );
+
+        assert_eq!(fitted, tauri::PhysicalSize::new(800, 600));
     }
 }

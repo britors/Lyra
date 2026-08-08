@@ -20,6 +20,10 @@
 
 set -euo pipefail
 
+# Discovery hides loop devices from the normal installer. This opt-in is
+# intentionally scoped to the disposable integration-test process tree.
+export LYRA_INSTALLER_ALLOW_LOOP_DEVICES=1
+
 cd "$(dirname "$0")/.."  # installer/
 
 if [ "$(id -u)" -ne 0 ]; then

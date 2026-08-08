@@ -5,6 +5,7 @@
 //! describes the frontend doing ("O frontend descobre opções..."). Only plan
 //! *execution* (issue #40) crosses the polkit privilege boundary.
 
+use std::env;
 use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -159,18 +160,35 @@ fn discover_disks() -> Result<Vec<Disk>, DiscoveryError> {
         .map_err(|error| DiscoveryError::Parse(error.to_string()))?;
 
     let live_media = live_media_disks();
+    let allow_loop_devices =
+        env::var_os("LYRA_INSTALLER_ALLOW_LOOP_DEVICES").is_some_and(|value| value == "1");
 
     Ok(parsed
         .blockdevices
         .into_iter()
-        // "loop" is included so a disposable image set up via `losetup` can
-        // stand in for a real disk during integration testing (see
-        // installer/service/test-loop-device.sh) - no real install flow
-        // would ever have a live squashfs's own loop device pass the
-        // eligibility checks in storage::plan (occupied/live-media rules).
-        .filter(|device| device.kind == "disk" || device.kind == "loop")
+        .filter(|device| installable_disk_candidate(device, allow_loop_devices))
         .map(|device| disk_from_lsblk(device, &live_media))
         .collect())
+}
+
+/// Keeps the destination picker limited to actual installable disks.
+///
+/// `lsblk` reports zram devices as `TYPE=disk`, even though they are compressed
+/// RAM-backed swap and must never be treated as persistent storage. Linux RAM
+/// disks and top-level swap devices are rejected for the same reason. Loop
+/// devices are hidden in normal sessions and are accepted only when the
+/// destructive integration-test script explicitly opts in.
+fn installable_disk_candidate(device: &LsblkDevice, allow_loop_devices: bool) -> bool {
+    let accepted_kind = device.kind == "disk" || (allow_loop_devices && device.kind == "loop");
+    let memory_backed = [device.name.as_str(), device.kname.as_str()]
+        .into_iter()
+        .any(|name| name.starts_with("zram") || name.starts_with("ram"));
+    let is_swap = device
+        .fstype
+        .as_deref()
+        .is_some_and(|filesystem| filesystem.eq_ignore_ascii_case("swap"));
+
+    accepted_kind && !memory_backed && !is_swap
 }
 
 fn disk_from_lsblk(device: LsblkDevice, live_media: &[String]) -> Disk {
@@ -505,6 +523,54 @@ fn lvm_command(command: &str, fields: &str) -> Option<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn lsblk_device(name: &str, kind: &str, filesystem: Option<&str>) -> LsblkDevice {
+        LsblkDevice {
+            name: name.to_string(),
+            kname: name.to_string(),
+            kind: kind.to_string(),
+            size: 32 * 1024 * 1024 * 1024,
+            tran: None,
+            vendor: None,
+            model: None,
+            rm: false,
+            fstype: filesystem.map(str::to_string),
+            mountpoints: Vec::new(),
+            parttype: None,
+            uuid: None,
+            children: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn destination_candidates_exclude_zram_ram_disks_and_swap() {
+        for device in [
+            lsblk_device("zram0", "disk", Some("swap")),
+            lsblk_device("ram0", "disk", None),
+            lsblk_device("vda", "disk", Some("swap")),
+        ] {
+            assert!(!installable_disk_candidate(&device, false));
+        }
+    }
+
+    #[test]
+    fn destination_candidates_include_real_disks() {
+        for device in [
+            lsblk_device("vda", "disk", None),
+            lsblk_device("sda", "disk", None),
+            lsblk_device("nvme0n1", "disk", None),
+        ] {
+            assert!(installable_disk_candidate(&device, false));
+        }
+    }
+
+    #[test]
+    fn loop_devices_require_explicit_test_opt_in() {
+        let device = lsblk_device("loop8", "loop", None);
+
+        assert!(!installable_disk_candidate(&device, false));
+        assert!(installable_disk_candidate(&device, true));
+    }
 
     /// Not run by default (`cargo test`) — depends on the real machine's
     /// block devices, which fixtures deliberately avoid. Run explicitly with
