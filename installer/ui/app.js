@@ -115,6 +115,20 @@ function renderRaidLevelOptions(){
   ).join('');
 }
 
+const GIB=1024*1024*1024;
+const lvmPresets={
+  'root-only':()=>[{name:'root',mount_point:'/',size:'FillRemaining'}],
+  'root-home':()=>[
+    {name:'root',mount_point:'/',size:{Fixed:40*GIB}},
+    {name:'home',mount_point:'/home',size:'FillRemaining'},
+  ],
+  'root-home-var':()=>[
+    {name:'root',mount_point:'/',size:{Fixed:40*GIB}},
+    {name:'var',mount_point:'/var',size:{Fixed:20*GIB}},
+    {name:'home',mount_point:'/home',size:'FillRemaining'},
+  ],
+};
+
 function renderLvList(){
   document.querySelector('#lv-list').innerHTML=logicalVolumes.map((lv,i)=>{
     const fixed=lv.size!=='FillRemaining';
@@ -363,6 +377,12 @@ document.querySelector('#manual-disk-path').addEventListener('keydown',event=>{
 document.querySelector('#lvm-enabled').addEventListener('change',event=>{
   lvmEnabled=event.target.checked;
   document.querySelector('#lvm-editor').hidden=!lvmEnabled;
+  refreshPlan();
+});
+document.querySelector('#lvm-preset-apply').addEventListener('click',()=>{
+  const preset=document.querySelector('#lvm-preset').value;
+  logicalVolumes=lvmPresets[preset]();
+  renderLvList();
   refreshPlan();
 });
 document.querySelector('#lv-add-btn').addEventListener('click',()=>{

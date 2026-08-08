@@ -87,6 +87,14 @@
             </div>
             <div class="lvm-toggle-row"><label class="lvm-toggle"><input type="checkbox" id="lvm-enabled" /> Usar LVM (volume group)</label></div>
             <div class="lvm-editor" id="lvm-editor" hidden>
+              <div class="lvm-preset-row">
+                <select id="lvm-preset">
+                  <option value="root-only">Sugestão: somente raiz (/)</option>
+                  <option value="root-home">Sugestão: raiz + /home</option>
+                  <option value="root-home-var">Sugestão: raiz + /home + /var</option>
+                </select>
+                <button type="button" id="lvm-preset-apply">Aplicar sugestão</button>
+              </div>
               <div class="lv-list" id="lv-list"></div>
               <button type="button" class="lv-add-btn" id="lv-add-btn">+ Adicionar logical volume</button>
             </div>

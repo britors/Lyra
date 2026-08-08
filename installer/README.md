@@ -47,7 +47,14 @@ Um toggle "Usar LVM" (independente do modo disco/RAID, já que
 editor de logical volumes começa com uma linha fixa (`root` em `/`,
 `FillRemaining`, não removível — `PlanBuilder` exige uma LV montada em
 `/`) e permite adicionar/remover outras, cada uma com nome, ponto de
-montagem e tamanho fixo (GiB) ou "preencher o restante". Isso volta
+montagem e tamanho fixo (GiB) ou "preencher o restante". Um seletor de
+sugestões ("Somente raiz" / "Raiz + /home" / "Raiz + /home + /var") com
+botão "Aplicar sugestão" popula a lista automaticamente (raiz fixa em
+40 GiB, `/var` fixo em 20 GiB quando presente, `/home` sempre
+preenchendo o restante) — o usuário só valida/ajusta o que a sugestão
+já monta, em vez de montar do zero; a validação real continua vindo do
+`PlanBuilder` (ex.: espaço insuficiente se o disco for pequeno demais
+pra 40 GiB de raiz). Isso volta
 atrás de uma decisão de escopo tomada mais cedo na mesma sessão ("só
 RAID novo, sem editor de LVM, para manter o assistente guiado" — ver
 `docs/installer-architecture.md`); pedido explícito depois. `ExistingRaid`
