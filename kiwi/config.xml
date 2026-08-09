@@ -45,6 +45,7 @@
       flags="overlay"
       filesystem="squashfs"
       firmware="uefi"
+      editbootconfig="edit_boot_config.sh"
       volid="LYRA_OS_2026_08_BETA2"
       application_id="LyraOS"
       publisher="Lyra OS Project">

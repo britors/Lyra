@@ -283,7 +283,11 @@ if [ "$SKIP_BUILD" -eq 0 ]; then
     echo "--- staging KIWI description with local installer binaries ---"
     rm -rf "$BUILD_DESCRIPTION_DIR"
     mkdir -p "$BUILD_DESCRIPTION_DIR"
-    cp "$KIWI_DESC/config.xml" "$KIWI_DESC/config.sh" "$BUILD_DESCRIPTION_DIR/"
+    cp \
+      "$KIWI_DESC/config.xml" \
+      "$KIWI_DESC/config.sh" \
+      "$KIWI_DESC/edit_boot_config.sh" \
+      "$BUILD_DESCRIPTION_DIR/"
     cp -a "$KIWI_DESC/root" "$BUILD_DESCRIPTION_DIR/root"
     cp -a "$KIWI_DESC/keys" "$BUILD_DESCRIPTION_DIR/keys"
 

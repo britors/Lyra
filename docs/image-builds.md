@@ -30,8 +30,11 @@ destination="$(mktemp -d)/lyra-image"
 `--allow-dirty` exists only for structural inspection. A dirty export records
 that state and cannot pass `verify-export`.
 
-The export contains the canonical `config.xml`, `config.sh`, root overlay,
-and a normalized `root.tar.gz`. It also records the full Git commit, commit
+The export contains the canonical `config.xml`, `config.sh`, final
+`edit_boot_config.sh` hook, root overlay, and a normalized `root.tar.gz`. The
+hook runs after KIWI has generated the live bootloader files and keeps the
+installed rootfs theme path under `/usr/share/grub/themes` without changing
+the ISO's separate `/boot/grub2/themes` layout. The export also records the full Git commit, commit
 epoch, and deterministic UTC build timestamp in `build-source.json` and
 `root/usr/lib/lyra-os/build-source`. The latter becomes
 `/usr/lib/lyra-os/build-info` in the installed system.

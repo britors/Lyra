@@ -10,6 +10,7 @@ import datetime as dt
 import gzip
 import hashlib
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -222,6 +223,11 @@ def validate_sources(manifest: Manifest) -> None:
         raise PolicyError(f"KIWI version {version!r} differs from release.toml")
     if root.findtext("preferences/rpm-check-signatures") != "true":
         raise PolicyError("KIWI must reject packages with invalid signatures")
+    build_type = root.find("preferences/type")
+    if build_type is None or build_type.attrib.get("editbootconfig") != "edit_boot_config.sh":
+        raise PolicyError("KIWI must run the versioned final boot configuration hook")
+    if not os.access(KIWI / "edit_boot_config.sh", os.X_OK):
+        raise PolicyError("KIWI final boot configuration hook must be executable")
     repositories = root.findall("repository")
     if len(repositories) != 5:
         raise PolicyError("canonical KIWI description must contain exactly five repositories")
@@ -311,7 +317,7 @@ def export(manifest: Manifest, destination: Path, commit: str, allow_dirty: bool
     if metadata["commit"] != git("rev-parse", "HEAD"):
         raise PolicyError("--commit must identify the currently checked-out HEAD")
     ensure_export_target(destination)
-    for name in ("config.xml", "config.sh"):
+    for name in ("config.xml", "config.sh", "edit_boot_config.sh"):
         shutil.copy2(KIWI / name, destination / name)
     shutil.copytree(KIWI / "root", destination / "root", symlinks=True)
     (destination / "build-source.json").write_text(
@@ -342,8 +348,9 @@ def verify_export(manifest: Manifest, directory: Path) -> None:
                 raise PolicyError(f"exported repository must enable {option}")
     if (directory / "_multibuild").exists():
         raise PolicyError("OBS image recipes are forbidden in the GitHub source export")
-    if sha256(directory / manifest.description) != sha256(KIWI / "config.xml"):
-        raise PolicyError("exported KIWI description differs from the GitHub source")
+    for name in (manifest.description, "config.sh", "edit_boot_config.sh"):
+        if sha256(directory / name) != sha256(KIWI / name):
+            raise PolicyError(f"exported KIWI file differs from the GitHub source: {name}")
     embedded = directory / "root/usr/lib/lyra-os/build-source"
     if metadata["commit"] not in embedded.read_text(encoding="utf-8"):
         raise PolicyError("embedded source identity differs from export manifest")

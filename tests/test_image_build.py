@@ -137,9 +137,19 @@ class ImagePolicyTests(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn('"/usr/share/grub/themes/Lyra-OS/theme.txt"', deploy)
+        root = ET.parse(ROOT / "kiwi/config.xml").getroot()
+        build_type = root.find("preferences/type")
+        self.assertIsNotNone(build_type)
+        self.assertEqual(build_type.attrib.get("editbootconfig"), "edit_boot_config.sh")
+        hook_path = ROOT / "kiwi/edit_boot_config.sh"
+        self.assertNotEqual(hook_path.stat().st_mode & 0o111, 0)
+        hook = hook_path.read_text(encoding="utf-8")
+        self.assertIn("GRUB_THEME_ASSET=usr/share/grub/themes/Lyra-OS/theme.txt", hook)
+        self.assertIn('GRUB_THEME="/usr/share/grub/themes/Lyra-OS/theme.txt"', hook)
         helper = (ROOT / "kiwi/test/build-and-run-vm.sh").read_text(encoding="utf-8")
         self.assertIn("IMAGE_INSTALLED_GRUB_THEME", helper)
         self.assertIn("IMAGE_INSTALLED_GRUB_DEFAULT", helper)
+        self.assertIn('"$KIWI_DESC/edit_boot_config.sh"', helper)
 
     def test_export_is_derived_from_canonical_kiwi_without_duplicate_package_list(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
