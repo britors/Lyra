@@ -64,6 +64,20 @@ class InstallerUiTests(unittest.TestCase):
         self.assertRegex(self.css, r"\.install-confirm\{[^}]*text-align:right")
         self.assertRegex(self.css, r"\.install-status\{[^}]*text-align:right")
 
+    def test_text_and_select_controls_use_larger_consistent_type(self) -> None:
+        self.assertIn("--form-control-font-size:13px", self.css)
+        selectors = (
+            ".form-grid input",
+            ".keyboard-search input",
+            ".region-form select",
+            ".manual-entry-row input",
+            ".lvm-preset-row select",
+            ".lv-row input",
+            ".lv-row select",
+        )
+        rule = ",".join(selectors) + "{font-size:var(--form-control-font-size)}"
+        self.assertIn(rule, self.css)
+
 
 if __name__ == "__main__":
     unittest.main()

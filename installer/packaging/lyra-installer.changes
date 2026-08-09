@@ -1,4 +1,9 @@
 -------------------------------------------------------------------
+Sun Aug  9 21:53:00 UTC 2026 - Rodrigo Brito <rodrigo@w3ti.com.br>
+
+- Standardize installer text and select controls at 13 px for readability.
+
+-------------------------------------------------------------------
 Sun Aug  9 20:12:38 UTC 2026 - Rodrigo Brito <rodrigo@w3ti.com.br>
 
 - Remove the live-only installer RPM before the first rollback snapshot.
