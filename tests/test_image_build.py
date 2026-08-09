@@ -109,6 +109,14 @@ class ImagePolicyTests(unittest.TestCase):
         )
         self.assertEqual(image_icon.read_bytes(), packaged_icon.read_bytes())
 
+        live_smoke = ROOT / "kiwi/root/usr/bin/lyra-live-smoke"
+        self.assertTrue(live_smoke.is_file())
+        self.assertNotEqual(live_smoke.stat().st_mode & 0o111, 0)
+        deploy = (ROOT / "installer/src/service/operations/deploy.rs").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('"usr/bin/lyra-live-smoke"', deploy)
+
     def test_export_is_derived_from_canonical_kiwi_without_duplicate_package_list(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             destination = Path(temporary) / "export"

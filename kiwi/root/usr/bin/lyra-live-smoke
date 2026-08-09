@@ -1,0 +1,223 @@
+#!/usr/bin/python3
+"""Validate a Lyra live GNOME session and write release-gate evidence."""
+
+from __future__ import annotations
+
+import argparse
+import datetime as dt
+import getpass
+import json
+import os
+import subprocess
+import tempfile
+from pathlib import Path
+from typing import Callable
+
+
+CommandRunner = Callable[[list[str]], tuple[int, str]]
+
+
+def run_command(arguments: list[str]) -> tuple[int, str]:
+    try:
+        result = subprocess.run(
+            arguments,
+            check=False,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            timeout=30,
+            env={**os.environ, "LC_ALL": "C"},
+        )
+    except subprocess.TimeoutExpired as error:
+        return 124, f"command timed out after {error.timeout} seconds"
+    except OSError as error:
+        return 127, str(error)
+    return result.returncode, result.stdout.strip()
+
+
+def rooted(root: Path, absolute: str) -> Path:
+    return root / absolute.removeprefix("/")
+
+
+def validate_live_session(
+    *,
+    root: Path = Path("/"),
+    username: str | None = None,
+    environment: dict[str, str] | None = None,
+    runner: CommandRunner = run_command,
+    expect_offline: bool = False,
+    journal_acknowledgement: str = "",
+) -> dict[str, object]:
+    username = username or getpass.getuser()
+    environment = environment or dict(os.environ)
+    checks: list[dict[str, object]] = []
+    observations: dict[str, object] = {}
+
+    def check(identifier: str, passed: bool, detail: str) -> None:
+        checks.append(
+            {
+                "id": identifier,
+                "status": "passed" if passed else "failed",
+                "detail": detail,
+            }
+        )
+
+    check("live-user", username == "liveuser", f"current user: {username}")
+    check(
+        "live-rootfs",
+        rooted(root, "/run/overlay/live/LiveOS/squashfs.img").is_file(),
+        "live squashfs is mounted",
+    )
+    for path in ("/usr/lib/lyra-os/release", "/usr/lib/lyra-os/build-info"):
+        check(
+            f"identity-{Path(path).name}",
+            rooted(root, path).is_file(),
+            f"{path} exists",
+        )
+
+    gdm_path = rooted(root, "/etc/gdm/custom.conf")
+    gdm = gdm_path.read_text(encoding="utf-8") if gdm_path.is_file() else ""
+    check(
+        "gdm-autologin",
+        "AutomaticLoginEnable=true" in gdm and "AutomaticLogin=liveuser" in gdm,
+        "GDM autologin targets liveuser",
+    )
+
+    desktop_path = rooted(
+        root, "/usr/share/applications/org.lyraos.LyraInstaller.desktop"
+    )
+    desktop = desktop_path.read_text(encoding="utf-8") if desktop_path.is_file() else ""
+    desktop_fields = (
+        "TryExec=/usr/bin/lyra-installer",
+        "Exec=/usr/bin/lyra-install-lock /usr/bin/lyra-installer",
+        "Icon=org.lyraos.LyraInstaller",
+        "StartupWMClass=lyra-installer",
+    )
+    check(
+        "installer-launcher",
+        all(field in desktop for field in desktop_fields) and "pkexec" not in desktop,
+        "launcher identity and unprivileged Exec chain are valid",
+    )
+    for path in ("/usr/bin/lyra-installer", "/usr/bin/lyra-install-lock"):
+        check(
+            f"executable-{Path(path).name}",
+            os.access(rooted(root, path), os.X_OK),
+            f"{path} is executable",
+        )
+
+    for unit in ("graphical.target", "gdm.service", "NetworkManager.service"):
+        code, output = runner(["systemctl", "is-active", unit])
+        check(
+            f"unit-{unit}",
+            code == 0 and output == "active",
+            f"state: {output or 'unknown'}",
+        )
+
+    code, output = runner(["pgrep", "-x", "gnome-shell"])
+    check("gnome-shell", code == 0 and bool(output), "GNOME Shell process is running")
+
+    code, failed_units = runner(
+        ["systemctl", "--failed", "--no-legend", "--plain"]
+    )
+    check(
+        "failed-units",
+        code == 0 and not failed_units,
+        failed_units or "no failed system units",
+    )
+
+    code, critical_journal = runner(
+        [
+            "journalctl",
+            "-b",
+            "-p",
+            "0..3",
+            "--no-pager",
+            "--quiet",
+            "--output=short-monotonic",
+        ]
+    )
+    journal_passed = code == 0 and (
+        not critical_journal or bool(journal_acknowledgement.strip())
+    )
+    check(
+        "critical-journal",
+        journal_passed,
+        "empty" if not critical_journal else "reviewed with explicit acknowledgement",
+    )
+    observations["critical_journal"] = critical_journal.splitlines()
+    observations["journal_acknowledgement"] = journal_acknowledgement.strip()
+
+    code, connectivity = runner(["nmcli", "-t", "-f", "CONNECTIVITY", "general"])
+    observations["network_connectivity"] = connectivity or "unknown"
+    if expect_offline:
+        check(
+            "offline-session",
+            code == 0 and connectivity not in {"full", "portal"},
+            f"NetworkManager connectivity: {connectivity or 'unknown'}",
+        )
+
+    for name, command in (
+        ("audio", ["wpctl", "status"]),
+        ("bluetooth", ["systemctl", "is-active", "bluetooth.service"]),
+        ("display", ["xrandr", "--current"]),
+    ):
+        command_code, command_output = runner(command)
+        observations[name] = {
+            "available": command_code == 0,
+            "summary": command_output.splitlines()[:20],
+        }
+    observations["input_device_count"] = len(
+        list(rooted(root, "/dev/input").glob("event*"))
+    )
+    observations["desktop"] = environment.get("XDG_CURRENT_DESKTOP", "")
+    observations["session_type"] = environment.get("XDG_SESSION_TYPE", "")
+
+    passed = all(item["status"] == "passed" for item in checks)
+    return {
+        "schema": 1,
+        "status": "passed" if passed else "failed",
+        "mode": "live-session",
+        "generated_at": dt.datetime.now(dt.timezone.utc).isoformat(),
+        "expect_offline": expect_offline,
+        "checks": checks,
+        "observations": observations,
+    }
+
+
+def write_report(report: dict[str, object], output: Path) -> None:
+    output = output.resolve()
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(
+        "w",
+        encoding="utf-8",
+        dir=output.parent,
+        prefix=f".{output.name}.",
+        delete=False,
+    ) as stream:
+        json.dump(report, stream, indent=2, sort_keys=True, ensure_ascii=False)
+        stream.write("\n")
+        temporary = Path(stream.name)
+    temporary.replace(output)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--output", type=Path, default=Path("live-session-result.json"))
+    parser.add_argument("--expect-offline", action="store_true")
+    parser.add_argument(
+        "--acknowledge-journal",
+        default="",
+        help="issue/workaround covering reviewed priority 0..3 journal entries",
+    )
+    args = parser.parse_args()
+    report = validate_live_session(
+        expect_offline=args.expect_offline,
+        journal_acknowledgement=args.acknowledge_journal,
+    )
+    write_report(report, args.output)
+    print(args.output)
+    return 0 if report["status"] == "passed" else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

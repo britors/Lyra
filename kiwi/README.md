@@ -28,6 +28,18 @@ fallback na Beta 2.
 
 ## Build e teste
 
+Dentro da sessão live, gere a evidência automatizada da #47 com:
+
+```bash
+lyra-live-smoke --output live-session-result.json
+```
+
+Repita sem conectividade usando `--expect-offline`. Entradas de journal com
+prioridade 0..3 bloqueiam o resultado até serem corrigidas ou revisadas e
+associadas explicitamente a uma issue/workaround com
+`--acknowledge-journal`. O helper registra somente estado técnico, sem SSID ou
+credenciais, e é removido do sistema-alvo pelo Lyra Installer.
+
 Use o helper versionado:
 
 ```bash

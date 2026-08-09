@@ -33,6 +33,7 @@ const INSTALLED_THIRD_PARTY_PRIORITY: u8 = 90;
 const LIVE_ONLY_ARTIFACTS: &[&str] = &[
     "etc/gdm/custom.conf",
     "etc/xdg/autostart/lyra-installer-autostart.desktop",
+    "usr/bin/lyra-live-smoke",
 ];
 
 /// Essential services enabled in the installed system.
@@ -1839,17 +1840,20 @@ mod tests {
     #[test]
     fn remove_live_only_artifacts_removes_files_that_exist() {
         let temp = TempRoot::new("remove-artifacts-present");
-        let path = temp
-            .0
-            .join("etc/xdg/autostart/lyra-installer-autostart.desktop");
-        fs::create_dir_all(path.parent().unwrap()).unwrap();
-        fs::write(&path, "[Desktop Entry]\n").unwrap();
+        let paths = LIVE_ONLY_ARTIFACTS
+            .iter()
+            .map(|artifact| temp.0.join(artifact))
+            .collect::<Vec<_>>();
+        for path in &paths {
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(path, "fixture\n").unwrap();
+        }
 
         let op = RemoveLiveOnlyArtifacts {
             target_root: temp.0.clone(),
         };
         op.perform(&FakeExecutor::new()).unwrap();
-        assert!(!path.exists());
+        assert!(paths.iter().all(|path| !path.exists()));
     }
 
     #[test]
