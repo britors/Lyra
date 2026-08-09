@@ -179,6 +179,18 @@ class ImagePolicyTests(unittest.TestCase):
         self.assertIn("IMAGE_INSTALLED_GRUB_DEFAULT", helper)
         self.assertIn('"$KIWI_DESC/edit_boot_config.sh"', helper)
 
+    def test_vm_helper_can_build_without_destroying_existing_vm(self) -> None:
+        helper = (ROOT / "kiwi/test/build-and-run-vm.sh").read_text(encoding="utf-8")
+        self.assertIn("--build-only", helper)
+        self.assertIn('if [ "$BUILD_ONLY" -eq 0 ]; then', helper)
+        self.assertIn(
+            "build-only complete; existing VM disk and UEFI state were not changed",
+            helper,
+        )
+        iso_ready = helper.index('echo "--- ISO ready:')
+        destructive_vm_reset = helper.rindex("\nstop_previous_vm\n")
+        self.assertLess(iso_ready, destructive_vm_reset)
+
     def test_export_is_derived_from_canonical_kiwi_without_duplicate_package_list(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             destination = Path(temporary) / "export"

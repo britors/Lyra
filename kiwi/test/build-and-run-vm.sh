@@ -7,6 +7,7 @@
 #
 # Usage:
 #   ./build-and-run-vm.sh                 rebuild, then boot live with a fresh install disk
+#   ./build-and-run-vm.sh --build-only    rebuild and validate the ISO without touching the VM
 #   ./build-and-run-vm.sh --skip-build    boot the existing ISO with a fresh install disk
 #   ./build-and-run-vm.sh --fresh-disk    accepted for compatibility; fresh is always enforced
 #   ./build-and-run-vm.sh --published-installer
@@ -16,10 +17,11 @@
 #
 # Every run rebuilds the KIWI tree from a clean slate by default. The current
 # ISO is kept until the replacement is ready and then archived under
-# iso/archive. Every invocation stops a previous QEMU instance started by this
-# helper, if one still exists, and recreates the VM disk and OVMF state. The
-# ISO is first in the boot order only once; reboot inside the same QEMU session
-# after installation to validate the installed disk.
+# iso/archive. A VM run stops a previous QEMU instance started by this helper,
+# if one still exists, and recreates the VM disk and OVMF state only after the
+# replacement ISO has passed validation. The ISO is first in the boot order
+# only once; reboot inside the same QEMU session after installation to validate
+# the installed disk.
 #
 # All output is logged (with timestamps) below a private per-user directory
 # under kiwi/.kiwi, in addition to your terminal. Set LYRA_TEST_WORK_DIR to
@@ -62,6 +64,7 @@ RAM_MB="${LYRA_VM_RAM_MB:-8192}"
 SMP="${LYRA_VM_CPUS:-4}"
 
 SKIP_BUILD=0
+BUILD_ONLY=0
 SECURE_BOOT=0
 USE_LOCAL_INSTALLER=1
 
@@ -72,6 +75,7 @@ Uso: ./kiwi/test/build-and-run-vm.sh [opções]
 Sem opções, valida e constrói a ISO, cria uma VM descartável nova e a inicia.
 
 Opções:
+  --build-only   constrói e valida a ISO sem encerrar ou alterar a VM existente
   --skip-build    reutiliza a ISO já construída
   --fresh-disk    compatibilidade; disco/NVRAM novos são sempre obrigatórios
   --published-installer
@@ -85,9 +89,10 @@ Recursos podem ser ajustados sem editar o script:
   LYRA_VM_CPUS=4         CPUs virtuais (padrão: 4)
   LYRA_TEST_WORK_DIR=... diretório persistente de build, ISO, VM e logs
 
-Cada execução encerra a VM anterior e apaga seu disco e estado UEFI. Depois
-da instalação, reinicie dentro da mesma janela do QEMU para testar o primeiro
-boot pelo disco instalado.
+Cada execução que inicia QEMU encerra a VM anterior e apaga seu disco e estado
+UEFI somente depois de uma ISO válida estar disponível. Depois da instalação,
+reinicie dentro da mesma janela do QEMU para testar o primeiro boot pelo disco
+instalado. --build-only não requer QEMU, KVM, OVMF nem sessão gráfica.
 
 Por padrão, um novo build compila e injeta os binários do instalador deste
 workspace. --skip-build apenas reinicia a ISO já existente e não recompila.
@@ -96,6 +101,7 @@ EOF
 
 for arg in "$@"; do
   case "$arg" in
+    --build-only) BUILD_ONLY=1 ;;
     --skip-build) SKIP_BUILD=1 ;;
     --fresh-disk) : ;;
     --published-installer) USE_LOCAL_INSTALLER=0 ;;
@@ -104,6 +110,15 @@ for arg in "$@"; do
     *) echo "unknown flag: $arg" >&2; exit 1 ;;
   esac
 done
+
+if [ "$BUILD_ONLY" -eq 1 ] && [ "$SKIP_BUILD" -eq 1 ]; then
+  echo "--build-only cannot be combined with --skip-build" >&2
+  exit 1
+fi
+if [ "$BUILD_ONLY" -eq 1 ] && [ "$SECURE_BOOT" -eq 1 ]; then
+  echo "--secure-boot requires a VM run and cannot be combined with --build-only" >&2
+  exit 1
+fi
 
 case "$RAM_MB" in
   ''|*[!0-9]*) echo "LYRA_VM_RAM_MB must be a positive integer" >&2; exit 1 ;;
@@ -135,7 +150,7 @@ exec > >(while IFS= read -r line; do printf '%s %s\n' "$(date '+%H:%M:%S')" "$li
 echo "=== $(date -Iseconds) run start (args: $*) ==="
 echo "--- using KIWI description: $KIWI_DESC ---"
 
-mkdir -p "$VM_DIR" "$ISO_DIR"
+mkdir -p "$ISO_DIR"
 
 stop_previous_vm() {
   if [ ! -f "$VM_PID_FILE" ]; then
@@ -169,10 +184,6 @@ stop_previous_vm() {
   kill -KILL "$PREVIOUS_VM_PID"
 }
 
-stop_previous_vm
-echo "--- deleting previous VM disk and UEFI state ---"
-rm -f "$DISK_IMG" "$OVMF_VARS_STANDARD" "$OVMF_VARS_SECURE" "$VM_PID_FILE"
-
 if [ ! -x "$RELEASE_TOOL" ]; then
   echo "release metadata tool is missing or not executable: $RELEASE_TOOL" >&2
   exit 1
@@ -200,12 +211,14 @@ else
   MACHINE="q35,accel=kvm"
 fi
 
-for command in qemu-img qemu-system-x86_64; do
-  if ! command -v "$command" >/dev/null 2>&1; then
-    echo "required command not found: $command" >&2
-    exit 1
-  fi
-done
+if [ "$BUILD_ONLY" -eq 0 ]; then
+  for command in qemu-img qemu-system-x86_64; do
+    if ! command -v "$command" >/dev/null 2>&1; then
+      echo "required command not found: $command" >&2
+      exit 1
+    fi
+  done
+fi
 
 if [ "$SKIP_BUILD" -eq 0 ]; then
   for command in kiwi-ng lsinitrd sudo xorriso; do
@@ -224,22 +237,24 @@ if [ "$SKIP_BUILD" -eq 0 ]; then
   fi
 fi
 
-if [ ! -r "$OVMF_CODE" ] || [ ! -r "$OVMF_VARS_TEMPLATE" ]; then
-  echo "OVMF firmware files not found or unreadable:" >&2
-  echo "  $OVMF_CODE" >&2
-  echo "  $OVMF_VARS_TEMPLATE" >&2
-  exit 1
-fi
+if [ "$BUILD_ONLY" -eq 0 ]; then
+  if [ ! -r "$OVMF_CODE" ] || [ ! -r "$OVMF_VARS_TEMPLATE" ]; then
+    echo "OVMF firmware files not found or unreadable:" >&2
+    echo "  $OVMF_CODE" >&2
+    echo "  $OVMF_VARS_TEMPLATE" >&2
+    exit 1
+  fi
 
-if [ ! -r /dev/kvm ] || [ ! -w /dev/kvm ]; then
-  echo "KVM is unavailable to the current user (/dev/kvm is not readable/writable)." >&2
-  echo "Check that the KVM module is loaded and log in again after joining the kvm group." >&2
-  exit 1
-fi
+  if [ ! -r /dev/kvm ] || [ ! -w /dev/kvm ]; then
+    echo "KVM is unavailable to the current user (/dev/kvm is not readable/writable)." >&2
+    echo "Check that the KVM module is loaded and log in again after joining the kvm group." >&2
+    exit 1
+  fi
 
-if [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ]; then
-  echo "No graphical display found (DISPLAY and WAYLAND_DISPLAY are unset)." >&2
-  exit 1
+  if [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ]; then
+    echo "No graphical display found (DISPLAY and WAYLAND_DISPLAY are unset)." >&2
+    exit 1
+  fi
 fi
 
 ISO_PATH=""
@@ -540,6 +555,16 @@ if [ -z "$ISO_PATH" ] || [ ! -f "$ISO_PATH" ]; then
 fi
 
 echo "--- ISO ready: $ISO_PATH ($(du -h "$ISO_PATH" | cut -f1)) ---"
+
+if [ "$BUILD_ONLY" -eq 1 ]; then
+  echo "=== build-only complete; existing VM disk and UEFI state were not changed ==="
+  exit 0
+fi
+
+mkdir -p "$VM_DIR"
+stop_previous_vm
+echo "--- deleting previous VM disk and UEFI state ---"
+rm -f "$DISK_IMG" "$OVMF_VARS_STANDARD" "$OVMF_VARS_SECURE" "$VM_PID_FILE"
 
 echo "--- creating install-target disk: $DISK_IMG ($DISK_SIZE) ---"
 qemu-img create -f qcow2 "$DISK_IMG" "$DISK_SIZE"

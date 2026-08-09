@@ -95,10 +95,11 @@ Para testar com Secure Boot:
 ```
 
 O comando faz as três etapas em sequência: constrói a ISO, cria disco/NVRAM
-novos e executa a VM. Toda nova chamada encerra uma instância anterior desse
-helper e apaga seus artefatos. Depois de concluir a instalação, reinicie o
-guest sem fechar o QEMU: a ISO é usada somente no primeiro boot da execução e
-o reinício segue pelo disco instalado, preservando o estado UEFI desse teste.
+novos e executa a VM. A instância anterior e seus artefatos são substituídos
+somente depois que a nova ISO passa pelas validações. Depois de concluir a
+instalação, reinicie o guest sem fechar o QEMU: a ISO é usada somente no
+primeiro boot da execução e o reinício segue pelo disco instalado, preservando
+o estado UEFI desse teste.
 
 Para desenvolvimento, o helper compila e injeta automaticamente o instalador
 do workspace, evitando abrir uma versão antiga publicada no OBS. Um candidato
@@ -108,6 +109,13 @@ de release deve obrigatoriamente testar o RPM publicado, sem override local:
 ./kiwi/test/build-and-run-vm.sh --published-installer
 ```
 
+Para construir e validar o candidato sem abrir QEMU nem alterar o disco/NVRAM
+de uma VM de teste existente:
+
+```bash
+./kiwi/test/build-and-run-vm.sh --build-only --published-installer
+```
+
 O helper espera KVM disponível para o usuário atual, uma sessão gráfica, 8 GiB
 de memória para a VM e espaço para um disco virtual de 24 GiB. Os builds, ISOs,
 discos e logs ficam em `kiwi/.kiwi/test-<uid>/` e não são versionados. Use
@@ -115,7 +123,9 @@ discos e logs ficam em `kiwi/.kiwi/test-<uid>/` e não são versionados. Use
 `--help` para consultar os ajustes de disco, memória e CPUs por variável de
 ambiente.
 
-Também é possível executar somente o build do KIWI:
+O modo `--build-only` também produz o manifesto rastreável ao lado da ISO e é
+preferível a invocar o KIWI diretamente. Para depuração de baixo nível, o
+comando equivalente sem as validações posteriores é:
 
 ```bash
 ./scripts/release.py check

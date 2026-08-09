@@ -61,15 +61,22 @@ instead consume the signed installer RPM published by OBS:
 ./kiwi/test/build-and-run-vm.sh --published-installer
 ```
 
+Build and validate that candidate without requiring QEMU, KVM, OVMF, a
+graphical session, or replacing an existing test VM:
+
+```sh
+./kiwi/test/build-and-run-vm.sh --build-only --published-installer
+```
+
 The script builds directly from `kiwi/`, retains the previous usable ISO until
-its replacement is ready, creates a 24 GiB installation disk plus isolated
-OVMF state, starts QEMU, and records logs below `kiwi/.kiwi/`. Every invocation
-stops its previous QEMU process and deletes that VM's disk and NVRAM before the
-build. The ISO is selected only for the first boot; reboot the guest in the
-same QEMU session to test the installed disk. `--help` lists the environment
-overrides for disk, RAM and virtual CPUs. CI uses the deterministic export gate
-to prove that the same committed inputs are selected without publishing an
-image to OBS.
+its replacement is ready, and records logs below `kiwi/.kiwi/`. A VM run then
+creates a 24 GiB installation disk plus isolated OVMF state and starts QEMU.
+The previous QEMU process, disk and NVRAM are replaced only after the new ISO
+has passed validation; `--build-only` never touches them. The ISO is selected
+only for the first boot; reboot the guest in the same QEMU session to test the
+installed disk. `--help` lists the environment overrides for disk, RAM and
+virtual CPUs. CI uses the deterministic export gate to prove that the same
+committed inputs are selected without publishing an image to OBS.
 
 After logging into the installed account, generate the first-boot evidence:
 
