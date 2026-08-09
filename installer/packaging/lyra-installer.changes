@@ -1,4 +1,9 @@
 -------------------------------------------------------------------
+Sun Aug  9 00:16:25 UTC 2026 - Rodrigo Brito <rodrigo@w3ti.com.br>
+
+- Remove the redundant administrator notice from account creation.
+
+-------------------------------------------------------------------
 Sat Aug  8 23:55:00 UTC 2026 - Rodrigo Brito <rodrigo@w3ti.com.br>
 
 - Allow the main Tauri window to listen for live installation events.
