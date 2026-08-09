@@ -35,16 +35,14 @@ pub const INSTALL_PLAN_SCHEMA_VERSION: u32 = 2;
 /// builder reserve the space before approving the installation.
 pub const DISK_SWAP_SIZE_BYTES: u64 = 8 * 1024 * 1024 * 1024;
 
-// --- Btrfs layout, grounded in docs/calamares-reference/modules/mount.conf ---
+// --- Btrfs layout used by Lyra's native installer ---
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SubvolumePlan {
     pub mount_point: PathBuf,
     pub subvolume: String,
-    /// Real Leap installs mount these `nodatacow`; Calamares' mount module
-    /// has no per-subvolume attribute for it, so today's ISO ships them as
-    /// plain COW subvolumes (see `mount.conf`'s own comment). This plan
-    /// closes that gap instead of repeating it.
+    /// Lyra mounts write-heavy subvolumes with `nodatacow`; the typed plan
+    /// keeps that policy explicit and testable.
     pub nodatacow: bool,
 }
 

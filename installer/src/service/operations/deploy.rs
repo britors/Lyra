@@ -298,19 +298,8 @@ impl PrivilegedOperation for WriteMachineId {
     }
 }
 
-/// Mirrors the real, compiled `locale` view module's exec step — confirmed
-/// via `strings` on the installed `libcalamares_viewmodule_locale.so`
-/// (source isn't available to grep, unlike the Python modules elsewhere in
-/// this file), which references exactly `/etc/localtime`, `/etc/timezone`
-/// and `/usr/share/zoneinfo` and nothing else target-relevant. `/etc/locale.gen`
-/// also shows up in the binary but is a Debian-ism Leap doesn't have, same
-/// as `WriteLocale`'s doc comment already notes for the sibling module.
-/// This is issue #44's parity audit closing a real gap: before this, the
-/// Rust installer never touched the target's timezone at all, and
-/// `InstallConfig` had no field to carry a choice even though `ui/index.html`
-/// already collects one on the "Região" page (that page's value has nowhere
-/// to flow into an `InstallConfig` yet — no screen builds one at all, see
-/// `installer/README.md`).
+/// Writes the timezone selected on the Region page using Leap's canonical
+/// `/etc/localtime`, `/etc/timezone`, and `/usr/share/zoneinfo` paths.
 struct WriteTimezone {
     target_root: PathBuf,
     timezone: String,
@@ -1038,12 +1027,11 @@ impl PrivilegedOperation for GenerateGrubConfig {
     }
 }
 
-/// Native Leap `shim-install`, not a generic Calamares bootloader job.
-/// Confirmed by reading the real script (package `shim`): it writes the
+/// Native Leap `shim-install`. The script from package `shim` writes the
 /// fallback `/boot/efi/EFI/boot/bootx64.efi` itself whenever that path is
 /// missing or belongs to another distro's CA, and creates the NVRAM boot
 /// entry via `efibootmgr` internally - none of that needs reimplementing
-/// here, just invoking the real tool the same way Calamares does.
+/// here; the installer invokes the distribution-native tool directly.
 struct InstallShimAndGrub {
     target_root: PathBuf,
 }

@@ -56,8 +56,8 @@ explicitamente em vez de assumir.
 - O frontend gráfico roda como o usuário da sessão live; somente o backend
   responsável por alterar discos e o sistema-alvo recebe privilégios via
   polkit. Não executar toda a interface como root
-- Não usar Calamares nem Agama. A Beta 2 contém exclusivamente o Lyra
-  Installer e só pode ser publicada depois dos testes destrutivos em VM
+- Não usar instaladores de terceiros. A Beta 2 contém exclusivamente o Lyra
+  Installer e só pode ser publicada depois da validação do candidato final
 - Idioma/região: **pt-BR pré-selecionado** como sugestão inicial, mas
   livremente trocável pelo usuário
 - Hostname padrão sugerido: `lyra-os`

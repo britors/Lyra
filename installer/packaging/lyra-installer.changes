@@ -57,7 +57,7 @@ Sat Aug  8 18:36:00 UTC 2026 - Rodrigo Brito <rodrigo@w3ti.com.br>
 Sat Aug  8 15:35:00 UTC 2026 - Rodrigo Brito <rodrigo@w3ti.com.br>
 
 - Promote Lyra Installer from experimental to the only Beta 2 installer.
-- Ship its launcher as the live-session autostart without a Calamares fallback.
+- Ship its launcher as the only live-session installer autostart.
 - Package the branded application icon and installer lock wrapper.
 - Add deterministic source archives tied to the full Git commit.
 - Record Cargo.lock provenance in the installed build-source metadata.

@@ -47,10 +47,8 @@ pub struct InstallConfig {
 /// only get raw XKB key-level typing this way, not full input-method
 /// conversion (Pinyin→Hanzi, Kana→Kanji, …) — that needs `ibus` engine
 /// packages (e.g. `ibus-libpinyin`), and `kiwi/config.xml` doesn't install
-/// any yet. This is not a regression: Calamares' real `keyboard` module
-/// (confirmed via `strings` on the installed `.so` — no `gsettings`/
-/// `dconf`/`ibus`/`org.gnome` references at all) does not configure a
-/// desktop input method either, on either installer path, today.
+/// any yet. Full input-method support is an image-content concern rather
+/// than an XKB layout setting and remains outside this installer module.
 pub const KEYBOARD_LAYOUTS: &[(&str, &str, Option<&str>)] = &[
     ("br-abnt2", "br", None),
     ("br", "br", None),

@@ -130,50 +130,38 @@ porque este ambiente de desenvolvimento não tem privilégio para
 isso — precisa rodar com `sudo`, ainda não foi executado, é o próximo passo
 antes de confiar nesse caminho contra hardware de verdade.
 
-Primeira rodada da auditoria de paridade do #44: comparei `deploy.rs` contra
-os binários/scripts do Calamares realmente instalados num build já feito
-(`kiwi/.kiwi/test-1000/build/build/image-root`), não contra suposição — dava
-pra rodar `strings` nos módulos compilados (`.so`) e ler os `.py` direto.
-Achei e fechei duas lacunas reais: fuso horário (o módulo `locale` real
-grava `/etc/localtime` e `/etc/timezone` no alvo, confirmado via `strings`
-em `libcalamares_viewmodule_locale.so`; `deploy.rs` não tinha nenhuma
-operação equivalente, nem `InstallConfig` tinha campo pra isso) e o
-fallback RTC→ISA do `hwclock` (o `main.py` real tenta `hwclock --systohc
---utc` e, se falhar, tenta de novo com `--directisa`, sem nunca abortar a
-instalação mesmo se as duas falharem; `SetHardwareClock` só tentava uma vez
-e propagava erro). `InstallConfig` ganhou um campo `timezone` (validado
+Uma auditoria do sistema-alvo encontrou e fechou duas lacunas reais: gravação
+do fuso horário em `/etc/localtime` e `/etc/timezone`, que ainda não existia
+em `deploy.rs`, e o fallback RTC→ISA do `hwclock`. O serviço tenta
+`hwclock --systohc --utc` e, se falhar, tenta de novo com `--directisa`, sem
+abortar a instalação mesmo se as duas falharem; antes,
+`SetHardwareClock` só tentava uma vez e propagava erro. `InstallConfig`
+ganhou um campo `timezone` (validado
 contra as 4 opções do `<select id="timezone">` da tela "Região", mesmo
-padrão do allowlist de locale) e `WriteTimezone` roda entre `WriteKeyboard`
-e `WriteLocale` — a ordem real do `settings.conf` é `locale` (fuso) →
-`keyboard` → `localecfg` (nosso `WriteLocale`), então o reordenamento
-também corrige uma inversão que já existia ali.
+padrão do allowlist de locale) e `WriteTimezone` roda antes de
+`WriteKeyboard` e `WriteLocale`.
 
-Segunda rodada da auditoria: conferi `users`/`packages`/`installcleanup`/
-`mount`/`partition`/`grubcfg`/`uefibootloader` contra os `.conf` reais em
-`kiwi/root/etc/calamares/modules/`. `installcleanup` bateu exatamente (os
-dois `const` do Rust — `LIVE_ONLY_ARTIFACTS` + `LYRA_INSTALLER_ARTIFACTS` —
-somados reconstroem os 10 caminhos do `rm -f` real, um a um). `GRUB_DISTRIBUTOR`
-não é bug: já vem copiado do squashfs live pelo `ExtractRootfs` (o
-`grubcfg` real só mescla os poucos campos do seu `defaults:`, que não
-inclui `GRUB_DISTRIBUTOR`, sobre o arquivo já existente no target).
+A auditoria de usuários, pacotes, limpeza, mounts, particionamento e boot
+confirmou que `LIVE_ONLY_ARTIFACTS` e `LYRA_INSTALLER_ARTIFACTS` cobrem todos
+os caminhos transitórios. `GRUB_DISTRIBUTOR` já vem copiado do squashfs live
+pelo `ExtractRootfs` e é preservado quando o instalador mescla os campos
+gerenciados.
 
 Achei e corrigi mais duas lacunas reais, uma delas séria:
 
-- **`efivarfs` nunca montado no chroot.** `mount.conf`'s `extraMounts`
-  monta `efivarfs` em `/sys/firmware/efi/efivars`, `tmpfs` em `/run` e faz
-  bind de `/run/udev` — `uefibootloader.conf`'s próprio comentário confirma
-  por quê: "grub/shim need it to create the UEFI NVRAM entry from inside
-  the target system". O Rust só fazia bind de `/proc`/`/sys`/`/dev`; um
+- **`efivarfs` nunca montado no chroot.** GRUB e shim precisam de `efivarfs`
+  em `/sys/firmware/efi/efivars`, `tmpfs` em `/run` e do bind de `/run/udev`
+  para criar a entrada UEFI NVRAM. O Rust só fazia bind de
+  `/proc`/`/sys`/`/dev`; um
   `mount --bind /sys` simples **não** propaga o `efivarfs` já montado
   dentro de `/sys` no host (precisaria de `--rbind`), então `efibootmgr`
   (chamado internamente pelo `shim-install` do `InstallShimAndGrub`) não
   tinha onde escrever a variável UEFI dentro do chroot — a instalação
   terminava "com sucesso" mas sem entrada NVRAM real, só o fallback
   removível do shim. Adicionei `MountVirtualFs` (monta `tmpfs`/`efivarfs`,
-  dispositivo == tipo, igual ao `mount.conf` real) e o bind de
-  `/run/udev`, todos antes do `RunDracut`.
-- **`useradd -G` só tinha `wheel`.** `users.conf` real define
-  `defaultGroups: users, lp, video, network, storage, wheel, audio` — o
+  dispositivo == tipo) e o bind de `/run/udev`, todos antes do `RunDracut`.
+- **`useradd -G` só tinha `wheel`.** A política desktop exige os grupos
+  `users, lp, video, network, storage, wheel, audio`; o
   `CreateUser` do Rust só passava `wheel`, deixando a conta sem acesso
   padrão a vídeo/áudio/mídia removível/impressão. Corrigido para o mesmo
   conjunto de 7 grupos.
@@ -248,15 +236,11 @@ nenhum do upstream, mapeado pra `us` em vez do idioma errado. `ch-de` e
 que os layouts *base* `ch` e `br`, sem variante nenhuma, já são
 alemão-suíço e ABNT2 respectivamente.
 
-**Limitação que não é nova, é pré-existente e compartilhada com o
-Calamares**: idiomas que precisam de método de entrada de verdade
+**Limitação conhecida**: idiomas que precisam de método de entrada de verdade
 (japonês, coreano, chinês/pinyin, tailandês, árabe, persa, hebraico)
 só recebem o layout XKB básico — sem `ibus`, não tem conversão
-fonética→ideograma nem composição real. Confirmado via `strings` no
-`.so` real do módulo `keyboard` do Calamares: zero referências a
-`gsettings`/`dconf`/`ibus`/`org.gnome` — o Calamares também nunca
-configurou método de entrada nenhum, em nenhum dos dois caminhos. E
-`kiwi/config.xml` não instala nenhum pacote `ibus-*` hoje — isso é uma
+fonética→ideograma nem composição real. `kiwi/config.xml` não instala nenhum
+pacote `ibus-*` hoje — isso é uma
 decisão de conteúdo da imagem, fora do escopo do `installer/`.
 
 O botão da tela final chama `execute_plan` com o mesmo `GuidedChoice`,

@@ -23,9 +23,8 @@ interface depois do login automático no GNOME. A interface inteira nunca roda
 como root. O sistema instalado remove conta, autostart, binários e privilégios
 exclusivos da sessão live antes do primeiro snapshot.
 
-O Calamares não é pacote da imagem, não possui launcher ou regra polkit em
-`kiwi/root/` e não é fallback da Beta 2. Sua configuração antiga está em
-`docs/calamares-reference/` apenas para auditoria histórica.
+Não existe segundo instalador, launcher alternativo ou regra polkit de
+fallback na Beta 2.
 
 ## Build e teste
 

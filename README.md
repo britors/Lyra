@@ -34,18 +34,14 @@ prioridade sobre os repositórios OBS do ecossistema Lyra no sistema instalado.
 A Beta 2 usa exclusivamente o Lyra Installer nativo em
 [`installer/`](installer/). A imagem já instala seu RPM e abre o frontend na
 sessão live; a confirmação final já aciona o backend privilegiado e apresenta
-o resultado da execução, mas os testes destrutivos em VM ainda precisam
-atingir o gate de release. A antiga
-configuração do Calamares foi retirada de `kiwi/root/` e preservada apenas em
-[`docs/calamares-reference/`](docs/calamares-reference/) para auditoria
-histórica.
+o resultado da execução. O fluxo principal de instalação e primeiro boot foi
+validado manualmente; o candidato final será repetido no gate de release. Não
+há segundo instalador, configuração alternativa ou fallback na imagem.
 
 Ainda estão pendentes:
 
-- repetir o teste completo de instalação e boot após as correções mais
-  recentes, incluindo o caminho com Secure Boot;
-- validar de ponta a ponta o backend privilegiado do Lyra Installer, incluindo
-  discos, Btrfs, cópia da imagem, usuários, Secure Boot e Snapper;
+- repetir o teste completo no candidato final, incluindo Secure Boot e
+  rollback;
 - publicar codecs multimídia no OBS do Lyra, sem recorrer ao Packman;
 - automatizar o ciclo de CI e publicação da ISO.
 

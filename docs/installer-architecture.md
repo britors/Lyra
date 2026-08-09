@@ -164,9 +164,7 @@ próprio target): três operações `BindMount` (`/proc`, `/sys`, `/dev`) mais
 sempre-executado de #40.
 
 O serviço usa `dracut -f`, mantendo o nome de initramfs derivado do kernel, e
-`InstallConfig` carrega explicitamente o layout de teclado selecionado. O
-comportamento anterior permanece documentado em `docs/calamares-reference/`
-somente como fonte histórica para a auditoria da migração.
+`InstallConfig` carrega explicitamente o layout de teclado selecionado.
 
 Mesma limitação de #40: nada disso foi executado contra root/disco real
 nesta sessão — só a lógica pura, com `FakeExecutor`/diretórios temporários
@@ -180,9 +178,8 @@ do Snapper precisa nascer já sem isso. Reaproveita os bind mounts de
 `/proc`/`/sys`/`/dev` que `RunDracut` (#41) já deixou de pé: como o
 desfazimento do engine só roda no fim de toda a execução, o chroot
 continua disponível para todas as operações abaixo sem montar nada de
-novo. A implementação foi conferida contra `/usr/sbin/shim-install` (pacote
-`shim`), o helper `lyra-configure-btrfs-rollback` inteiro e a configuração
-histórica preservada em `docs/calamares-reference/`.
+novo. A implementação usa `/usr/sbin/shim-install` do pacote `shim` e o helper
+`lyra-configure-btrfs-rollback` como referências nativas do sistema.
 
 Sequência: grava `/etc/default/grub` do target (mesma lógica de merge do
 `update_existing_config` real — descomenta/substitui chaves gerenciadas,
