@@ -82,8 +82,14 @@ committed inputs are selected without publishing an image to OBS.
 After logging into the installed account, generate the first-boot evidence:
 
 ```sh
+sudo -v
 lyra-system-smoke first-boot --output first-boot-result.json
 ```
+
+The collector remains a regular-user process so the evidence records the
+installed account. It uses the cached sudo credential only for noninteractive,
+read-only access to GRUB, Snapper and the system journal; missing authorization
+is emitted as a failed structured check rather than a traceback.
 
 For a run created with `--secure-boot`, record the separate firmware and EFI
 evidence as well:

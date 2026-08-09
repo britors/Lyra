@@ -53,6 +53,30 @@ def rooted(root: Path, absolute: str) -> Path:
     return root / absolute.removeprefix("/")
 
 
+def privileged_command(
+    arguments: list[str], *, runner: CommandRunner, required: bool
+) -> tuple[int, str]:
+    if not required:
+        return runner(arguments)
+    return runner(["sudo", "-n", "--", *arguments])
+
+
+def read_system_text(
+    path: Path, *, runner: CommandRunner, privileged_fallback: bool
+) -> tuple[int, str]:
+    if not path.is_file():
+        return 1, f"missing file: {path}"
+    try:
+        return 0, path.read_text(encoding="utf-8", errors="replace")
+    except OSError as error:
+        if not privileged_fallback:
+            return 1, str(error)
+        code, output = privileged_command(
+            ["cat", str(path)], runner=runner, required=True
+        )
+        return code, output or str(error)
+
+
 def result(
     mode: str,
     checks: list[dict[str, str]],
@@ -81,6 +105,7 @@ def validate_first_boot(
     environment = environment or dict(os.environ)
     checks: list[dict[str, str]] = []
     observations: dict[str, object] = {}
+    privileged_access_required = root.resolve() == Path("/")
 
     def check(identifier: str, passed: bool, detail: str) -> None:
         checks.append(
@@ -89,6 +114,24 @@ def validate_first_boot(
                 "status": "passed" if passed else "failed",
                 "detail": detail,
             }
+        )
+
+    if privileged_access_required:
+        code, privilege_output = privileged_command(
+            ["true"], runner=runner, required=True
+        )
+        check(
+            "privileged-read-access",
+            code == 0,
+            "sudo credential is available"
+            if code == 0
+            else privilege_output or "run sudo -v before collecting evidence",
+        )
+    else:
+        check(
+            "privileged-read-access",
+            True,
+            "alternate root fixture does not require sudo",
         )
 
     for path in ("/usr/lib/lyra-os/release", "/usr/lib/lyra-os/build-info"):
@@ -165,15 +208,23 @@ def validate_first_boot(
     check("fstab-valid", code == 0, fstab_output or "fstab verified")
 
     grub = rooted(root, "/boot/grub2/grub.cfg")
-    grub_content = (
-        grub.read_text(encoding="utf-8", errors="replace") if grub.is_file() else ""
+    grub_code, grub_content = read_system_text(
+        grub,
+        runner=runner,
+        privileged_fallback=privileged_access_required,
     )
     check(
         "grub-config",
-        "menuentry " in grub_content,
-        "/boot/grub2/grub.cfg contains boot entries",
+        grub_code == 0 and "menuentry " in grub_content,
+        "/boot/grub2/grub.cfg contains boot entries"
+        if grub_code == 0 and "menuentry " in grub_content
+        else grub_content or "/boot/grub2/grub.cfg is unreadable",
     )
-    code, snapshots = runner(["snapper", "--no-dbus", "-c", "root", "list"])
+    code, snapshots = privileged_command(
+        ["snapper", "--no-dbus", "-c", "root", "list"],
+        runner=runner,
+        required=privileged_access_required,
+    )
     check(
         "snapper-root",
         code == 0 and bool(snapshots),
@@ -211,7 +262,7 @@ def validate_first_boot(
         code == 0 and not failed_units,
         failed_units or "no failed system units",
     )
-    code, critical_journal = runner(
+    code, critical_journal = privileged_command(
         [
             "journalctl",
             "-b",
@@ -220,7 +271,9 @@ def validate_first_boot(
             "--no-pager",
             "--quiet",
             "--output=short-monotonic",
-        ]
+        ],
+        runner=runner,
+        required=privileged_access_required,
     )
     journal_passed = code == 0 and (
         not critical_journal or bool(journal_acknowledgement.strip())

@@ -100,6 +100,43 @@ class SystemSmokeTests(unittest.TestCase):
             self.assertIn("live-artifacts-removed", failed)
             self.assertIn("installer-package-removed", failed)
 
+    def test_unreadable_grub_is_a_structured_failure_not_a_traceback(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.create_installed_root(root)
+            grub = root / "boot/grub2/grub.cfg"
+            grub.chmod(0)
+            try:
+                report = system_smoke.validate_first_boot(
+                    root=root, username="alice", runner=self.runner
+                )
+            finally:
+                grub.chmod(0o600)
+            grub_check = next(
+                item for item in report["checks"] if item["id"] == "grub-config"
+            )
+            self.assertEqual(report["status"], "failed")
+            self.assertEqual(grub_check["status"], "failed")
+
+    def test_privileged_fallback_reads_a_protected_system_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "grub.cfg"
+            path.write_text("menuentry 'Lyra OS' {}\n", encoding="utf-8")
+            path.chmod(0)
+
+            def runner(arguments: list[str]) -> tuple[int, str]:
+                self.assertEqual(arguments[:4], ["sudo", "-n", "--", "cat"])
+                return 0, "menuentry 'Lyra OS' {}"
+
+            try:
+                code, content = system_smoke.read_system_text(
+                    path, runner=runner, privileged_fallback=True
+                )
+            finally:
+                path.chmod(0o600)
+            self.assertEqual(code, 0)
+            self.assertIn("menuentry ", content)
+
     def test_secure_boot_requires_enabled_firmware(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
