@@ -41,6 +41,25 @@ class PerformanceTests(unittest.TestCase):
             self.assertEqual(metrics["installation_rootfs_seconds"], 10)
             self.assertEqual(metrics["installation_boot_seconds"], 8)
 
+    def test_man_db_duration_and_critical_chain_are_separate(self) -> None:
+        detail = performance.service_boot_detail(
+            "man-db.service",
+            ["13.250s man-db.service", "1min 2.500s example.service"],
+            ["graphical.target @8.000s", "└─multi-user.target @7.900s"],
+        )
+        self.assertTrue(detail["activated_during_boot"])
+        self.assertEqual(detail["duration_seconds"], 13.25)
+        self.assertFalse(detail["on_default_target_critical_chain"])
+        self.assertEqual(performance.systemd_duration_seconds("1min 2.500s"), 62.5)
+
+    def test_man_db_is_marked_when_on_default_target_critical_chain(self) -> None:
+        detail = performance.service_boot_detail(
+            "man-db.service",
+            ["950ms man-db.service"],
+            ["└─man-db.service @4.000s +950ms"],
+        )
+        self.assertTrue(detail["on_default_target_critical_chain"])
+
     def test_mark_start_replaces_an_old_trace(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             trace = Path(directory) / "trace.jsonl"
@@ -75,6 +94,15 @@ class PerformanceTests(unittest.TestCase):
                     "disk_read_mib_per_second": 0,
                     "disk_write_mib_per_second": 0,
                 },
+                "details": {
+                    "services": {
+                        "man-db.service": {
+                            "activated_during_boot": index < 3,
+                            "duration_seconds": 10 + index if index < 3 else None,
+                            "on_default_target_critical_chain": False,
+                        }
+                    }
+                },
             }
             path = directory / f"run-{index}.json"
             path.write_text(json.dumps(document), encoding="utf-8")
@@ -95,6 +123,11 @@ class PerformanceTests(unittest.TestCase):
             self.assertEqual(summary["metrics"]["boot_to_desktop_seconds"]["median"], 100)
             self.assertEqual(summary["metrics"]["boot_to_desktop_seconds"]["median_absolute_deviation"], 0)
             self.assertFalse(summary["noisy"])
+            man_db = summary["services"]["man-db.service"]
+            self.assertEqual(man_db["observed_runs"], 5)
+            self.assertEqual(man_db["activation_count"], 3)
+            self.assertEqual(man_db["critical_chain_count"], 0)
+            self.assertEqual(man_db["duration_seconds"]["median"], 11)
 
     def test_budget_blocks_twenty_percent_regression(self) -> None:
         with tempfile.TemporaryDirectory() as directory_name:

@@ -276,6 +276,61 @@ def detail_lines(program: str, *arguments: str, limit: int = 20) -> list[str]:
     return output.splitlines()[:limit] if output else []
 
 
+def systemd_duration_seconds(value: str) -> float:
+    factors = {"us": 0.000001, "ms": 0.001, "s": 1.0, "min": 60.0, "h": 3600.0}
+    tokens = re.findall(r"([0-9]+(?:\.[0-9]+)?)(us|ms|s|min|h)", value)
+    return round(sum(float(number) * factors[unit] for number, unit in tokens), 6)
+
+
+def service_boot_detail(
+    unit: str, blame_lines: list[str], critical_chain_lines: list[str]
+) -> dict[str, Any]:
+    duration: float | None = None
+    for line in blame_lines:
+        match = re.match(
+            r"^\s*((?:[0-9]+(?:\.[0-9]+)?(?:us|ms|s|min|h)\s*)+)\s+(\S+)\s*$",
+            line,
+        )
+        if match and match.group(2) == unit:
+            duration = systemd_duration_seconds(match.group(1))
+            break
+    return {
+        "unit": unit,
+        "activated_during_boot": duration is not None,
+        "duration_seconds": duration,
+        "on_default_target_critical_chain": any(unit in line for line in critical_chain_lines),
+    }
+
+
+def aggregate_service_details(documents: list[dict[str, Any]], name: str) -> dict[str, Any] | None:
+    observations = [
+        document.get("details", {}).get("services", {}).get(name)
+        for document in documents
+    ]
+    observations = [item for item in observations if isinstance(item, dict)]
+    if not observations:
+        return None
+    durations = [
+        float(item["duration_seconds"])
+        for item in observations
+        if item.get("duration_seconds") is not None
+    ]
+    result: dict[str, Any] = {
+        "observed_runs": len(observations),
+        "activation_count": sum(bool(item.get("activated_during_boot")) for item in observations),
+        "critical_chain_count": sum(
+            bool(item.get("on_default_target_critical_chain")) for item in observations
+        ),
+    }
+    if durations:
+        result["duration_seconds"] = {
+            "median": round(statistics.median(durations), 3),
+            "minimum": round(min(durations), 3),
+            "maximum": round(max(durations), 3),
+        }
+    return result
+
+
 def capture(args: argparse.Namespace, budget: dict[str, Any]) -> int:
     settle = budget["settle_seconds"] if args.settle_seconds is None else args.settle_seconds
     sample = budget["sample_seconds"] if args.sample_seconds is None else args.sample_seconds
@@ -298,6 +353,8 @@ def capture(args: argparse.Namespace, budget: dict[str, Any]) -> int:
     trace = args.trace or DEFAULT_TRACE
     metrics.update(parse_installation_trace(trace))
     phase = detect_context() if args.phase == "auto" else args.phase
+    systemd_blame = detail_lines("systemd-analyze", "blame", "--no-pager", limit=1000)
+    critical_chain = detail_lines("systemd-analyze", "critical-chain", "--no-pager", limit=1000)
     document = {
         "schema_version": SCHEMA_VERSION,
         "captured_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
@@ -307,8 +364,13 @@ def capture(args: argparse.Namespace, budget: dict[str, Any]) -> int:
         "parameters": {"settle_seconds": settle, "sample_seconds": sample},
         "metrics": metrics,
         "details": {
-            "systemd_blame": detail_lines("systemd-analyze", "blame", "--no-pager"),
-            "critical_chain": detail_lines("systemd-analyze", "critical-chain", "--no-pager"),
+            "systemd_blame": systemd_blame[:20],
+            "critical_chain": critical_chain[:20],
+            "services": {
+                "man-db.service": service_boot_detail(
+                    "man-db.service", systemd_blame, critical_chain
+                )
+            },
             "top_processes": detail_lines(
                 "ps", "-eo", "pid,comm,%cpu,%mem", "--sort=-%cpu", limit=21
             ),
@@ -390,6 +452,9 @@ def aggregate(args: argparse.Namespace, budget: dict[str, Any]) -> int:
         "metrics": metrics,
         "budget": {"status": "not-compared", "comparisons": {}},
     }
+    man_db = aggregate_service_details(documents, "man-db.service")
+    if man_db is not None:
+        result["services"] = {"man-db.service": man_db}
     status = "pass"
     if args.baseline:
         baseline = json.loads(args.baseline.read_text(encoding="utf-8"))

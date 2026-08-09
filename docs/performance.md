@@ -41,6 +41,27 @@ fallback. O tempo de userspace vem do systemd. RAM idle é
 durante a janela configurada. O JSON também preserva `systemd-analyze blame`,
 critical chain e os processos que mais consomem CPU para explicar regressões.
 
+### Interpretando o `man-db`
+
+O Leap 16 já executa `man-db.service` por um timer diário persistente, com
+`RandomizedDelaySec=12h`, `Nice=19` e classe de I/O `idle`. Uma duração alta em
+`systemd-analyze blame` significa apenas que a unidade levou esse tempo para
+terminar; não demonstra que ela atrasou o desktop.
+
+Cada captura registra `details.services.man-db.service` separando:
+
+- se a unidade foi ativada durante aquele boot;
+- quanto tempo ela executou;
+- se apareceu no caminho crítico do target padrão.
+
+O resumo de cinco execuções agrega contagem de ativações, duração e ocorrências
+no caminho crítico em `services.man-db.service`. Não masque a unidade nem mude
+o timer somente para reduzir o resultado de `blame`: uma alteração da #28 só é
+aceitável se reduzir `boot_to_desktop_seconds` ou `boot_userspace_seconds` em
+séries comparáveis e mantiver `man`, `apropos` e a atualização do índice
+funcionais. A configuração nativa continua sendo a reversão padrão até existir
+essa evidência.
+
 O gate do instalador deve converter seus eventos estruturados em
 `/run/lyra-performance/installation.jsonl`, cobrindo armazenamento, cópia do
 rootfs, configuração do target, boot e finalização. Depois de uma instalação,
