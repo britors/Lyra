@@ -1,0 +1,324 @@
+#!/usr/bin/python3
+"""Validate an installed Lyra system and produce release-gate evidence."""
+
+from __future__ import annotations
+
+import argparse
+import datetime as dt
+import getpass
+import json
+import os
+import subprocess
+import tempfile
+from pathlib import Path
+from typing import Callable
+
+
+CommandRunner = Callable[[list[str]], tuple[int, str]]
+
+LIVE_ONLY_PATHS = (
+    "/etc/gdm/custom.conf",
+    "/etc/xdg/autostart/lyra-installer-autostart.desktop",
+    "/usr/bin/lyra-install-lock",
+    "/usr/bin/lyra-installer",
+    "/usr/bin/lyra-live-smoke",
+    "/usr/libexec/lyra-installer-service",
+    "/usr/libexec/lyra-configure-btrfs-rollback",
+    "/usr/share/applications/org.lyraos.LyraInstaller.desktop",
+    "/usr/share/polkit-1/actions/io.lyra.Installer.policy",
+    "/etc/polkit-1/rules.d/01-lyra-installer-service.rules",
+    "/usr/lib/lyra-os/local-installer-build",
+)
+
+
+def run_command(arguments: list[str]) -> tuple[int, str]:
+    try:
+        completed = subprocess.run(
+            arguments,
+            check=False,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            timeout=60,
+            env={**os.environ, "LC_ALL": "C"},
+        )
+    except subprocess.TimeoutExpired as error:
+        return 124, f"command timed out after {error.timeout} seconds"
+    except OSError as error:
+        return 127, str(error)
+    return completed.returncode, completed.stdout.strip()
+
+
+def rooted(root: Path, absolute: str) -> Path:
+    return root / absolute.removeprefix("/")
+
+
+def result(
+    mode: str,
+    checks: list[dict[str, str]],
+    observations: dict[str, object],
+) -> dict[str, object]:
+    passed = all(item["status"] == "passed" for item in checks)
+    return {
+        "schema": 1,
+        "status": "passed" if passed else "failed",
+        "mode": mode,
+        "generated_at": dt.datetime.now(dt.timezone.utc).isoformat(),
+        "checks": checks,
+        "observations": observations,
+    }
+
+
+def validate_first_boot(
+    *,
+    root: Path = Path("/"),
+    username: str | None = None,
+    environment: dict[str, str] | None = None,
+    runner: CommandRunner = run_command,
+    journal_acknowledgement: str = "",
+) -> dict[str, object]:
+    username = username or getpass.getuser()
+    environment = environment or dict(os.environ)
+    checks: list[dict[str, str]] = []
+    observations: dict[str, object] = {}
+
+    def check(identifier: str, passed: bool, detail: str) -> None:
+        checks.append(
+            {
+                "id": identifier,
+                "status": "passed" if passed else "failed",
+                "detail": detail,
+            }
+        )
+
+    for path in ("/usr/lib/lyra-os/release", "/usr/lib/lyra-os/build-info"):
+        check(
+            f"identity-{Path(path).name}",
+            rooted(root, path).is_file(),
+            f"{path} exists",
+        )
+
+    machine_id = rooted(root, "/etc/machine-id")
+    machine_id_value = (
+        machine_id.read_text(encoding="utf-8").strip()
+        if machine_id.is_file()
+        else ""
+    )
+    valid_machine_id = len(machine_id_value) == 32 and all(
+        character in "0123456789abcdef" for character in machine_id_value.lower()
+    )
+    check(
+        "machine-id",
+        valid_machine_id,
+        "installed system has a persistent machine identity",
+    )
+
+    check(
+        "installed-user",
+        username not in {"root", "liveuser"},
+        f"current user: {username}",
+    )
+    code, user_entry = runner(["getent", "passwd", username])
+    check(
+        "installed-user-account",
+        code == 0 and bool(user_entry),
+        "created account is resolvable",
+    )
+    code, live_user = runner(["getent", "passwd", "liveuser"])
+    check("live-user-removed", code != 0 and not live_user, "liveuser is absent")
+
+    remaining = [path for path in LIVE_ONLY_PATHS if rooted(root, path).exists()]
+    check(
+        "live-artifacts-removed",
+        not remaining,
+        "none remain" if not remaining else ", ".join(remaining),
+    )
+    code, package_output = runner(
+        ["rpm", "--root", str(root), "-q", "lyra-installer"]
+    )
+    check(
+        "installer-package-removed",
+        code != 0,
+        package_output or "lyra-installer is absent from the target RPM database",
+    )
+
+    check(
+        "not-live-rootfs",
+        not rooted(root, "/run/overlay/live/LiveOS/squashfs.img").exists(),
+        "live squashfs is not mounted",
+    )
+    code, root_fstype = runner(["findmnt", "-n", "-o", "FSTYPE", "/"])
+    check(
+        "btrfs-root",
+        code == 0 and root_fstype == "btrfs",
+        f"root filesystem: {root_fstype or 'unknown'}",
+    )
+    code, efi_mount = runner(["findmnt", "-n", "/boot/efi"])
+    check(
+        "efi-mounted",
+        code == 0 and bool(efi_mount),
+        efi_mount or "/boot/efi is not mounted",
+    )
+    code, fstab_output = runner(
+        ["findmnt", "--verify", "--tab-file", "/etc/fstab"]
+    )
+    check("fstab-valid", code == 0, fstab_output or "fstab verified")
+
+    grub = rooted(root, "/boot/grub2/grub.cfg")
+    grub_content = (
+        grub.read_text(encoding="utf-8", errors="replace") if grub.is_file() else ""
+    )
+    check(
+        "grub-config",
+        "menuentry " in grub_content,
+        "/boot/grub2/grub.cfg contains boot entries",
+    )
+    code, snapshots = runner(["snapper", "--no-dbus", "-c", "root", "list"])
+    check(
+        "snapper-root",
+        code == 0 and bool(snapshots),
+        snapshots or "root snapshots unavailable",
+    )
+
+    for unit in (
+        "graphical.target",
+        "gdm.service",
+        "NetworkManager.service",
+        "firewalld.service",
+        "cups.service",
+    ):
+        code, output = runner(["systemctl", "is-active", unit])
+        check(
+            f"unit-{unit}",
+            code == 0 and output == "active",
+            f"state: {output or 'unknown'}",
+        )
+
+    code, output = runner(["pgrep", "-x", "gnome-shell"])
+    check(
+        "gnome-shell",
+        code == 0 and bool(output),
+        "GNOME Shell process is running",
+    )
+    observations["desktop"] = environment.get("XDG_CURRENT_DESKTOP", "")
+    observations["session_type"] = environment.get("XDG_SESSION_TYPE", "")
+
+    code, failed_units = runner(
+        ["systemctl", "--failed", "--no-legend", "--plain"]
+    )
+    check(
+        "failed-units",
+        code == 0 and not failed_units,
+        failed_units or "no failed system units",
+    )
+    code, critical_journal = runner(
+        [
+            "journalctl",
+            "-b",
+            "-p",
+            "0..3",
+            "--no-pager",
+            "--quiet",
+            "--output=short-monotonic",
+        ]
+    )
+    journal_passed = code == 0 and (
+        not critical_journal or bool(journal_acknowledgement.strip())
+    )
+    check(
+        "critical-journal",
+        journal_passed,
+        "empty"
+        if not critical_journal
+        else "reviewed with explicit acknowledgement",
+    )
+    observations["critical_journal"] = critical_journal.splitlines()
+    observations["journal_acknowledgement"] = journal_acknowledgement.strip()
+    observations["username"] = username
+
+    return result("first-boot", checks, observations)
+
+
+def validate_secure_boot(
+    *, root: Path = Path("/"), runner: CommandRunner = run_command
+) -> dict[str, object]:
+    checks: list[dict[str, str]] = []
+    observations: dict[str, object] = {}
+
+    def check(identifier: str, passed: bool, detail: str) -> None:
+        checks.append(
+            {
+                "id": identifier,
+                "status": "passed" if passed else "failed",
+                "detail": detail,
+            }
+        )
+
+    efi_variables = rooted(root, "/sys/firmware/efi/efivars")
+    check("uefi-boot", efi_variables.is_dir(), "EFI variables are available")
+    code, mount_output = runner(["findmnt", "-n", "/boot/efi"])
+    check(
+        "efi-mounted",
+        code == 0 and bool(mount_output),
+        mount_output or "/boot/efi is not mounted",
+    )
+    code, secure_boot = runner(["mokutil", "--sb-state"])
+    check(
+        "secure-boot-enabled",
+        code == 0 and "secureboot enabled" in secure_boot.casefold(),
+        secure_boot or "mokutil did not report Secure Boot state",
+    )
+    fallback = rooted(root, "/boot/efi/EFI/BOOT/BOOTX64.EFI")
+    check("efi-fallback-loader", fallback.is_file(), str(fallback))
+    observations["mokutil"] = secure_boot.splitlines()
+
+    return result("uefi-secure-boot", checks, observations)
+
+
+def write_report(report: dict[str, object], output: Path) -> None:
+    output = output.resolve()
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(
+        "w",
+        encoding="utf-8",
+        dir=output.parent,
+        prefix=f".{output.name}.",
+        delete=False,
+    ) as stream:
+        json.dump(report, stream, indent=2, sort_keys=True, ensure_ascii=False)
+        stream.write("\n")
+        temporary = Path(stream.name)
+    temporary.replace(output)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    commands = parser.add_subparsers(dest="mode", required=True)
+    first_boot = commands.add_parser("first-boot")
+    first_boot.add_argument(
+        "--output", type=Path, default=Path("first-boot-result.json")
+    )
+    first_boot.add_argument(
+        "--acknowledge-journal",
+        default="",
+        help="issue/workaround covering reviewed priority 0..3 journal entries",
+    )
+    secure_boot = commands.add_parser("secure-boot")
+    secure_boot.add_argument(
+        "--output", type=Path, default=Path("uefi-secure-boot-result.json")
+    )
+    args = parser.parse_args()
+
+    if args.mode == "first-boot":
+        report = validate_first_boot(
+            journal_acknowledgement=args.acknowledge_journal
+        )
+    else:
+        report = validate_secure_boot()
+    write_report(report, args.output)
+    print(args.output)
+    return 0 if report["status"] == "passed" else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

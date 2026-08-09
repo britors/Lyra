@@ -1,0 +1,338 @@
+#!/usr/bin/python3
+"""Record and aggregate the Lyra Beta 2 real-hardware validation matrix."""
+
+from __future__ import annotations
+
+import argparse
+import datetime as dt
+import hashlib
+import json
+import os
+import re
+import subprocess
+import tempfile
+from pathlib import Path
+
+
+CORE_CHECKS = {
+    "installation",
+    "update",
+    "suspend-resume",
+    "network",
+    "audio-output",
+    "shutdown",
+    "reboot",
+}
+DEVICE_CHECKS = {
+    "microphone",
+    "bluetooth",
+    "webcam",
+    "printing",
+    "external-display",
+}
+NOTEBOOK_CHECKS = {"wifi", "brightness", "battery", "touchpad"}
+ALLOWED_STATUS = {"passed", "failed", "not-applicable"}
+
+
+class MatrixError(RuntimeError):
+    pass
+
+
+def sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def command(*arguments: str) -> str:
+    try:
+        completed = subprocess.run(
+            arguments,
+            check=False,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            timeout=30,
+            env={**os.environ, "LC_ALL": "C"},
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+    return completed.stdout if completed.returncode == 0 else ""
+
+
+def cpu_vendor(lscpu: str) -> str:
+    lowered = lscpu.casefold()
+    if "genuineintel" in lowered or "vendor id: intel" in lowered:
+        return "intel"
+    if "authenticamd" in lowered or "vendor id: amd" in lowered:
+        return "amd"
+    return "other"
+
+
+def gpu_vendors(lspci: str) -> list[str]:
+    vendors: set[str] = set()
+    for line in lspci.splitlines():
+        lowered = line.casefold()
+        if not any(kind in lowered for kind in ("vga", "3d controller", "display controller")):
+            continue
+        if "intel" in lowered or "[8086:" in lowered:
+            vendors.add("intel")
+        if (
+            "advanced micro devices" in lowered
+            or "amd/ati" in lowered
+            or re.search(r"\bamd\b", lowered)
+            or "[1002:" in lowered
+        ):
+            vendors.add("amd")
+        if "nvidia" in lowered or "[10de:" in lowered:
+            vendors.add("nvidia")
+        if not vendors:
+            vendors.add("other")
+    return sorted(vendors)
+
+
+def parse_check(value: str) -> tuple[str, dict[str, str]]:
+    if "=" not in value:
+        raise MatrixError("--check must use NAME=STATUS[:DETAIL]")
+    name, status_value = value.split("=", 1)
+    status, separator, detail = status_value.partition(":")
+    if status not in ALLOWED_STATUS:
+        raise MatrixError(f"invalid status for {name}: {status}")
+    if status == "not-applicable" and (not separator or not detail.strip()):
+        raise MatrixError(f"{name}: not-applicable requires a reason")
+    if status == "failed" and not detail.strip():
+        raise MatrixError(f"{name}: failed requires a reproduction detail or issue")
+    return name, {"status": status, "detail": detail.strip()}
+
+
+def scenario_document(
+    *,
+    machine: str,
+    kind: str,
+    iso_filename: str,
+    iso_sha256: str,
+    source_commit: str,
+    checks: list[str],
+    detected_cpu_vendor: str,
+    detected_gpu_vendors: list[str],
+) -> dict[str, object]:
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]{1,31}", machine):
+        raise MatrixError("machine must be a non-identifying lowercase slug")
+    if kind not in {"desktop", "notebook"}:
+        raise MatrixError("kind must be desktop or notebook")
+    if not re.fullmatch(r"[0-9a-f]{64}", iso_sha256):
+        raise MatrixError("ISO SHA-256 must contain 64 lowercase hexadecimal digits")
+    if not re.fullmatch(r"[0-9a-f]{40}", source_commit):
+        raise MatrixError("source commit must contain 40 lowercase hexadecimal digits")
+    if not iso_filename.endswith(".iso") or Path(iso_filename).name != iso_filename:
+        raise MatrixError("ISO filename must be a basename ending in .iso")
+
+    parsed: dict[str, dict[str, str]] = {}
+    for value in checks:
+        name, outcome = parse_check(value)
+        if name in parsed:
+            raise MatrixError(f"duplicate check: {name}")
+        parsed[name] = outcome
+
+    required = CORE_CHECKS | DEVICE_CHECKS
+    if kind == "notebook":
+        required |= NOTEBOOK_CHECKS
+    missing = sorted(required - set(parsed))
+    unknown = sorted(set(parsed) - required)
+    if missing:
+        raise MatrixError(f"missing checks: {', '.join(missing)}")
+    if unknown:
+        raise MatrixError(f"unknown checks: {', '.join(unknown)}")
+
+    invalid_core = sorted(
+        name for name in CORE_CHECKS if parsed[name]["status"] != "passed"
+    )
+    failures = sorted(
+        name for name, outcome in parsed.items() if outcome["status"] == "failed"
+    )
+    status = "passed" if not invalid_core and not failures else "failed"
+    return {
+        "schema": 1,
+        "mode": "hardware-scenario",
+        "status": status,
+        "generated_at": dt.datetime.now(dt.timezone.utc).isoformat(),
+        "machine": machine,
+        "kind": kind,
+        "iso": {
+            "filename": iso_filename,
+            "sha256": iso_sha256,
+            "source_commit": source_commit,
+        },
+        "hardware": {
+            "cpu_vendor": detected_cpu_vendor,
+            "gpu_vendors": detected_gpu_vendors,
+        },
+        "checks": parsed,
+    }
+
+
+def validate_scenario(document: object, path: Path) -> dict[str, object]:
+    if not isinstance(document, dict):
+        raise MatrixError(f"{path}: scenario must be a JSON object")
+    if document.get("schema") != 1 or document.get("mode") != "hardware-scenario":
+        raise MatrixError(f"{path}: unsupported hardware scenario schema")
+    if document.get("status") != "passed":
+        raise MatrixError(f"{path}: hardware scenario did not pass")
+    if document.get("kind") not in {"desktop", "notebook"}:
+        raise MatrixError(f"{path}: invalid machine kind")
+    hardware = document.get("hardware")
+    iso = document.get("iso")
+    checks = document.get("checks")
+    if not isinstance(hardware, dict) or not isinstance(iso, dict) or not isinstance(checks, dict):
+        raise MatrixError(f"{path}: incomplete hardware scenario")
+    required = CORE_CHECKS | DEVICE_CHECKS
+    if document["kind"] == "notebook":
+        required |= NOTEBOOK_CHECKS
+    if not required.issubset(checks):
+        raise MatrixError(f"{path}: hardware scenario is missing required checks")
+    for name in required:
+        outcome = checks[name]
+        if not isinstance(outcome, dict) or outcome.get("status") not in ALLOWED_STATUS:
+            raise MatrixError(f"{path}: invalid outcome for {name}")
+        if outcome["status"] == "failed":
+            raise MatrixError(f"{path}: hardware scenario contains a failed check")
+        if outcome["status"] == "not-applicable" and not str(
+            outcome.get("detail", "")
+        ).strip():
+            raise MatrixError(f"{path}: {name} has no not-applicable reason")
+        if name in CORE_CHECKS and outcome["status"] != "passed":
+            raise MatrixError(f"{path}: a core check was skipped")
+    if (
+        hardware.get("cpu_vendor") not in {"intel", "amd", "other"}
+        or not isinstance(hardware.get("gpu_vendors"), list)
+        or not re.fullmatch(r"[0-9a-f]{64}", str(iso.get("sha256", "")))
+        or not re.fullmatch(r"[0-9a-f]{40}", str(iso.get("source_commit", "")))
+    ):
+        raise MatrixError(f"{path}: invalid hardware or ISO identity")
+    return document
+
+
+def aggregate(paths: list[Path]) -> dict[str, object]:
+    scenarios: list[tuple[Path, dict[str, object]]] = []
+    for path in paths:
+        try:
+            document = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as error:
+            raise MatrixError(f"cannot read {path}: {error}") from error
+        scenarios.append((path, validate_scenario(document, path)))
+
+    machines = [str(document.get("machine", "")) for _, document in scenarios]
+    if len(machines) != len(set(machines)) or any(not machine for machine in machines):
+        raise MatrixError("scenario machine slugs must be present and unique")
+    desktops = sum(document["kind"] == "desktop" for _, document in scenarios)
+    notebooks = sum(document["kind"] == "notebook" for _, document in scenarios)
+    if desktops < 1 or notebooks < 2:
+        raise MatrixError("matrix requires at least one desktop and two notebooks")
+
+    identities = {
+        (
+            document["iso"].get("filename"),
+            document["iso"].get("sha256"),
+            document["iso"].get("source_commit"),
+        )
+        for _, document in scenarios
+    }
+    if len(identities) != 1:
+        raise MatrixError("every hardware scenario must use the exact same candidate ISO")
+
+    cpu_coverage = {str(document["hardware"].get("cpu_vendor")) for _, document in scenarios}
+    gpu_coverage = {
+        str(vendor)
+        for _, document in scenarios
+        for vendor in document["hardware"].get("gpu_vendors", [])
+    }
+    if not {"intel", "amd"}.issubset(cpu_coverage):
+        raise MatrixError("matrix must cover Intel and AMD CPUs")
+    if not {"intel", "amd"}.issubset(gpu_coverage):
+        raise MatrixError("matrix must cover Intel and AMD graphics")
+
+    iso_filename, iso_sha256, source_commit = identities.pop()
+    return {
+        "schema": 1,
+        "mode": "hardware-matrix",
+        "status": "passed",
+        "generated_at": dt.datetime.now(dt.timezone.utc).isoformat(),
+        "iso": {
+            "filename": iso_filename,
+            "sha256": iso_sha256,
+            "source_commit": source_commit,
+        },
+        "coverage": {
+            "desktops": desktops,
+            "notebooks": notebooks,
+            "cpu_vendors": sorted(cpu_coverage),
+            "gpu_vendors": sorted(gpu_coverage),
+        },
+        "scenarios": [
+            {
+                "machine": document["machine"],
+                "filename": path.name,
+                "sha256": sha256(path),
+            }
+            for path, document in scenarios
+        ],
+    }
+
+
+def write_json(document: dict[str, object], output: Path) -> None:
+    output = output.resolve()
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(
+        "w", encoding="utf-8", dir=output.parent, prefix=f".{output.name}.", delete=False
+    ) as stream:
+        json.dump(document, stream, indent=2, sort_keys=True, ensure_ascii=False)
+        stream.write("\n")
+        temporary = Path(stream.name)
+    temporary.replace(output)
+
+
+def parser() -> argparse.ArgumentParser:
+    cli = argparse.ArgumentParser(description=__doc__)
+    commands = cli.add_subparsers(dest="command", required=True)
+    record = commands.add_parser("record")
+    record.add_argument("--output", type=Path, required=True)
+    record.add_argument("--machine", required=True)
+    record.add_argument("--kind", choices=("desktop", "notebook"), required=True)
+    record.add_argument("--iso-filename", required=True)
+    record.add_argument("--iso-sha256", required=True)
+    record.add_argument("--source-commit", required=True)
+    record.add_argument("--check", action="append", default=[])
+    combine = commands.add_parser("aggregate")
+    combine.add_argument("--output", type=Path, required=True)
+    combine.add_argument("scenario", type=Path, nargs="+")
+    return cli
+
+
+def main() -> int:
+    args = parser().parse_args()
+    try:
+        if args.command == "record":
+            document = scenario_document(
+                machine=args.machine,
+                kind=args.kind,
+                iso_filename=args.iso_filename,
+                iso_sha256=args.iso_sha256,
+                source_commit=args.source_commit,
+                checks=args.check,
+                detected_cpu_vendor=cpu_vendor(command("lscpu")),
+                detected_gpu_vendors=gpu_vendors(command("lspci", "-nn")),
+            )
+        else:
+            document = aggregate(args.scenario)
+        write_json(document, args.output)
+        print(args.output)
+        return 0 if document["status"] == "passed" else 1
+    except MatrixError as error:
+        print(f"lyra-hardware-matrix: {error}", file=os.sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

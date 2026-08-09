@@ -177,7 +177,9 @@ collect secure-boot /usr/bin/mokutil --sb-state
 collect efi-boot /usr/sbin/efibootmgr -v
 collect flatpak-remotes /usr/bin/flatpak remotes --system --show-details
 collect gnome-version /usr/bin/gnome-shell --version
-collect lyra-packages /usr/bin/rpm -q vega-gtk sheliak fina lyra-installer
+collect lyra-packages /usr/bin/rpm -q \
+    aladfar beam calco chord fina lyra-installer lyra-theme postgres-draco \
+    prosa sheliak sulafat vega-cli vega-gtk vega-web vegad
 collect_file lyra-installer-log /var/log/lyra-installer.log
 
 # Connection names and SSIDs can occur in journal messages. They are supplied

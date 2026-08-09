@@ -32,8 +32,10 @@ risk.
 
 ## Required evidence
 
-Each file is JSON with top-level `"status": "passed"`. The names are enforced
-by `scripts/image-build.py artifact-manifest`:
+Each file is structured JSON with schema 1 and top-level
+`"status": "passed"`. `scripts/image-build.py artifact-manifest` also checks
+the expected mode, nonempty passing checks, final rollback phase, OBS project
+content and hardware coverage; a bare green status is rejected:
 
 - [ ] `obs-repositories`: release projects published; provenance, repository
   metadata, keys and RPM signatures verified by `obs-release.py health`;

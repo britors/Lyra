@@ -141,6 +141,7 @@ imagem. O helper recomendado também gera, ao lado da ISO, um manifesto
 | [`docs/diagnostics.md`](docs/diagnostics.md) | coleta, anonimização, revisão e compartilhamento de diagnósticos |
 | [`performance.toml`](performance.toml) | orçamento de regressão para boot, RAM, instalação, CPU e I/O |
 | [`docs/performance.md`](docs/performance.md) | ambiente, repetições, agregação e publicação do baseline |
+| [`docs/hardware-matrix.md`](docs/hardware-matrix.md) | matriz reproduzível de validação em hardware real |
 | [`installer/`](installer/) | frontend Rust/GTK e núcleo do novo Lyra Installer |
 | [`docs/installer-architecture.md`](docs/installer-architecture.md) | arquitetura e gates do Lyra Installer |
 | [`docs/installer-state-machine.md`](docs/installer-state-machine.md) | estados, contratos, cancelamento e recuperação |

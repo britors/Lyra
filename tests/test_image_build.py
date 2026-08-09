@@ -25,6 +25,19 @@ class ImagePolicyTests(unittest.TestCase):
     def test_canonical_sources_pass_repository_and_signature_policy(self) -> None:
         image_build.validate_sources(self.manifest)
 
+    def test_release_evidence_tools_are_executable(self) -> None:
+        for name in (
+            "lyra-hardware-matrix",
+            "lyra-live-smoke",
+            "lyra-performance",
+            "lyra-report",
+            "lyra-system-smoke",
+            "lyra-update-smoke",
+        ):
+            path = ROOT / "kiwi/root/usr/bin" / name
+            self.assertTrue(path.is_file(), name)
+            self.assertNotEqual(path.stat().st_mode & 0o111, 0, name)
+
     def test_installer_identity_matches_tauri_desktop_and_rpm(self) -> None:
         image_build.validate_installer_identity()
 
@@ -254,7 +267,46 @@ class ArtifactTests(unittest.TestCase):
         results = []
         for name in manifest.required_test_results:
             path = directory / f"{name}.json"
-            path.write_text('{"status":"passed"}\n', encoding="utf-8")
+            if name == "obs-repositories":
+                document = {
+                    "schema": 1,
+                    "status": "passed",
+                    "projects": [{"packages": ["fina"], "targets": ["Leap"]}],
+                }
+            elif name == "hardware-matrix":
+                document = {
+                    "schema": 1,
+                    "status": "passed",
+                    "mode": "hardware-matrix",
+                    "iso": {
+                        "filename": "lyra.iso",
+                        "sha256": image_build.sha256(directory / "lyra.iso"),
+                    },
+                    "coverage": {
+                        "desktops": 1,
+                        "notebooks": 2,
+                        "cpu_vendors": ["amd", "intel"],
+                        "gpu_vendors": ["amd", "intel"],
+                    },
+                    "scenarios": [{"machine": str(index)} for index in range(3)],
+                }
+            else:
+                modes = {
+                    "live-session": "live-session",
+                    "installer": "installer",
+                    "first-boot": "first-boot",
+                    "uefi-secure-boot": "uefi-secure-boot",
+                    "rollback": "rollback",
+                }
+                document = {
+                    "schema": 1,
+                    "status": "passed",
+                    "mode": modes[name],
+                    "checks": [{"id": "fixture", "status": "passed"}],
+                }
+                if name == "rollback":
+                    document["phase"] = "rollback-verified"
+            path.write_text(json.dumps(document) + "\n", encoding="utf-8")
             results.append(f"{name}={path}")
         return results
 
@@ -287,13 +339,27 @@ class ArtifactTests(unittest.TestCase):
             directory = Path(temporary)
             self.create_artifacts(directory)
             failed = directory / "obs.json"
-            failed.write_text('{"status":"failed"}\n', encoding="utf-8")
+            failed.write_text('{"schema":1,"status":"failed"}\n', encoding="utf-8")
             with self.assertRaisesRegex(image_build.PolicyError, "did not pass"):
                 image_build.artifact_manifest(
                     manifest,
                     directory,
                     directory / "manifest.json",
                     [f"obs-repositories={failed}"],
+                )
+
+    def test_manifest_rejects_empty_passed_or_mislabeled_evidence(self) -> None:
+        manifest = image_build.Manifest.load()
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            self.create_artifacts(directory)
+            empty = directory / "empty.json"
+            empty.write_text('{"schema":1,"status":"passed"}\n', encoding="utf-8")
+            with self.assertRaisesRegex(image_build.PolicyError, "mode"):
+                image_build.validate_test_result(
+                    "first-boot",
+                    json.loads(empty.read_text(encoding="utf-8")),
+                    iso_path=directory / "lyra.iso",
                 )
 
 

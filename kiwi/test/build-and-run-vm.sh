@@ -394,7 +394,9 @@ if [ "$SKIP_BUILD" -eq 0 ]; then
   IMAGE_INSTALLER_GUI="$BUILD_DIR/build/image-root/usr/bin/lyra-installer"
   IMAGE_INSTALLER_LOCK="$BUILD_DIR/build/image-root/usr/bin/lyra-install-lock"
   IMAGE_INSTALLER_SERVICE="$BUILD_DIR/build/image-root/usr/libexec/lyra-installer-service"
+  IMAGE_HARDWARE_MATRIX="$BUILD_DIR/build/image-root/usr/bin/lyra-hardware-matrix"
   IMAGE_LIVE_SMOKE="$BUILD_DIR/build/image-root/usr/bin/lyra-live-smoke"
+  IMAGE_SYSTEM_SMOKE="$BUILD_DIR/build/image-root/usr/bin/lyra-system-smoke"
   IMAGE_UPDATE_SMOKE="$BUILD_DIR/build/image-root/usr/bin/lyra-update-smoke"
   IMAGE_INSTALLER_AUTOSTART="$BUILD_DIR/build/image-root/etc/xdg/autostart/lyra-installer-autostart.desktop"
   IMAGE_INSTALLER_LAUNCHER="$BUILD_DIR/build/image-root/usr/share/applications/org.lyraos.LyraInstaller.desktop"
@@ -403,7 +405,9 @@ if [ "$SKIP_BUILD" -eq 0 ]; then
       "$IMAGE_INSTALLER_GUI" \
       "$IMAGE_INSTALLER_LOCK" \
       "$IMAGE_INSTALLER_SERVICE" \
+      "$IMAGE_HARDWARE_MATRIX" \
       "$IMAGE_LIVE_SMOKE" \
+      "$IMAGE_SYSTEM_SMOKE" \
       "$IMAGE_UPDATE_SMOKE"; do
     if [ ! -x "$INSTALLER_EXECUTABLE" ]; then
       echo "!!! built image is missing an executable installer component:" >&2

@@ -215,6 +215,20 @@ def validate_installer_identity() -> None:
 
 def validate_sources(manifest: Manifest) -> None:
     validate_installer_identity()
+    for relative in (
+        "root/usr/bin/lyra-hardware-matrix",
+        "root/usr/bin/lyra-live-smoke",
+        "root/usr/bin/lyra-performance",
+        "root/usr/bin/lyra-report",
+        "root/usr/bin/lyra-system-smoke",
+        "root/usr/bin/lyra-update-smoke",
+        "root/usr/libexec/lyra-report-redact",
+    ):
+        path = KIWI / relative
+        if not path.is_file() or not os.access(path, os.X_OK):
+            raise PolicyError(
+                f"required release tool is missing or not executable: kiwi/{relative}"
+            )
     root = canonical_xml().getroot()
     if root.attrib.get("name") != manifest.image_name:
         raise PolicyError("KIWI image name differs from image-build.toml")
@@ -380,6 +394,88 @@ def one(directory: Path, pattern: str, role: str) -> Path:
     return matches[0]
 
 
+def validate_passed_checks(name: str, result: dict[str, object]) -> None:
+    checks = result.get("checks")
+    if not isinstance(checks, list) or not checks:
+        raise PolicyError(f"test result has no structured checks: {name}")
+    for check in checks:
+        if (
+            not isinstance(check, dict)
+            or not isinstance(check.get("id"), str)
+            or check.get("status") != "passed"
+        ):
+            raise PolicyError(f"test result contains an invalid or failed check: {name}")
+
+
+def validate_test_result(
+    name: str,
+    result: object,
+    *,
+    iso_path: Path,
+) -> dict[str, object]:
+    if not isinstance(result, dict) or result.get("status") != "passed":
+        raise PolicyError(f"test result did not pass: {name}")
+    if result.get("schema") != 1:
+        raise PolicyError(f"test result has an unsupported schema: {name}")
+
+    if name == "obs-repositories":
+        projects = result.get("projects")
+        if not isinstance(projects, list) or not projects:
+            raise PolicyError("OBS evidence contains no verified projects")
+        for project in projects:
+            if (
+                not isinstance(project, dict)
+                or not project.get("packages")
+                or not project.get("targets")
+            ):
+                raise PolicyError("OBS evidence contains an incomplete project")
+        return result
+
+    expected_modes = {
+        "live-session": "live-session",
+        "installer": "installer",
+        "first-boot": "first-boot",
+        "uefi-secure-boot": "uefi-secure-boot",
+        "rollback": "rollback",
+        "hardware-matrix": "hardware-matrix",
+    }
+    expected_mode = expected_modes.get(name)
+    if expected_mode is None or result.get("mode") != expected_mode:
+        raise PolicyError(f"test result mode does not match its role: {name}")
+
+    if name == "hardware-matrix":
+        coverage = result.get("coverage")
+        scenarios = result.get("scenarios")
+        identity = result.get("iso")
+        desktops = coverage.get("desktops") if isinstance(coverage, dict) else None
+        notebooks = coverage.get("notebooks") if isinstance(coverage, dict) else None
+        cpu_vendors = coverage.get("cpu_vendors") if isinstance(coverage, dict) else None
+        gpu_vendors = coverage.get("gpu_vendors") if isinstance(coverage, dict) else None
+        if (
+            not isinstance(coverage, dict)
+            or not isinstance(desktops, int)
+            or desktops < 1
+            or not isinstance(notebooks, int)
+            or notebooks < 2
+            or not isinstance(cpu_vendors, list)
+            or not {"intel", "amd"}.issubset(set(cpu_vendors))
+            or not isinstance(gpu_vendors, list)
+            or not {"intel", "amd"}.issubset(set(gpu_vendors))
+            or not isinstance(scenarios, list)
+            or len(scenarios) < 3
+            or not isinstance(identity, dict)
+        ):
+            raise PolicyError("hardware matrix evidence is incomplete")
+        if identity.get("filename") != iso_path.name or identity.get("sha256") != sha256(iso_path):
+            raise PolicyError("hardware matrix does not reference the candidate ISO")
+        return result
+
+    validate_passed_checks(name, result)
+    if name == "rollback" and result.get("phase") != "rollback-verified":
+        raise PolicyError("rollback evidence is not the final verified phase")
+    return result
+
+
 def artifact_manifest(manifest: Manifest, directory: Path, output: Path, tests: list[str]) -> None:
     roles = {
         "iso": one(directory, "*.iso", "ISO"),
@@ -410,8 +506,7 @@ def artifact_manifest(manifest: Manifest, directory: Path, output: Path, tests: 
             result = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as error:
             raise PolicyError(f"test result is not valid JSON: {path}") from error
-        if not isinstance(result, dict) or result.get("status") != "passed":
-            raise PolicyError(f"test result did not pass: {name}")
+        validate_test_result(name, result, iso_path=roles["iso"])
         test_results[name] = {
             "filename": path.name,
             "sha256": sha256(path),

@@ -36,7 +36,8 @@ instalado. Também inclui:
 - CPU, memória, PCI, USB e discos sem números de série;
 - boot, Secure Boot, EFI, initramfs, serviços com falha e journal recente;
 - estado dos dispositivos de rede sem perfis, senhas ou nomes de conexão;
-- repositórios e pacotes instalados;
+- repositórios, inventário RPM e estado explícito de todos os pacotes próprios
+  do ecossistema Lyra, incluindo Prosa e Calco;
 - mounts, `fstab`, Btrfs, Snapper e GRUB;
 - disponibilidade e logs legíveis do Lyra Installer.
 

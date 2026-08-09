@@ -71,6 +71,25 @@ overrides for disk, RAM and virtual CPUs. CI uses the deterministic export gate
 to prove that the same committed inputs are selected without publishing an
 image to OBS.
 
+After logging into the installed account, generate the first-boot evidence:
+
+```sh
+lyra-system-smoke first-boot --output first-boot-result.json
+```
+
+For a run created with `--secure-boot`, record the separate firmware and EFI
+evidence as well:
+
+```sh
+lyra-system-smoke secure-boot --output uefi-secure-boot-result.json
+```
+
+Both commands fail closed. The first-boot check rejects a remaining live user,
+autologin, installer RPM, privileged installer service/polkit rule, invalid
+`fstab`, non-Btrfs root, missing EFI mount, unavailable Snapper, failed system
+units or an unreviewed critical journal entry. The Secure Boot check requires
+an EFI boot, mounted ESP, enabled firmware state and fallback loader.
+
 Signature verification is mandatory through `rpm-check-signatures`,
 `repository_gpgcheck`, and `package_gpgcheck`. The KIWI description uses the
 canonical HTTPS openSUSE and Lyra package repositories. Flathub's URL and
@@ -103,6 +122,11 @@ Before the KIWI build, create the signed public-repository health report:
   --output /path/to/obs-health-2026.08-beta2.json
 ```
 
+When installation finishes successfully, the frontend writes
+`~/lyra-installer-result.json` in the live session. Copy it together with the
+other evidence before rebooting; it is not transferred to the installed
+account.
+
 Create a checksummed evidence document and link the OBS health, installer and
 smoke-test results:
 
@@ -111,18 +135,20 @@ smoke-test results:
   --output /path/to/lyra-os.evidence.json \
   --test-result obs-repositories=/path/to/obs-health-2026.08-beta2.json \
   --test-result live-session=/path/to/live-session-result.json \
-  --test-result installer=/path/to/manual-install-result.json \
+  --test-result installer=/path/to/lyra-installer-result.json \
   --test-result first-boot=/path/to/first-boot-result.json \
   --test-result uefi-secure-boot=/path/to/uefi-secure-boot-result.json \
   --test-result rollback=/path/to/rollback-result.json \
   --test-result hardware-matrix=/path/to/hardware-matrix-result.json
 ```
 
-Every result is JSON with top-level `"status": "passed"`. The command fails if
-the source tree is dirty, an artifact is absent or ambiguous, the package
-inventory does not contain exact sources, required evidence is missing, or any
-provided result is not green. The full decision policy and publication
-checklist are in [`release-gate.md`](release-gate.md).
+Every result is schema-1 JSON with top-level `"status": "passed"` and the
+structure required for its role. A bare green status is not evidence. The
+command fails if the source tree is dirty, an artifact is absent or ambiguous,
+the package inventory does not contain exact sources, required evidence is
+missing, a result has the wrong mode/checks, rollback has not reached its final
+verified phase, or the hardware matrix names a different ISO. The full decision
+policy and publication checklist are in [`release-gate.md`](release-gate.md).
 
 After the checksum and release gates pass, publish the ISO and its evidence on
 SourceForge. Upload credentials and the SourceForge release operation remain
