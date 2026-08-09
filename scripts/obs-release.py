@@ -5,13 +5,20 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
+import datetime as dt
+import hashlib
+import json
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
 import tomllib
+import urllib.error
+import urllib.request
 import xml.etree.ElementTree as ET
 from pathlib import Path
+from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -19,6 +26,7 @@ DEFAULT_MANIFEST = ROOT / "obs/projects.toml"
 IMAGE_CONFIG = ROOT / "kiwi/config.xml"
 INSTALLER_DEPLOY = ROOT / "installer/src/service/operations/deploy.rs"
 GOOD_PACKAGE_STATES = {"succeeded", "excluded"}
+DOWNLOAD_BASE = "https://download.opensuse.org/repositories"
 
 
 class PolicyError(RuntimeError):
@@ -48,6 +56,10 @@ class Project:
 class Manifest:
     api_url: str
     maintainer: str
+    signing_project: str
+    signing_fingerprint: str
+    baseline_tag: str
+    approved_baselines: dict[str, dict[str, str]]
     priorities: dict[str, int]
     projects: tuple[Project, ...]
 
@@ -80,6 +92,13 @@ class Manifest:
         manifest = cls(
             api_url=data["api_url"],
             maintainer=data["maintainer"],
+            signing_project=data["signing"]["project"],
+            signing_fingerprint=data["signing"]["fingerprint"].replace(" ", "").upper(),
+            baseline_tag=data["baseline"]["tag"],
+            approved_baselines={
+                project: dict(packages)
+                for project, packages in data["baseline"]["projects"].items()
+            },
             priorities=dict(data["priorities"]),
             projects=projects,
         )
@@ -91,6 +110,12 @@ class Manifest:
             raise PolicyError("only the canonical HTTPS OBS API is allowed")
         if not re.fullmatch(r"[a-zA-Z0-9_.-]+", self.maintainer):
             raise PolicyError("invalid OBS maintainer")
+        if not self.signing_project.startswith("home:rodrigosbrito"):
+            raise PolicyError("signing project is outside the approved OBS namespace")
+        if not re.fullmatch(r"[0-9A-F]{40}", self.signing_fingerprint):
+            raise PolicyError("signing fingerprint must contain 40 hexadecimal characters")
+        if not re.fullmatch(r"v[0-9A-Za-z._-]+", self.baseline_tag):
+            raise PolicyError("invalid stable baseline tag")
         ids: set[str] = set()
         remote_names: set[str] = set()
         for project in self.projects:
@@ -111,6 +136,15 @@ class Manifest:
                 raise PolicyError(f"{project.id}: at least one target is required")
             if project.iso_consumer and not any(target.iso_consumer for target in project.targets):
                 raise PolicyError(f"{project.id}: ISO consumer has no ISO target")
+            baseline = self.approved_baselines.get(project.id)
+            if baseline is None or set(baseline) != set(project.packages):
+                raise PolicyError(f"{project.id}: approved baseline package inventory differs")
+            for package, revision in baseline.items():
+                if not re.fullmatch(r"[0-9a-f]{32}", revision):
+                    raise PolicyError(f"{project.id}/{package}: invalid baseline srcmd5")
+
+        if set(self.approved_baselines) != ids:
+            raise PolicyError("approved baseline contains unknown or missing projects")
 
         required = {
             "official_oss": 20,
@@ -160,6 +194,141 @@ class Obs:
             return ET.fromstring(self.run(["api", path]))
         except ET.ParseError as error:
             raise PolicyError(f"OBS returned invalid XML for {path}: {error}") from error
+
+
+class HttpDownloader:
+    """Fetch public repository artifacts without using OBS credentials."""
+
+    def get(self, url: str) -> bytes:
+        request = urllib.request.Request(url, headers={"User-Agent": "lyra-obs-health/1"})
+        try:
+            with urllib.request.urlopen(request, timeout=60) as response:
+                if response.status != 200:
+                    raise PolicyError(f"download failed: {url} returned HTTP {response.status}")
+                return response.read()
+        except (OSError, urllib.error.URLError) as error:
+            raise PolicyError(f"download failed: {url}: {error}") from error
+
+
+def run_checked(arguments: list[str]) -> str:
+    executable = shutil.which(arguments[0])
+    if executable is None:
+        raise PolicyError(f"required verification command is unavailable: {arguments[0]}")
+    result = subprocess.run(
+        [executable, *arguments[1:]], check=False, text=True, capture_output=True
+    )
+    if result.returncode:
+        detail = result.stderr.strip() or result.stdout.strip()
+        raise PolicyError(f"verification command failed: {Obs.format_command(arguments)}\n{detail}")
+    return result.stdout
+
+
+def key_fingerprints(key_path: Path) -> set[str]:
+    output = run_checked(
+        [
+            "gpg",
+            "--batch",
+            "--with-colons",
+            "--import-options",
+            "show-only",
+            "--import",
+            str(key_path),
+        ]
+    )
+    return {
+        fields[9].upper()
+        for line in output.splitlines()
+        if (fields := line.split(":"))[0] == "fpr" and len(fields) > 9
+    }
+
+
+def repository_url(project: str, target: str) -> str:
+    project_path = project.replace(":", ":/")
+    return f"{DOWNLOAD_BASE}/{project_path}/{target}"
+
+
+class ArtifactVerifier:
+    """Verify public repository metadata and every required binary RPM."""
+
+    def __init__(self, expected_fingerprint: str, downloader: HttpDownloader | None = None) -> None:
+        self.expected_fingerprint = expected_fingerprint
+        self.downloader = downloader or HttpDownloader()
+
+    def verify_repository(self, base_url: str, rpm_filenames: list[str], arch: str) -> dict[str, Any]:
+        key = self.downloader.get(f"{base_url}/repodata/repomd.xml.key")
+        metadata = self.downloader.get(f"{base_url}/repodata/repomd.xml")
+        signature = self.downloader.get(f"{base_url}/repodata/repomd.xml.asc")
+        with tempfile.TemporaryDirectory(prefix="lyra-obs-health-") as directory:
+            root = Path(directory)
+            key_path = root / "repository.key"
+            metadata_path = root / "repomd.xml"
+            signature_path = root / "repomd.xml.asc"
+            key_path.write_bytes(key)
+            metadata_path.write_bytes(metadata)
+            signature_path.write_bytes(signature)
+
+            fingerprints = key_fingerprints(key_path)
+            if self.expected_fingerprint not in fingerprints:
+                raise PolicyError(
+                    f"repository signing key mismatch for {base_url}: "
+                    f"expected {self.expected_fingerprint}, got {sorted(fingerprints)}"
+                )
+
+            gpg_home = root / "gnupg"
+            gpg_home.mkdir(mode=0o700)
+            run_checked(["gpg", "--batch", "--homedir", str(gpg_home), "--import", str(key_path)])
+            run_checked(
+                [
+                    "gpgv",
+                    "--keyring",
+                    str(gpg_home / "pubring.kbx"),
+                    str(signature_path),
+                    str(metadata_path),
+                ]
+            )
+
+            rpmdb = root / "rpmdb"
+            rpmdb.mkdir()
+            run_checked(["rpmkeys", "--dbpath", str(rpmdb), "--import", str(key_path)])
+            packages: list[dict[str, str | int]] = []
+            for filename in sorted(rpm_filenames):
+                binary_arch = "noarch" if filename.endswith(".noarch.rpm") else arch
+                url = f"{base_url}/{binary_arch}/{filename}"
+                payload = self.downloader.get(url)
+                rpm_path = root / filename
+                rpm_path.write_bytes(payload)
+                run_checked(["rpmkeys", "--dbpath", str(rpmdb), "--checksig", str(rpm_path)])
+                query = run_checked(
+                    [
+                        "rpm",
+                        "-qp",
+                        "--queryformat",
+                        "%{NAME}\t%{VERSION}-%{RELEASE}\t%{ARCH}",
+                        str(rpm_path),
+                    ]
+                )
+                try:
+                    name, version, rpm_arch = query.split("\t")
+                except ValueError as error:
+                    raise PolicyError(f"unexpected RPM metadata for {filename}: {query!r}") from error
+                packages.append(
+                    {
+                        "filename": filename,
+                        "name": name,
+                        "version": version,
+                        "architecture": rpm_arch,
+                        "size": len(payload),
+                        "sha256": hashlib.sha256(payload).hexdigest(),
+                        "url": url,
+                        "signature": "verified",
+                    }
+                )
+        return {
+            "url": base_url,
+            "metadata_signature": "verified",
+            "signing_fingerprint": self.expected_fingerprint,
+            "packages": packages,
+        }
 
 
 def check_local_priorities(manifest: Manifest) -> None:
@@ -224,12 +393,23 @@ def render_project_meta(manifest: Manifest, project: Project) -> str:
     return ET.tostring(root, encoding="unicode") + "\n"
 
 
-def source_revisions(obs: Obs, remote: str) -> dict[str, str]:
+def source_information(obs: Obs, remote: str) -> dict[str, dict[str, str]]:
     root = obs.api_xml(f"/source/{remote}?view=info")
     return {
-        node.attrib["package"]: node.attrib["srcmd5"]
+        node.attrib["package"]: {
+            "revision": node.attrib.get("rev", ""),
+            "srcmd5": node.attrib["srcmd5"],
+            "verifymd5": node.attrib.get("verifymd5", ""),
+        }
         for node in root.findall("sourceinfo")
         if ":" not in node.attrib["package"]
+    }
+
+
+def source_revisions(obs: Obs, remote: str) -> dict[str, str]:
+    return {
+        package: info["srcmd5"]
+        for package, info in source_information(obs, remote).items()
     }
 
 
@@ -255,7 +435,9 @@ def check_project_meta(project: Project, remote: str, root: ET.Element) -> None:
         raise PolicyError(f"{remote}: repositories/targets differ from manifest")
 
 
-def check_target_result(obs: Obs, project: Project, remote: str, target: Target, arch: str) -> None:
+def check_target_result(
+    obs: Obs, project: Project, remote: str, target: Target, arch: str
+) -> dict[str, dict[str, Any]]:
     root = obs.api_xml(
         f"/build/{remote}/_result?repository={target.name}&arch={arch}&view=status"
     )
@@ -264,19 +446,229 @@ def check_target_result(obs: Obs, project: Project, remote: str, target: Target,
         code = "missing" if result is None else result.attrib.get("code", "unknown")
         raise PolicyError(f"{remote}/{target.name}/{arch}: not published ({code})")
     statuses = {node.attrib["package"]: node.attrib["code"] for node in result.findall("status")}
+    checked: dict[str, dict[str, Any]] = {}
     for package in project.packages:
         state = statuses.get(package)
         flavors = {
             name: code for name, code in statuses.items() if name.startswith(f"{package}:")
         }
         if state == "succeeded":
+            checked[package] = {"state": state, "flavors": flavors}
             continue
         if state == "excluded" and flavors and all(code == "succeeded" for code in flavors.values()):
+            checked[package] = {"state": state, "flavors": flavors}
             continue
         raise PolicyError(
             f"{remote}/{target.name}/{arch}/{package}: build gate failed "
             f"(state={state!r}, flavors={flavors})"
         )
+    return checked
+
+
+def latest_source_revision(obs: Obs, remote: str, package: str) -> dict[str, str]:
+    root = obs.api_xml(f"/source/{remote}/{package}/_history")
+    revisions = root.findall("revision")
+    if not revisions:
+        raise PolicyError(f"{remote}/{package}: source history is empty")
+    latest = revisions[-1]
+    result = {
+        "revision": latest.attrib.get("rev", ""),
+        "srcmd5": latest.findtext("srcmd5", ""),
+        "version": latest.findtext("version", ""),
+        "request_id": latest.findtext("requestid", ""),
+    }
+    if not result["revision"] or not result["srcmd5"] or not result["version"]:
+        raise PolicyError(f"{remote}/{package}: incomplete source history entry")
+    return result
+
+
+def validate_accepted_promotion(
+    obs: Obs, project: Project, package: str, revision: dict[str, str]
+) -> None:
+    request_id = revision["request_id"]
+    if not request_id:
+        raise PolicyError(
+            f"{project.release}/{package}: current revision {revision['srcmd5']} "
+            "was not installed by an accepted staging submit request"
+        )
+    request = obs.api_xml(f"/request/{request_id}")
+    state = request.find("state")
+    if state is None or state.attrib.get("name") != "accepted":
+        current = "missing" if state is None else state.attrib.get("name", "unknown")
+        raise PolicyError(f"OBS request {request_id} is not accepted (state={current})")
+    for action in request.findall("action"):
+        if action.attrib.get("type") != "submit":
+            continue
+        source = action.find("source")
+        target = action.find("target")
+        accept = action.find("acceptinfo")
+        if source is None or target is None or accept is None:
+            continue
+        if (
+            source.attrib.get("project") == project.staging
+            and source.attrib.get("package") == package
+            and target.attrib.get("project") == project.release
+            and target.attrib.get("package") == package
+            and accept.attrib.get("srcmd5") == revision["srcmd5"]
+        ):
+            return
+    raise PolicyError(
+        f"{project.release}/{package}: request {request_id} does not prove promotion "
+        f"of current revision {revision['srcmd5']} from {project.staging}"
+    )
+
+
+def release_provenance(
+    obs: Obs,
+    manifest: Manifest,
+    project: Project,
+    package: str,
+    revision: dict[str, str],
+) -> dict[str, Any]:
+    if revision["request_id"]:
+        validate_accepted_promotion(obs, project, package, revision)
+        return {
+            "kind": "accepted-staging-request",
+            "request_id": int(revision["request_id"]),
+        }
+    baseline = manifest.approved_baselines[project.id][package]
+    published_srcmd5 = revision.get("published_srcmd5", revision["srcmd5"])
+    if published_srcmd5 != baseline:
+        raise PolicyError(
+            f"{project.release}/{package}: current revision {published_srcmd5} has neither "
+            f"an accepted staging request nor the approved {manifest.baseline_tag} baseline "
+            f"revision {baseline}"
+        )
+    return {
+        "kind": "stable-tag-baseline",
+        "tag": manifest.baseline_tag,
+        "srcmd5": baseline,
+    }
+
+
+def binary_rpms(obs: Obs, remote: str, target: Target, arch: str, package: str) -> list[str]:
+    root = obs.api_xml(f"/build/{remote}/{target.name}/{arch}/{package}")
+    filenames = sorted(
+        node.attrib["filename"]
+        for node in root.findall("binary")
+        if node.attrib.get("filename", "").endswith(".rpm")
+        and not node.attrib["filename"].endswith(".src.rpm")
+    )
+    if not filenames:
+        raise PolicyError(f"{remote}/{target.name}/{arch}/{package}: no binary RPM was published")
+    return filenames
+
+
+def binary_build_packages(package: str, state: dict[str, Any]) -> list[str]:
+    builds = [package] if state["state"] == "succeeded" else []
+    builds.extend(
+        flavor
+        for flavor, flavor_state in sorted(state["flavors"].items())
+        if flavor_state == "succeeded"
+    )
+    if not builds:
+        raise PolicyError(f"{package}: no successful binary build was selected")
+    return builds
+
+
+def health_report(
+    obs: Obs, manifest: Manifest, verifier: ArtifactVerifier | None = None
+) -> dict[str, Any]:
+    verifier = verifier or ArtifactVerifier(manifest.signing_fingerprint)
+    report: dict[str, Any] = {
+        "schema": 1,
+        "generated_at": dt.datetime.now(dt.timezone.utc).isoformat(),
+        "api_url": manifest.api_url,
+        "channel": "release",
+        "status": "passed",
+        "stable_baseline_tag": manifest.baseline_tag,
+        "signing_project": manifest.signing_project,
+        "signing_fingerprint": manifest.signing_fingerprint,
+        "projects": [],
+    }
+    for project in manifest.projects:
+        meta = obs.api_xml(f"/source/{project.release}/_meta")
+        check_project_meta(project, project.release, meta)
+        source_info = source_information(obs, project.release)
+        missing = sorted(set(project.packages) - set(source_info))
+        extra = sorted(set(source_info) - set(project.packages))
+        if missing or extra:
+            raise PolicyError(
+                f"{project.release}: package inventory mismatch; missing={missing}, extra={extra}"
+            )
+
+        project_report: dict[str, Any] = {
+            "id": project.id,
+            "project": project.release,
+            "packages": [],
+            "targets": [],
+        }
+        for package in project.packages:
+            revision = latest_source_revision(obs, project.release, package)
+            published = source_info[package]
+            if revision["revision"] != published["revision"]:
+                raise PolicyError(
+                    f"{project.release}/{package}: history revision {revision['revision']} and "
+                    f"published revision {published['revision']} differ"
+                )
+            provenance_revision = {
+                **revision,
+                # Source services and multibuild expansion can make the raw
+                # history MD5 differ from the published sourceinfo MD5. The
+                # stable baseline pins the latter, while accepted requests
+                # remain traceable through the raw history MD5.
+                "published_srcmd5": published["srcmd5"],
+            }
+            provenance = release_provenance(
+                obs, manifest, project, package, provenance_revision
+            )
+            project_report["packages"].append(
+                {
+                    "name": package,
+                    "revision": revision["revision"],
+                    "srcmd5": published["srcmd5"],
+                    "history_srcmd5": revision["srcmd5"],
+                    "verifymd5": published["verifymd5"],
+                    "version": revision["version"],
+                    "provenance": provenance,
+                }
+            )
+
+        for target in project.targets:
+            for arch in target.architectures:
+                states = check_target_result(obs, project, project.release, target, arch)
+                filenames: list[str] = []
+                for package in project.packages:
+                    for build_package in binary_build_packages(package, states[package]):
+                        filenames.extend(
+                            binary_rpms(
+                                obs, project.release, target, arch, build_package
+                            )
+                        )
+                repository = verifier.verify_repository(
+                    repository_url(project.release, target.name), sorted(set(filenames)), arch
+                )
+                project_report["targets"].append(
+                    {
+                        "repository": target.name,
+                        "architecture": arch,
+                        "builds": states,
+                        "public_repository": repository,
+                    }
+                )
+        report["projects"].append(project_report)
+    return report
+
+
+def write_health_report(report: dict[str, Any], output: Path) -> None:
+    output.parent.mkdir(parents=True, exist_ok=True)
+    serialized = json.dumps(report, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
+    with tempfile.NamedTemporaryFile(
+        "w", encoding="utf-8", dir=output.parent, prefix=f".{output.name}.", delete=False
+    ) as stream:
+        stream.write(serialized)
+        temporary = Path(stream.name)
+    temporary.replace(output)
 
 
 def check_remote(obs: Obs, manifest: Manifest, channel: str) -> None:
@@ -406,6 +798,13 @@ def parser() -> argparse.ArgumentParser:
     check = subparsers.add_parser("check", help="validate OBS projects and green build gates")
     check.add_argument("--channel", choices=("release", "staging", "all"), default="all")
 
+    health = subparsers.add_parser(
+        "health", help="verify release promotions, public metadata, signatures, and RPM downloads"
+    )
+    health.add_argument(
+        "--output", type=Path, required=True, help="write the machine-readable JSON report here"
+    )
+
     initialize = subparsers.add_parser("init-staging", help="create and seed staging projects")
     initialize.add_argument("--execute", action="store_true")
 
@@ -434,6 +833,14 @@ def main(argv: list[str] | None = None) -> int:
             print("OK: OBS manifest and repository priorities are valid")
         elif args.command == "check":
             check_remote(obs, manifest, args.channel)
+        elif args.command == "health":
+            report = health_report(obs, manifest)
+            write_health_report(report, args.output)
+            package_count = sum(len(project["packages"]) for project in report["projects"])
+            print(
+                f"OK: verified {len(report['projects'])} release projects and "
+                f"{package_count} source packages; report: {args.output}"
+            )
         elif args.command == "init-staging":
             init_staging(obs, manifest)
         elif args.command == "promote":

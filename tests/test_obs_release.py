@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
+import tempfile
 import unittest
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -41,6 +43,31 @@ class ManifestTests(unittest.TestCase):
 
     def test_local_priority_contract_is_current(self) -> None:
         obs_release.check_local_priorities(self.manifest)
+
+    def test_signing_key_is_pinned(self) -> None:
+        self.assertEqual(self.manifest.signing_project, "home:rodrigosbrito")
+        self.assertEqual(
+            self.manifest.signing_fingerprint,
+            "399218A6E088C4053F4533BE58097F767EDCA82E",
+        )
+
+    def test_stable_tag_pins_every_current_package_revision(self) -> None:
+        self.assertEqual(
+            self.manifest.baseline_tag, "v2026.08-beta2-stable-20260809"
+        )
+        for project in self.manifest.projects:
+            self.assertEqual(
+                set(self.manifest.approved_baselines[project.id]), set(project.packages)
+            )
+
+    def test_public_repository_url_uses_obs_download_layout(self) -> None:
+        self.assertEqual(
+            obs_release.repository_url(
+                "home:rodrigosbrito:lyra", "openSUSE_Leap_16.0"
+            ),
+            "https://download.opensuse.org/repositories/"
+            "home:/rodrigosbrito:/lyra/openSUSE_Leap_16.0",
+        )
 
 
 class BuildGateTests(unittest.TestCase):
@@ -112,6 +139,134 @@ class SafetyTests(unittest.TestCase):
     def test_command_formatter_does_not_interpolate_shell(self) -> None:
         rendered = obs_release.Obs.format_command(["osc", "-m", "test; $(bad)"])
         self.assertEqual(rendered, "osc -m 'test; $(bad)'")
+
+
+class PromotionTraceTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.manifest = obs_release.Manifest.load()
+        self.project = self.manifest.project("lyra")
+
+    def test_current_release_revision_requires_an_accepted_staging_request(self) -> None:
+        revision = {
+            "revision": "9",
+            "srcmd5": "a" * 32,
+            "version": "1.0",
+            "request_id": "1370000",
+        }
+        request = f"""
+        <request id="1370000">
+          <action type="submit">
+            <source project="{self.project.staging}" package="beam" rev="{'a' * 32}"/>
+            <target project="{self.project.release}" package="beam"/>
+            <acceptinfo srcmd5="{'a' * 32}"/>
+          </action>
+          <state name="accepted"/>
+        </request>
+        """
+        obs_release.validate_accepted_promotion(
+            FakeObs({"/request/1370000": request}), self.project, "beam", revision
+        )
+
+    def test_direct_release_commit_is_rejected(self) -> None:
+        revision = {
+            "revision": "9",
+            "srcmd5": "a" * 32,
+            "version": "1.0",
+            "request_id": "",
+        }
+        with self.assertRaisesRegex(obs_release.PolicyError, "accepted staging submit request"):
+            obs_release.validate_accepted_promotion(FakeObs({}), self.project, "beam", revision)
+
+    def test_pinned_stable_baseline_is_accepted_without_a_legacy_request(self) -> None:
+        revision = {
+            "revision": "12",
+            "srcmd5": self.manifest.approved_baselines["lyra"]["beam"],
+            "version": "1.0",
+            "request_id": "",
+        }
+        self.assertEqual(
+            obs_release.release_provenance(
+                FakeObs({}), self.manifest, self.project, "beam", revision
+            ),
+            {
+                "kind": "stable-tag-baseline",
+                "tag": "v2026.08-beta2-stable-20260809",
+                "srcmd5": self.manifest.approved_baselines["lyra"]["beam"],
+            },
+        )
+
+    def test_unreviewed_drift_from_stable_baseline_is_rejected(self) -> None:
+        revision = {
+            "revision": "13",
+            "srcmd5": "f" * 32,
+            "version": "1.0",
+            "request_id": "",
+        }
+        with self.assertRaisesRegex(obs_release.PolicyError, "neither an accepted staging request"):
+            obs_release.release_provenance(
+                FakeObs({}), self.manifest, self.project, "beam", revision
+            )
+
+    def test_multibuild_baseline_uses_published_not_raw_history_md5(self) -> None:
+        published = self.manifest.approved_baselines["lyra"]["lyra-theme"]
+        revision = {
+            "revision": "24",
+            "srcmd5": "a59ee06378f7aa5c8d1b99433d8b2031",
+            "published_srcmd5": published,
+            "version": "unknown",
+            "request_id": "",
+        }
+        self.assertEqual(
+            obs_release.release_provenance(
+                FakeObs({}), self.manifest, self.project, "lyra-theme", revision
+            )["srcmd5"],
+            published,
+        )
+
+    def test_binary_inventory_ignores_source_rpm_and_requires_binary(self) -> None:
+        target = self.project.targets[0]
+        path = f"/build/{self.project.release}/{target.name}/x86_64/beam"
+        document = """
+        <binarylist>
+          <binary filename="beam-1.0-1.src.rpm"/>
+          <binary filename="beam-1.0-1.x86_64.rpm"/>
+          <binary filename="rpmlint.log"/>
+        </binarylist>
+        """
+        self.assertEqual(
+            obs_release.binary_rpms(
+                FakeObs({path: document}), self.project.release, target, "x86_64", "beam"
+            ),
+            ["beam-1.0-1.x86_64.rpm"],
+        )
+
+    def test_multibuild_binary_inventory_uses_successful_flavors(self) -> None:
+        self.assertEqual(
+            obs_release.binary_build_packages(
+                "lyra-theme",
+                {
+                    "state": "excluded",
+                    "flavors": {
+                        "lyra-theme:lyra-os-theme": "succeeded",
+                        "lyra-theme:lyra-os-icons": "succeeded",
+                    },
+                },
+            ),
+            ["lyra-theme:lyra-os-icons", "lyra-theme:lyra-os-theme"],
+        )
+
+
+class HealthReportTests(unittest.TestCase):
+    def test_report_is_written_as_stable_json(self) -> None:
+        report = {
+            "schema": 1,
+            "status": "passed",
+            "projects": [{"id": "lyra", "packages": []}],
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "nested" / "obs-health.json"
+            obs_release.write_health_report(report, output)
+            self.assertEqual(json.loads(output.read_text(encoding="utf-8")), report)
 
 
 if __name__ == "__main__":

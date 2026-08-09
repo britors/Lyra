@@ -8,6 +8,10 @@ reviewed submit request.
 The machine-readable contract is [`obs/projects.toml`](../obs/projects.toml).
 Run `./scripts/obs-release.py validate` after changing it.
 
+The manifest also pins the fingerprint of the OBS signing key inherited from
+`home:rodrigosbrito`. A key rotation must update that fingerprint in a reviewed
+commit before a new release can pass the health gate.
+
 ## Architecture
 
 | Component | Staging project | Release project | Target | ISO |
@@ -95,6 +99,49 @@ osc -A https://api.opensuse.org request accept -m 'Staging and tests verified' R
 
 Only the final `request accept` copies the source into the ISO-consumed project.
 Never use `osc copypac` directly from a workstation into a release project.
+
+## Release health gate
+
+Before building a release candidate, verify the release channels through their
+public download URLs and write the evidence consumed by #51:
+
+```console
+./scripts/obs-release.py health \
+  --output artifacts/obs-health-2026.08-beta2.json
+```
+
+This single command checks every declared project, target, architecture and
+source package. It fails when:
+
+- project metadata or package inventory differs from `obs/projects.toml`;
+- a build is failed, unresolvable, excluded without successful flavors, or the
+  repository is not published;
+- the current release revision does not originate from an accepted,
+  revision-pinned submit request from the matching staging project and is not
+  part of the explicitly pinned stable baseline;
+- public repository metadata is unavailable or its detached signature does
+  not match the pinned OBS key;
+- a required binary RPM cannot be downloaded or its signature is invalid.
+
+The JSON report records source revision, version, accepted request or baseline
+tag, build state, public URL, RPM version, size and SHA-256. Preserve it with
+the release candidate and attach it to the image evidence:
+
+```console
+./scripts/image-build.py artifact-manifest /path/to/kiwi/results \
+  --output /path/to/lyra-os.evidence.json \
+  --test-result obs-repositories=artifacts/obs-health-2026.08-beta2.json
+```
+
+The command requires `osc`, `gpg`, `gpgv`, `rpm` and `rpmkeys`. OBS credentials
+are used only for API reads; RPMs and signed repository metadata are fetched
+from `download.opensuse.org`, exactly as the ISO consumes them.
+
+The one-time `[baseline]` table pins every package revision that existed at
+`v2026.08-beta2-stable-20260809`, before the staging-only policy became a hard
+gate. It cannot authorize a new revision: any direct commit that changes a
+`srcmd5` immediately fails, and all subsequent changes must arrive through an
+accepted staging request.
 
 ## Rollback
 

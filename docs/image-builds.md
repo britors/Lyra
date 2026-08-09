@@ -93,13 +93,21 @@ report, checksum, checksum signature, and both SBOM formats:
 - `*.spdx.json`
 
 The `.packages` file records exact RPM versions and OBS source revisions.
-Create a checksummed evidence document and link the installer and smoke-test
-results:
+Before the KIWI build, create the signed public-repository health report:
+
+```sh
+./scripts/obs-release.py health \
+  --output /path/to/obs-health-2026.08-beta2.json
+```
+
+Create a checksummed evidence document and link the OBS health, installer and
+smoke-test results:
 
 ```sh
 ./scripts/image-build.py artifact-manifest /path/to/kiwi/results \
   --output /path/to/lyra-os.evidence.json \
-  --test-result installer=/path/to/issue-11-result.json \
+  --test-result obs-repositories=/path/to/obs-health-2026.08-beta2.json \
+  --test-result installer=/path/to/manual-install-result.json \
   --test-result smoke=/path/to/issue-51-result.json
 ```
 
