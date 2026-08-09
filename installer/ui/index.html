@@ -141,28 +141,30 @@
                   <div><span>Memória virtual</span><strong id="summary-swap">ZRAM</strong></div>
                 </div>
                 <p class="validation" id="summary-validation" role="alert"></p>
-                <label class="install-confirm">
-                  <input id="install-confirm" type="checkbox" />
-                  <span id="install-confirm-text">Entendo que os dados do destino serão apagados permanentemente.</span>
-                </label>
-                <button class="install-button" id="install" type="button" disabled>Instalar o Lyra OS</button>
-                <section class="install-status" id="install-status" aria-live="polite" hidden>
-                  <div class="install-status-heading">
-                    <span class="install-status-spinner" aria-hidden="true"></span>
-                    <strong id="install-status-title">Preparando a instalação…</strong>
-                  </div>
-                  <div class="install-status-progress" aria-hidden="true"><span></span></div>
-                  <ul class="execution-events" id="execution-events"></ul>
-                </section>
-                <button class="reboot-button" id="reboot" type="button" hidden>Reinicie seu sistema <span aria-hidden="true">↻</span></button>
-                <p class="reboot-error" id="reboot-error" role="alert" hidden></p>
               </div>
               <div class="final-art art-frame"><img src="telas/telafinal-ajustada.png" alt="Paisagem noturna com a constelação de Lyra e a marca Lyra OS." /></div>
             </div>
           </section>
         </div>
 
-        <footer class="actions"><button class="back" id="back" disabled>← Voltar</button><div class="action-progress"><span id="progress-bar"></span></div><button class="next" id="next">Continuar <span>→</span></button></footer>
+        <footer class="actions">
+          <button class="back" id="back" disabled>← Voltar</button>
+          <div class="action-progress"><span id="progress-bar"></span></div>
+          <button class="next" id="next">Continuar <span>→</span></button>
+          <div class="final-actions" id="final-actions" hidden>
+            <label class="install-confirm" id="install-confirm-control">
+              <input id="install-confirm" type="checkbox" />
+              <span id="install-confirm-text">Entendo que os dados do destino serão apagados permanentemente.</span>
+            </label>
+            <button class="install-button" id="install" type="button" disabled hidden>Instalar o Lyra OS</button>
+            <section class="install-status" id="install-status" aria-live="polite" hidden>
+              <strong id="install-status-title">Preparando a instalação…</strong>
+              <div class="install-status-progress" aria-hidden="true"><span></span></div>
+            </section>
+            <button class="reboot-button" id="reboot" type="button" hidden>Reiniciar o sistema <span aria-hidden="true">↻</span></button>
+            <p class="reboot-error" id="reboot-error" role="alert" hidden></p>
+          </div>
+        </footer>
       </section>
     </main>
     <script src="app.js"></script>

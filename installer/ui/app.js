@@ -3,12 +3,14 @@ const steps=[...document.querySelectorAll('.step')];
 const back=document.querySelector('#back');
 const next=document.querySelector('#next');
 const progress=document.querySelector('#progress-bar');
+const actionProgress=document.querySelector('.action-progress');
 const label=document.querySelector('#step-label');
+const finalActions=document.querySelector('#final-actions');
 const install=document.querySelector('#install');
 const installConfirm=document.querySelector('#install-confirm');
+const installConfirmControl=document.querySelector('#install-confirm-control');
 const installStatus=document.querySelector('#install-status');
 const installStatusTitle=document.querySelector('#install-status-title');
-const executionEvents=document.querySelector('#execution-events');
 const reboot=document.querySelector('#reboot');
 const rebootError=document.querySelector('#reboot-error');
 const {invoke}=window.__TAURI__.core;
@@ -321,6 +323,9 @@ function updateInstallButtonState(){
   const enabled=current===6&&selectedPlan&&summaryConfigValid&&installConfirm.checked&&!installing&&!installationTerminal;
   install.disabled=!enabled;
   installConfirm.disabled=installing||installationTerminal||!summaryConfigValid;
+  finalActions.hidden=current!==6;
+  installConfirmControl.hidden=current!==6||installConfirm.checked||installing||installationTerminal;
+  install.hidden=current!==6||!installConfirm.checked||installing||installationTerminal;
 }
 
 function show(index){
@@ -328,7 +333,9 @@ function show(index){
   pages.forEach((page,i)=>page.classList.toggle('page-active',i===index));
   steps.forEach((step,i)=>step.classList.toggle('active',i===index));
   back.disabled=index===0||installing||installationTerminal;
+  back.hidden=index===6&&(installing||installationTerminal);
   next.hidden=index===6;
+  actionProgress.hidden=index===6;
   next.innerHTML='Continuar <span>→</span>';
   progress.style.width=`${(index+1)*14.2857}%`;
   label.textContent=`ETAPA 0${index+1} / 07`;
@@ -389,6 +396,11 @@ async function updateSummary(){
   document.querySelector('#summary-swap').textContent=swapChoice==='None'?'Sem swap nem ZRAM':swapChoice==='Disk'?'Swap em disco (8 GiB)':'ZRAM';
   document.querySelector('#install-confirm-text').textContent=`Entendo que os dados de ${target} serão apagados permanentemente.`;
   installConfirm.checked=false;
+  install.textContent='Instalar o Lyra OS';
+  installStatus.hidden=true;
+  installStatus.className='install-status';
+  reboot.hidden=true;
+  rebootError.hidden=true;
 
   const validationBox=document.querySelector('#summary-validation');
   summaryConfigValid=false;
@@ -408,21 +420,15 @@ function eventParts(event){
   return entry||['Unknown',null];
 }
 
-function appendExecutionEvent(event){
+function showExecutionEvent(event){
   const [kind,payload]=eventParts(event);
-  const item=document.createElement('li');
-  if(kind==='Started') item.textContent='Serviço privilegiado iniciado';
-  else if(kind==='Step'){
-    item.textContent=payload.detail?`${payload.name}: ${payload.detail}`:payload.name;
-    installStatusTitle.textContent=item.textContent;
-  }
-  else if(kind==='Warning') item.textContent=`Aviso: ${payload.message}`;
-  else if(kind==='Failed') item.textContent=`Falha em ${payload.step}: ${payload.message}`;
-  else if(kind==='Completed') item.textContent='Instalação e limpeza concluídas';
-  else item.textContent='O serviço enviou um evento desconhecido';
-  item.className=`event-${kind.toLocaleLowerCase()}`;
-  executionEvents.append(item);
-  executionEvents.scrollTop=executionEvents.scrollHeight;
+  let message='O serviço enviou um evento desconhecido';
+  if(kind==='Started') message='Serviço privilegiado iniciado';
+  else if(kind==='Step') message=payload.detail?`${payload.name}: ${payload.detail}`:payload.name;
+  else if(kind==='Warning') message=`Aviso: ${payload.message}`;
+  else if(kind==='Failed') message=`Falha em ${payload.step}: ${payload.message}`;
+  else if(kind==='Completed') message='Instalação e limpeza concluídas';
+  installStatusTitle.textContent=message;
 }
 
 function setInstallationStatus(state,title){
@@ -442,10 +448,9 @@ async function executeInstallation(){
 
   installing=true;
   lockWizard(true);
-  install.textContent='Instalando…';
+  back.hidden=true;
   reboot.hidden=true;
   rebootError.hidden=true;
-  executionEvents.replaceChildren();
   setInstallationStatus('running','Autorizando e iniciando a instalação…');
   updateInstallButtonState();
   updateNextButtonState();
@@ -457,15 +462,14 @@ async function executeInstallation(){
     await invoke('validate_install_config',{config});
     stopListening=await listen('installation-event',event=>{
       streamedEvents.push(event.payload);
-      appendExecutionEvent(event.payload);
+      showExecutionEvent(event.payload);
     });
     const events=await invoke('execute_plan',{request:{choice,plan:selectedPlan,config}});
     // Normally every item has already arrived through the live event. Keep
     // the command response as a fallback if WebKit missed the whole stream or
     // its final items while the privileged process was exiting.
     if(streamedEvents.length!==events.length){
-      executionEvents.replaceChildren();
-      events.forEach(appendExecutionEvent);
+      events.forEach(showExecutionEvent);
     }
 
     const failure=events.map(eventParts).find(([kind])=>kind==='Failed');
@@ -477,21 +481,20 @@ async function executeInstallation(){
       install.textContent='Instalação interrompida';
     }else if(completed){
       installationTerminal=true;
-      setInstallationStatus('completed','Lyra OS instalado. Reinicie para usar o novo sistema.');
-      install.textContent='Instalação concluída';
+      installStatus.hidden=true;
       reboot.hidden=false;
       await fitWindowToMonitor();
     }else{
       throw new Error('o serviço não informou se a instalação foi concluída');
     }
   }catch(error){
-    installConfirm.checked=false;
     setInstallationStatus('failed',`Não foi possível iniciar a instalação: ${error}`);
     install.textContent='Tentar instalar novamente';
   }finally{
     if(stopListening) stopListening();
     installing=false;
     lockWizard(installationTerminal);
+    back.hidden=installationTerminal;
     updateInstallButtonState();
     updateNextButtonState();
   }
@@ -505,7 +508,7 @@ async function restartSystem(){
     await invoke('restart_system');
   }catch(error){
     reboot.disabled=false;
-    reboot.innerHTML='Reinicie seu sistema <span aria-hidden="true">↻</span>';
+    reboot.innerHTML='Reiniciar o sistema <span aria-hidden="true">↻</span>';
     rebootError.textContent=`Não foi possível reiniciar o sistema: ${error}`;
     rebootError.hidden=false;
   }
