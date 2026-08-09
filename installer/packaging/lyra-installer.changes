@@ -1,10 +1,23 @@
 -------------------------------------------------------------------
-Sun Aug  9 21:00:00 UTC 2026 - Rodrigo Brito <rodrigo@w3ti.com.br>
+Sun Aug  9 20:12:38 UTC 2026 - Rodrigo Brito <rodrigo@w3ti.com.br>
 
 - Remove the live-only installer RPM before the first rollback snapshot.
 - Prevent package updates or rollback from restoring the privileged service
   and polkit authorization rule on installed systems.
 - Write private structured installer evidence for the Beta 2 release gate.
+
+-------------------------------------------------------------------
+Sun Aug  9 17:30:19 UTC 2026 - Rodrigo Brito <rodrigo@w3ti.com.br>
+
+- Restage the unchanged Beta 2 candidate through the reviewed staging flow.
+- Record release provenance only; no installer code or runtime payload changed.
+
+-------------------------------------------------------------------
+Sun Aug  9 17:01:48 UTC 2026 - Rodrigo Brito <rodrigo@w3ti.com.br>
+
+- Keep final installation controls in the stable footer; restore spacing
+  between page kickers and enlarged titles; remain warning-free under Rust
+  and Clippy 1.97.
 
 -------------------------------------------------------------------
 Sun Aug  9 13:43:49 UTC 2026 - Rodrigo Brito <rodrigo@w3ti.com.br>
