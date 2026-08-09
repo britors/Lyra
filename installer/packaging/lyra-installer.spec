@@ -85,8 +85,10 @@ install -Dm0755 packaging/lyra-install-lock \
     %{buildroot}%{_bindir}/lyra-install-lock
 install -Dm0644 packaging/org.lyraos.LyraInstaller.desktop \
     %{buildroot}%{_datadir}/applications/org.lyraos.LyraInstaller.desktop
-install -Dm0644 src-tauri/icons/256x256.png \
-    %{buildroot}%{_datadir}/icons/hicolor/256x256/apps/org.lyraos.LyraInstaller.png
+for size in 32 128 256 512; do
+    install -Dm0644 src-tauri/icons/${size}x${size}.png \
+        %{buildroot}%{_datadir}/icons/hicolor/${size}x${size}/apps/org.lyraos.LyraInstaller.png
+done
 install -Dm0644 %{SOURCE2} \
     %{buildroot}%{_datadir}/lyra-installer/build-source.txt
 install -Dm0644 packaging/io.lyra.Installer.policy \
@@ -117,7 +119,10 @@ cargo test --offline -p lyra-installer-core
 %{_bindir}/lyra-install-lock
 %{_libexecdir}/lyra-installer-service
 %{_datadir}/applications/org.lyraos.LyraInstaller.desktop
+%{_datadir}/icons/hicolor/32x32/apps/org.lyraos.LyraInstaller.png
+%{_datadir}/icons/hicolor/128x128/apps/org.lyraos.LyraInstaller.png
 %{_datadir}/icons/hicolor/256x256/apps/org.lyraos.LyraInstaller.png
+%{_datadir}/icons/hicolor/512x512/apps/org.lyraos.LyraInstaller.png
 %dir %{_datadir}/lyra-installer
 %{_datadir}/lyra-installer/build-source.txt
 %{_datadir}/polkit-1/actions/io.lyra.Installer.policy

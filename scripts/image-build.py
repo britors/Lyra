@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import configparser
 import dataclasses
 import datetime as dt
 import gzip
@@ -23,6 +24,12 @@ ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MANIFEST = ROOT / "image-build.toml"
 KIWI = ROOT / "kiwi"
 RELEASE = ROOT / "release.toml"
+INSTALLER_APP_ID = "org.lyraos.LyraInstaller"
+INSTALLER_EXEC = "/usr/bin/lyra-install-lock /usr/bin/lyra-installer"
+INSTALLER_TRY_EXEC = "/usr/bin/lyra-installer"
+INSTALLER_WM_CLASS = "lyra-installer"
+
+
 class PolicyError(RuntimeError):
     """An image-build invariant was not satisfied."""
 
@@ -132,7 +139,68 @@ def canonical_xml() -> ET.ElementTree:
     return ET.parse(KIWI / "config.xml", parser=parser)
 
 
+def desktop_entry(path: Path) -> dict[str, str]:
+    parser = configparser.ConfigParser(interpolation=None, strict=True)
+    parser.optionxform = str
+    with path.open(encoding="utf-8") as stream:
+        parser.read_file(stream)
+    if parser.sections() != ["Desktop Entry"]:
+        raise PolicyError(f"invalid desktop entry structure: {path.relative_to(ROOT)}")
+    return dict(parser["Desktop Entry"])
+
+
+def validate_installer_identity() -> None:
+    tauri_path = ROOT / "installer/src-tauri/tauri.conf.json"
+    tauri = json.loads(tauri_path.read_text(encoding="utf-8"))
+    app_id = tauri.get("identifier")
+    if app_id != INSTALLER_APP_ID:
+        raise PolicyError(
+            f"Tauri identifier {app_id!r} differs from {INSTALLER_APP_ID!r}"
+        )
+    if tauri.get("app", {}).get("enableGTKAppId") is not True:
+        raise PolicyError("Tauri must set its identifier as the GTK application ID")
+
+    packaged_launcher = ROOT / "installer/packaging" / f"{app_id}.desktop"
+    image_launcher = KIWI / "root/usr/share/applications" / f"{app_id}.desktop"
+    if not packaged_launcher.is_file():
+        raise PolicyError("installer desktop filename must match the Tauri identifier")
+    if image_launcher.read_bytes() != packaged_launcher.read_bytes():
+        raise PolicyError("KIWI installer launcher differs from the packaged launcher")
+
+    expected = {
+        "TryExec": INSTALLER_TRY_EXEC,
+        "Exec": INSTALLER_EXEC,
+        "Icon": app_id,
+        "StartupWMClass": INSTALLER_WM_CLASS,
+    }
+    for path in (
+        packaged_launcher,
+        KIWI / "root/etc/xdg/autostart/lyra-installer-autostart.desktop",
+    ):
+        entry = desktop_entry(path)
+        for key, value in expected.items():
+            if entry.get(key) != value:
+                relative = path.relative_to(ROOT)
+                raise PolicyError(f"{relative}: {key} must be {value!r}")
+
+    icon_name = f"{app_id}.png"
+    source_icons = ROOT / "installer/src-tauri/icons"
+    spec = (ROOT / "installer/packaging/lyra-installer.spec").read_text(
+        encoding="utf-8"
+    )
+    for size in (32, 128, 256, 512):
+        source = source_icons / f"{size}x{size}.png"
+        packaged_path = f"icons/hicolor/{size}x{size}/apps/{icon_name}"
+        if not source.is_file() or packaged_path not in spec:
+            raise PolicyError(f"RPM does not install the {size}x{size} application icon")
+
+    image_icon = KIWI / "root/usr/share/icons/hicolor/256x256/apps" / icon_name
+    if image_icon.read_bytes() != (source_icons / "256x256.png").read_bytes():
+        raise PolicyError("KIWI installer icon differs from the packaged icon")
+
+
 def validate_sources(manifest: Manifest) -> None:
+    validate_installer_identity()
     root = canonical_xml().getroot()
     if root.attrib.get("name") != manifest.image_name:
         raise PolicyError("KIWI image name differs from image-build.toml")

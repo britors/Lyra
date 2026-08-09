@@ -1,4 +1,12 @@
 -------------------------------------------------------------------
+Sun Aug  9 12:23:49 UTC 2026 - Rodrigo Brito <rodrigo@w3ti.com.br>
+
+- Match the Tauri GTK application ID and desktop ID on GNOME Wayland.
+- Declare the measured X11 WM_CLASS for correct launcher grouping.
+- Install branded icons at every available hicolor application size.
+- Validate the installer identity across Tauri, RPM, and the live image.
+
+-------------------------------------------------------------------
 Sun Aug  9 00:16:25 UTC 2026 - Rodrigo Brito <rodrigo@w3ti.com.br>
 
 - Remove the redundant administrator notice from account creation.

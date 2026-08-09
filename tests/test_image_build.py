@@ -25,6 +25,15 @@ class ImagePolicyTests(unittest.TestCase):
     def test_canonical_sources_pass_repository_and_signature_policy(self) -> None:
         image_build.validate_sources(self.manifest)
 
+    def test_installer_identity_matches_tauri_desktop_and_rpm(self) -> None:
+        image_build.validate_installer_identity()
+
+        config = json.loads(
+            (ROOT / "installer/src-tauri/tauri.conf.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(config["identifier"], image_build.INSTALLER_APP_ID)
+        self.assertTrue(config["app"]["enableGTKAppId"])
+
     def test_obs_is_restricted_to_ordered_rpm_package_sources(self) -> None:
         self.assertEqual(self.manifest.obs_role, "packages-only")
         projects = [source.project for source in self.manifest.package_sources]
@@ -74,6 +83,7 @@ class ImagePolicyTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
         self.assertIn("TryExec=/usr/bin/lyra-installer", autostart)
         self.assertIn("Exec=/usr/bin/lyra-install-lock /usr/bin/lyra-installer", autostart)
+        self.assertIn("StartupWMClass=lyra-installer", autostart)
         self.assertNotIn("pkexec", autostart)
 
         packaged_wrapper = ROOT / "installer/packaging/lyra-install-lock"

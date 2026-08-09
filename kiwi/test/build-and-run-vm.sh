@@ -385,12 +385,23 @@ if [ "$SKIP_BUILD" -eq 0 ]; then
   if [ ! -f "$IMAGE_INSTALLER_AUTOSTART" ] ||
      ! grep -Fx 'TryExec=/usr/bin/lyra-installer' "$IMAGE_INSTALLER_AUTOSTART" >/dev/null ||
      ! grep -Fx 'Exec=/usr/bin/lyra-install-lock /usr/bin/lyra-installer' \
+        "$IMAGE_INSTALLER_AUTOSTART" >/dev/null ||
+     ! grep -Fx 'StartupWMClass=lyra-installer' \
         "$IMAGE_INSTALLER_AUTOSTART" >/dev/null; then
     echo "!!! built image has no valid GNOME autostart for Lyra Installer" >&2
     exit 1
   fi
   if [ ! -f "$IMAGE_INSTALLER_LAUNCHER" ] || [ ! -s "$IMAGE_INSTALLER_ICON" ]; then
     echo "!!! built image is missing the Lyra Installer launcher or icon" >&2
+    exit 1
+  fi
+  if ! grep -Fx 'TryExec=/usr/bin/lyra-installer' "$IMAGE_INSTALLER_LAUNCHER" >/dev/null ||
+     ! grep -Fx 'Exec=/usr/bin/lyra-install-lock /usr/bin/lyra-installer' \
+        "$IMAGE_INSTALLER_LAUNCHER" >/dev/null ||
+     ! grep -Fx 'Icon=org.lyraos.LyraInstaller' "$IMAGE_INSTALLER_LAUNCHER" >/dev/null ||
+     ! grep -Fx 'StartupWMClass=lyra-installer' \
+        "$IMAGE_INSTALLER_LAUNCHER" >/dev/null; then
+    echo "!!! built image has an inconsistent Lyra Installer desktop identity" >&2
     exit 1
   fi
   if command -v desktop-file-validate >/dev/null 2>&1; then
