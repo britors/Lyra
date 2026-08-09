@@ -139,9 +139,11 @@ from `download.opensuse.org`, exactly as the ISO consumes them.
 
 The one-time `[baseline]` table pins every package revision that existed at
 `v2026.08-beta2-stable-20260809`, before the staging-only policy became a hard
-gate. It cannot authorize a new revision: any direct commit that changes a
-`srcmd5` immediately fails, and all subsequent changes must arrive through an
-accepted staging request.
+gate. Packages added after that tag deliberately have no baseline entry and
+must arrive through an accepted staging request. The baseline cannot authorize
+a new revision: any direct commit that changes a pinned `srcmd5` immediately
+fails, and all subsequent changes must arrive through an accepted staging
+request.
 
 ## Rollback
 

@@ -137,8 +137,10 @@ class Manifest:
             if project.iso_consumer and not any(target.iso_consumer for target in project.targets):
                 raise PolicyError(f"{project.id}: ISO consumer has no ISO target")
             baseline = self.approved_baselines.get(project.id)
-            if baseline is None or set(baseline) != set(project.packages):
-                raise PolicyError(f"{project.id}: approved baseline package inventory differs")
+            if not baseline or not set(baseline).issubset(project.packages):
+                raise PolicyError(
+                    f"{project.id}: approved baseline contains unknown or no packages"
+                )
             for package, revision in baseline.items():
                 if not re.fullmatch(r"[0-9a-f]{32}", revision):
                     raise PolicyError(f"{project.id}/{package}: invalid baseline srcmd5")
@@ -531,8 +533,14 @@ def release_provenance(
             "kind": "accepted-staging-request",
             "request_id": int(revision["request_id"]),
         }
-    baseline = manifest.approved_baselines[project.id][package]
+    baseline = manifest.approved_baselines[project.id].get(package)
     published_srcmd5 = revision.get("published_srcmd5", revision["srcmd5"])
+    if baseline is None:
+        raise PolicyError(
+            f"{project.release}/{package}: current revision {published_srcmd5} has neither "
+            f"an accepted staging request nor an entry in the approved "
+            f"{manifest.baseline_tag} baseline"
+        )
     if published_srcmd5 != baseline:
         raise PolicyError(
             f"{project.release}/{package}: current revision {published_srcmd5} has neither "

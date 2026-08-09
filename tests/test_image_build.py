@@ -132,6 +132,21 @@ class ImagePolicyTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
         self.assertIn("'org.lyraos.Chord.desktop'", defaults)
 
+    def test_prosa_and_calco_replace_libreoffice_with_only_prosa_favorited(self) -> None:
+        root = ET.parse(ROOT / "kiwi/config.xml").getroot()
+        packages = {node.attrib["name"] for node in root.findall("packages/package")}
+        self.assertIn("prosa", packages)
+        self.assertIn("calco", packages)
+        self.assertFalse(any(name.startswith("libreoffice") for name in packages))
+
+        defaults = (
+            ROOT
+            / "kiwi/root/usr/share/glib-2.0/schemas/99-lyra-desktop-defaults.gschema.override"
+        ).read_text(encoding="utf-8")
+        self.assertIn("'br.com.rodrigobrito.Prosa.Native.desktop'", defaults)
+        self.assertNotIn("br.com.w3ti.Calco.desktop", defaults)
+        self.assertNotIn("libreoffice", defaults.lower())
+
     def test_installed_grub_theme_contract_is_validated_by_build_and_installer(self) -> None:
         deploy = (ROOT / "installer/src/service/operations/deploy.rs").read_text(
             encoding="utf-8"

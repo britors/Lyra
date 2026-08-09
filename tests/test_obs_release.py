@@ -31,7 +31,9 @@ class ManifestTests(unittest.TestCase):
 
     def test_project_inventory_matches_beta_two_contract(self) -> None:
         self.assertEqual([project.id for project in self.manifest.projects], ["lyra", "vega", "fina"])
-        self.assertEqual(len(self.manifest.project("lyra").packages), 8)
+        self.assertEqual(len(self.manifest.project("lyra").packages), 10)
+        self.assertIn("calco", self.manifest.project("lyra").packages)
+        self.assertIn("prosa", self.manifest.project("lyra").packages)
         self.assertNotIn("calamares", self.manifest.project("lyra").packages)
         self.assertEqual(self.manifest.project("fina").targets[1].name, "openSUSE_Tumbleweed")
 
@@ -51,14 +53,16 @@ class ManifestTests(unittest.TestCase):
             "399218A6E088C4053F4533BE58097F767EDCA82E",
         )
 
-    def test_stable_tag_pins_every_current_package_revision(self) -> None:
+    def test_stable_tag_pins_only_packages_that_existed_at_the_tag(self) -> None:
         self.assertEqual(
             self.manifest.baseline_tag, "v2026.08-beta2-stable-20260809"
         )
         for project in self.manifest.projects:
-            self.assertEqual(
-                set(self.manifest.approved_baselines[project.id]), set(project.packages)
+            self.assertTrue(
+                set(self.manifest.approved_baselines[project.id]).issubset(project.packages)
             )
+        self.assertNotIn("prosa", self.manifest.approved_baselines["lyra"])
+        self.assertNotIn("calco", self.manifest.approved_baselines["lyra"])
 
     def test_public_repository_url_uses_obs_download_layout(self) -> None:
         self.assertEqual(
@@ -206,6 +210,20 @@ class PromotionTraceTests(unittest.TestCase):
             obs_release.release_provenance(
                 FakeObs({}), self.manifest, self.project, "beam", revision
             )
+
+    def test_post_baseline_package_requires_an_accepted_request(self) -> None:
+        revision = {
+            "revision": "1",
+            "srcmd5": "f" * 32,
+            "version": "6.0.8",
+            "request_id": "",
+        }
+        for package in ("calco", "prosa"):
+            with self.subTest(package=package):
+                with self.assertRaisesRegex(obs_release.PolicyError, "entry in the approved"):
+                    obs_release.release_provenance(
+                        FakeObs({}), self.manifest, self.project, package, revision
+                    )
 
     def test_multibuild_baseline_uses_published_not_raw_history_md5(self) -> None:
         published = self.manifest.approved_baselines["lyra"]["lyra-theme"]
