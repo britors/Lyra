@@ -177,10 +177,18 @@ def audit_system(root: Path, runner: Runner) -> tuple[list[dict[str, object]], d
         code == 0 and bool(kernel) and (initramfs.exists() or fallback_initramfs.exists()),
         f"initramfs exists for kernel {kernel or 'unknown'}",
     )
+    grub_config = rooted(root, "/boot/grub2/grub.cfg")
+    grub_content = (
+        grub_config.read_text(encoding="utf-8", errors="replace")
+        if grub_config.is_file()
+        else ""
+    )
+    check("grub-config", bool(grub_content), "/boot/grub2/grub.cfg exists")
+    grub_theme = rooted(root, "/usr/share/grub/themes/Lyra-OS/theme.txt")
     check(
-        "grub-config",
-        rooted(root, "/boot/grub2/grub.cfg").is_file(),
-        "/boot/grub2/grub.cfg exists",
+        "grub-theme",
+        grub_theme.is_file() and "Lyra-OS/theme.txt" in grub_content,
+        "packaged Lyra-OS theme is active in generated GRUB config",
     )
 
     code, default_output = runner(["btrfs", "subvolume", "get-default", "/"], 30)

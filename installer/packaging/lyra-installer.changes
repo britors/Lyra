@@ -5,6 +5,8 @@ Sun Aug  9 13:43:49 UTC 2026 - Rodrigo Brito <rodrigo@w3ti.com.br>
 - Set NOCOW granularly on empty database and VM subvolume roots.
 - Bump the destructive installation plan schema from version 2 to 3.
 - Require e2fsprogs for the privileged service's chattr operation.
+- Preserve the installed GRUB theme using its packaged /usr/share path and
+  fail installation instead of silently generating an unthemed menu.
 
 -------------------------------------------------------------------
 Sun Aug  9 12:23:49 UTC 2026 - Rodrigo Brito <rodrigo@w3ti.com.br>

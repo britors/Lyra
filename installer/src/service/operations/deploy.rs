@@ -956,7 +956,10 @@ const GRUB_DEFAULT_KEYS: &[(&str, &str)] = &[
     ("SUSE_BTRFS_SNAPSHOT_BOOTING", "true"),
     ("GRUB_CMDLINE_LINUX_DEFAULT", "\"quiet splash\""),
     ("GRUB_DISTRIBUTOR", "\"Lyra OS\""),
+    ("GRUB_THEME", "\"/usr/share/grub/themes/Lyra-OS/theme.txt\""),
 ];
+
+const GRUB_THEME_PATH: &str = "/usr/share/grub/themes/Lyra-OS/theme.txt";
 
 struct WriteGrubDefaults {
     target_root: PathBuf,
@@ -968,6 +971,14 @@ impl PrivilegedOperation for WriteGrubDefaults {
     }
 
     fn perform(&self, _executor: &dyn Executor) -> Result<(), OperationError> {
+        let theme = self
+            .target_root
+            .join(GRUB_THEME_PATH.trim_start_matches('/'));
+        if !theme.is_file() {
+            return Err(OperationError::Io(format!(
+                "tema do GRUB ausente no target: {GRUB_THEME_PATH}"
+            )));
+        }
         let path = self.target_root.join("etc/default/grub");
         let existing = fs::read_to_string(&path).unwrap_or_default();
         let mut remaining: Vec<(&str, &str)> = GRUB_DEFAULT_KEYS.to_vec();
@@ -2021,9 +2032,12 @@ mod tests {
         let temp = TempRoot::new("grub-defaults");
         let grub_dir = temp.0.join("etc/default");
         fs::create_dir_all(&grub_dir).unwrap();
+        let theme = temp.0.join("usr/share/grub/themes/Lyra-OS/theme.txt");
+        fs::create_dir_all(theme.parent().unwrap()).unwrap();
+        fs::write(&theme, "desktop-image: background.png\n").unwrap();
         fs::write(
             grub_dir.join("grub"),
-            "GRUB_TIMEOUT=10\n#GRUB_DISABLE_RECOVERY=false\nGRUB_ENABLE_CRYPTODISK=n\n",
+            "GRUB_TIMEOUT=10\n#GRUB_DISABLE_RECOVERY=false\nGRUB_ENABLE_CRYPTODISK=n\nGRUB_THEME=/boot/grub2/themes/Lyra-OS/theme.txt\n",
         )
         .unwrap();
 
@@ -2051,9 +2065,23 @@ mod tests {
             content.contains("GRUB_DEFAULT=saved"),
             "missing managed key should be appended"
         );
+        assert!(content.contains("GRUB_THEME=\"/usr/share/grub/themes/Lyra-OS/theme.txt\""));
+        assert!(!content.contains("GRUB_THEME=/boot/grub2/themes"));
         // The real grubcfg module's plymouth auto-detect bug would produce
         // "quiet splash splash" - confirm we never do that.
         assert_eq!(content.matches("splash").count(), 1);
+    }
+
+    #[test]
+    fn write_grub_defaults_rejects_a_missing_packaged_theme() {
+        let temp = TempRoot::new("grub-theme-missing");
+        let op = WriteGrubDefaults {
+            target_root: temp.0.clone(),
+        };
+
+        let error = op.perform(&FakeExecutor::new()).unwrap_err();
+        assert!(error.to_string().contains(GRUB_THEME_PATH));
+        assert!(!temp.0.join("etc/default/grub").exists());
     }
 
     #[test]

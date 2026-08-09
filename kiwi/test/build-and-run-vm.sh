@@ -353,6 +353,16 @@ if [ "$SKIP_BUILD" -eq 0 ]; then
     exit 1
   fi
 
+  IMAGE_INSTALLED_GRUB_DEFAULT="$BUILD_DIR/build/image-root/etc/default/grub"
+  IMAGE_INSTALLED_GRUB_THEME="$BUILD_DIR/build/image-root/usr/share/grub/themes/Lyra-OS/theme.txt"
+  if [ ! -s "$IMAGE_INSTALLED_GRUB_THEME" ] ||
+     ! grep -Fx 'GRUB_THEME="/usr/share/grub/themes/Lyra-OS/theme.txt"' \
+        "$IMAGE_INSTALLED_GRUB_DEFAULT" >/dev/null; then
+    echo "!!! built rootfs has an inconsistent installed-system GRUB theme" >&2
+    echo "!!! expected $IMAGE_INSTALLED_GRUB_THEME and matching GRUB_THEME" >&2
+    exit 1
+  fi
+
   IMAGE_INSTALLER_GUI="$BUILD_DIR/build/image-root/usr/bin/lyra-installer"
   IMAGE_INSTALLER_LOCK="$BUILD_DIR/build/image-root/usr/bin/lyra-install-lock"
   IMAGE_INSTALLER_SERVICE="$BUILD_DIR/build/image-root/usr/libexec/lyra-installer-service"

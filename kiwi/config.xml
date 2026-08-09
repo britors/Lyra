@@ -346,6 +346,10 @@
     -->
     <package name="vega-gtk"/>
 
+    <!-- Chord, Lyra's GTK4 terminal emulator. The RPM provides the
+         org.lyraos.Chord.desktop launcher used by the GNOME favorite. -->
+    <package name="chord"/>
+
     <!-- Lyra's native remote-access clients, pinned in the default GNOME
          favorites together with Vega, Firefox and LibreOffice Writer. -->
     <package name="beam"/>

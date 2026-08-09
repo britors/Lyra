@@ -67,10 +67,16 @@ class UpdateSmokeTests(unittest.TestCase):
             "usr/lib/lyra-os/build-info",
             "boot/initrd-6.12.0-fixture",
             "boot/grub2/grub.cfg",
+            "usr/share/grub/themes/Lyra-OS/theme.txt",
         ):
             target = root / path
             target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text("fixture\n", encoding="utf-8")
+            content = (
+                "set theme=($root)/usr/share/grub/themes/Lyra-OS/theme.txt\n"
+                if path == "boot/grub2/grub.cfg"
+                else "fixture\n"
+            )
+            target.write_text(content, encoding="utf-8")
 
     def test_complete_update_and_rollback_only_passes_at_final_phase(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

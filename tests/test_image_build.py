@@ -121,6 +121,26 @@ class ImagePolicyTests(unittest.TestCase):
         self.assertTrue(update_smoke.is_file())
         self.assertNotEqual(update_smoke.stat().st_mode & 0o111, 0)
 
+    def test_chord_is_installed_and_pinned_by_its_packaged_desktop_id(self) -> None:
+        root = ET.parse(ROOT / "kiwi/config.xml").getroot()
+        packages = {node.attrib["name"] for node in root.findall("packages/package")}
+        self.assertIn("chord", packages)
+
+        defaults = (
+            ROOT
+            / "kiwi/root/usr/share/glib-2.0/schemas/99-lyra-desktop-defaults.gschema.override"
+        ).read_text(encoding="utf-8")
+        self.assertIn("'org.lyraos.Chord.desktop'", defaults)
+
+    def test_installed_grub_theme_contract_is_validated_by_build_and_installer(self) -> None:
+        deploy = (ROOT / "installer/src/service/operations/deploy.rs").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('"/usr/share/grub/themes/Lyra-OS/theme.txt"', deploy)
+        helper = (ROOT / "kiwi/test/build-and-run-vm.sh").read_text(encoding="utf-8")
+        self.assertIn("IMAGE_INSTALLED_GRUB_THEME", helper)
+        self.assertIn("IMAGE_INSTALLED_GRUB_DEFAULT", helper)
+
     def test_export_is_derived_from_canonical_kiwi_without_duplicate_package_list(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             destination = Path(temporary) / "export"
