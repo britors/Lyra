@@ -357,6 +357,7 @@ if [ "$SKIP_BUILD" -eq 0 ]; then
   IMAGE_INSTALLER_LOCK="$BUILD_DIR/build/image-root/usr/bin/lyra-install-lock"
   IMAGE_INSTALLER_SERVICE="$BUILD_DIR/build/image-root/usr/libexec/lyra-installer-service"
   IMAGE_LIVE_SMOKE="$BUILD_DIR/build/image-root/usr/bin/lyra-live-smoke"
+  IMAGE_UPDATE_SMOKE="$BUILD_DIR/build/image-root/usr/bin/lyra-update-smoke"
   IMAGE_INSTALLER_AUTOSTART="$BUILD_DIR/build/image-root/etc/xdg/autostart/lyra-installer-autostart.desktop"
   IMAGE_INSTALLER_LAUNCHER="$BUILD_DIR/build/image-root/usr/share/applications/org.lyraos.LyraInstaller.desktop"
   IMAGE_INSTALLER_ICON="$BUILD_DIR/build/image-root/usr/share/icons/hicolor/256x256/apps/org.lyraos.LyraInstaller.png"
@@ -364,7 +365,8 @@ if [ "$SKIP_BUILD" -eq 0 ]; then
       "$IMAGE_INSTALLER_GUI" \
       "$IMAGE_INSTALLER_LOCK" \
       "$IMAGE_INSTALLER_SERVICE" \
-      "$IMAGE_LIVE_SMOKE"; do
+      "$IMAGE_LIVE_SMOKE" \
+      "$IMAGE_UPDATE_SMOKE"; do
     if [ ! -x "$INSTALLER_EXECUTABLE" ]; then
       echo "!!! built image is missing an executable installer component:" >&2
       echo "  $INSTALLER_EXECUTABLE" >&2

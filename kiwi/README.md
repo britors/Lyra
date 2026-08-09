@@ -40,6 +40,35 @@ associadas explicitamente a uma issue/workaround com
 `--acknowledge-journal`. O helper registra somente estado técnico, sem SSID ou
 credenciais, e é removido do sistema-alvo pelo Lyra Installer.
 
+No sistema instalado, execute o ensaio de atualização e rollback da #46. O
+estado fica na ESP, fora dos snapshots Btrfs, para sobreviver ao rollback:
+
+```bash
+sudo lyra-update-smoke baseline --output baseline.json
+sudo lyra-update-smoke update --output update.json
+sudo reboot
+sudo lyra-update-smoke verify-updated --output updated.json
+sudo lyra-update-smoke prepare-rollback --output rollback-prepared.json
+sudo reboot
+sudo lyra-update-smoke verify-rollback --output rollback-result.json
+```
+
+Somente a última fase pode produzir `"status": "passed"` para o gate. As
+fases anteriores produzem `incomplete`, e uma queda de rede, encerramento do
+processo ou falha do Zypper deixa um estado persistente que não pode ser
+validado silenciosamente. `baseline --restart` inicia deliberadamente um novo
+ensaio; `--rollback-snapshot N` seleciona um snapshot inicial diferente quando
+necessário. O comando `prepare-rollback` altera o subvolume padrão e deve ser
+usado apenas na VM dedicada ao teste.
+
+Para testar interrupção, desconecte a rede enquanto a fase `update` estiver
+executando. Ela deve terminar com código diferente de zero, JSON `failed` e
+estado `update-failed`; `verify-updated` também deve recusar esse estado.
+Reconecte a rede e use `baseline --restart` somente depois de revisar o erro e
+confirmar que a nova baseline passa em `zypper verify`, serviços, repositórios,
+initramfs, GRUB e Snapper. Uma finalização abrupta pode deixar
+`update-started` ou `update-running`, que também não são estados aprováveis.
+
 Use o helper versionado:
 
 ```bash

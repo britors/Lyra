@@ -1,0 +1,527 @@
+#!/usr/bin/python3
+"""Exercise Lyra updates and Snapper rollback with persistent evidence."""
+
+from __future__ import annotations
+
+import argparse
+import csv
+import datetime as dt
+import hashlib
+import json
+import os
+import re
+import subprocess
+import tempfile
+from pathlib import Path
+from typing import Callable
+
+
+DEFAULT_STATE = Path("/boot/efi/EFI/Lyra/update-smoke-state.json")
+DEFAULT_OUTPUT = Path("rollback-result.json")
+Runner = Callable[[list[str], int], tuple[int, str]]
+
+
+class WorkflowError(RuntimeError):
+    """A release exercise precondition or command failed."""
+
+
+def run_command(arguments: list[str], timeout: int = 30) -> tuple[int, str]:
+    try:
+        result = subprocess.run(
+            arguments,
+            check=False,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            timeout=timeout,
+            env={**os.environ, "LC_ALL": "C"},
+        )
+    except subprocess.TimeoutExpired as error:
+        return 124, f"command timed out after {error.timeout} seconds"
+    except OSError as error:
+        return 127, str(error)
+    return result.returncode, result.stdout.strip()
+
+
+def atomic_json(path: Path, document: dict[str, object]) -> None:
+    if path.is_symlink():
+        raise WorkflowError(f"refusing symbolic-link output: {path}")
+    path = path.absolute()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(
+        "w",
+        encoding="utf-8",
+        dir=path.parent,
+        prefix=f".{path.name}.",
+        delete=False,
+    ) as stream:
+        json.dump(document, stream, indent=2, sort_keys=True, ensure_ascii=False)
+        stream.write("\n")
+        stream.flush()
+        os.fsync(stream.fileno())
+        temporary = Path(stream.name)
+    os.chmod(temporary, 0o600)
+    temporary.replace(path)
+    directory = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(directory)
+    finally:
+        os.close(directory)
+
+
+def load_state(path: Path) -> dict[str, object]:
+    if path.is_symlink():
+        raise WorkflowError(f"refusing symbolic-link workflow state: {path}")
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise WorkflowError(f"cannot read workflow state {path}: {error}") from error
+    if document.get("schema") != 1 or document.get("mode") != "rollback":
+        raise WorkflowError("workflow state has an unsupported schema or mode")
+    return document
+
+
+def rooted(root: Path, absolute: str) -> Path:
+    return root / absolute.removeprefix("/")
+
+
+def file_digest(path: Path) -> str:
+    if not path.is_file():
+        return "missing"
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def snapshot_list(runner: Runner) -> tuple[int, list[dict[str, object]], str]:
+    code, output = runner(
+        [
+            "snapper",
+            "--no-dbus",
+            "--config",
+            "root",
+            "--csvout",
+            "--no-headers",
+            "list",
+            "--columns",
+            "number,type,pre-number,read-only,description",
+        ],
+        30,
+    )
+    snapshots: list[dict[str, object]] = []
+    if code == 0:
+        for row in csv.reader(output.splitlines()):
+            if len(row) != 5 or not row[0].strip().isdigit():
+                continue
+            snapshots.append(
+                {
+                    "number": int(row[0].strip()),
+                    "type": row[1].strip(),
+                    "pre_number": int(row[2].strip()) if row[2].strip().isdigit() else None,
+                    "read_only": row[3].strip().lower() in {"yes", "true", "1"},
+                    "description": row[4].strip(),
+                }
+            )
+    return code, snapshots, output
+
+
+def parsed_subvolume_id(output: str, pattern: str) -> int | None:
+    match = re.search(pattern, output, flags=re.MULTILINE)
+    return int(match.group(1)) if match else None
+
+
+def audit_system(root: Path, runner: Runner) -> tuple[list[dict[str, object]], dict[str, object]]:
+    checks: list[dict[str, object]] = []
+
+    def check(identifier: str, passed: bool, detail: str) -> None:
+        checks.append(
+            {
+                "id": identifier,
+                "status": "passed" if passed else "failed",
+                "detail": detail,
+            }
+        )
+
+    code, filesystem = runner(["findmnt", "--noheadings", "--output", "FSTYPE", "/"], 30)
+    check("btrfs-root", code == 0 and filesystem.strip() == "btrfs", "root filesystem is Btrfs")
+
+    code, esp_filesystem = runner(
+        ["findmnt", "--noheadings", "--output", "FSTYPE", "/boot/efi"], 30
+    )
+    check(
+        "esp-mounted",
+        code == 0 and esp_filesystem.strip() in {"vfat", "fat", "msdos"},
+        "EFI System Partition is mounted outside Btrfs",
+    )
+
+    snapper_code, snapshots, _ = snapshot_list(runner)
+    check("snapper-root", snapper_code == 0 and bool(snapshots), f"{len(snapshots)} root snapshots found")
+
+    code, _ = runner(["zypper", "--non-interactive", "--no-refresh", "verify"], 1800)
+    check("rpm-integrity", code == 0, f"zypper verify exit code: {code}")
+
+    code, failed_units = runner(["systemctl", "--failed", "--no-legend", "--plain"], 30)
+    check("failed-units", code == 0 and not failed_units, failed_units or "no failed units")
+
+    code, _ = runner(["zypper", "--non-interactive", "refresh"], 1800)
+    check(
+        "repositories",
+        code == 0,
+        f"signed repository metadata refresh exit code: {code}",
+    )
+
+    code, kernel = runner(["uname", "--kernel-release"], 30)
+    kernel = kernel.strip()
+    initramfs = rooted(root, f"/boot/initrd-{kernel}")
+    fallback_initramfs = rooted(root, "/boot/initrd")
+    check(
+        "initramfs",
+        code == 0 and bool(kernel) and (initramfs.exists() or fallback_initramfs.exists()),
+        f"initramfs exists for kernel {kernel or 'unknown'}",
+    )
+    check(
+        "grub-config",
+        rooted(root, "/boot/grub2/grub.cfg").is_file(),
+        "/boot/grub2/grub.cfg exists",
+    )
+
+    code, default_output = runner(["btrfs", "subvolume", "get-default", "/"], 30)
+    default_id = parsed_subvolume_id(default_output, r"\bID\s+(\d+)\b") if code == 0 else None
+    check("default-subvolume", default_id is not None, "Btrfs default subvolume is identifiable")
+
+    code, current_output = runner(["btrfs", "subvolume", "show", "/"], 30)
+    current_id = parsed_subvolume_id(current_output, r"^\s*Subvolume ID:\s*(\d+)\b") if code == 0 else None
+    check("current-subvolume", current_id is not None, "mounted root subvolume is identifiable")
+
+    facts: dict[str, object] = {
+        "kernel": kernel or "unknown",
+        "default_subvolume_id": default_id,
+        "current_subvolume_id": current_id,
+        "snapshot_numbers": [snapshot["number"] for snapshot in snapshots],
+        "release_sha256": file_digest(rooted(root, "/usr/lib/lyra-os/release")),
+        "build_info_sha256": file_digest(rooted(root, "/usr/lib/lyra-os/build-info")),
+    }
+    return checks, facts
+
+
+def checks_pass(checks: list[dict[str, object]]) -> bool:
+    return all(check["status"] == "passed" for check in checks)
+
+
+def result(phase: str, status: str, checks: list[dict[str, object]], facts: dict[str, object]) -> dict[str, object]:
+    return {
+        "schema": 1,
+        "status": status,
+        "mode": "rollback",
+        "phase": phase,
+        "generated_at": dt.datetime.now(dt.timezone.utc).isoformat(),
+        "checks": checks,
+        "facts": facts,
+    }
+
+
+def select_rollback_snapshot(
+    snapshots: list[dict[str, object]], requested: int | None
+) -> int:
+    if requested is not None:
+        matching = [snapshot for snapshot in snapshots if snapshot["number"] == requested]
+    else:
+        matching = [
+            snapshot
+            for snapshot in snapshots
+            if snapshot["description"] == "first root filesystem"
+            and snapshot["read_only"] is True
+        ]
+    if len(matching) != 1:
+        target = str(requested) if requested is not None else "the read-only 'first root filesystem' snapshot"
+        raise WorkflowError(f"expected exactly one rollback target matching {target}")
+    return int(matching[0]["number"])
+
+
+def baseline(
+    *, root: Path, state_path: Path, runner: Runner, requested_snapshot: int | None, restart: bool
+) -> dict[str, object]:
+    if state_path.exists() and not restart:
+        raise WorkflowError(f"state already exists at {state_path}; use --restart to replace it")
+    checks, facts = audit_system(root, runner)
+    code, snapshots, _ = snapshot_list(runner)
+    if code != 0:
+        raise WorkflowError("cannot list Snapper snapshots")
+    rollback_snapshot = select_rollback_snapshot(snapshots, requested_snapshot)
+    facts["rollback_snapshot"] = rollback_snapshot
+    baseline_passed = checks_pass(checks)
+    document: dict[str, object] = {
+        "schema": 1,
+        "mode": "rollback",
+        "phase": "baseline" if baseline_passed else "baseline-failed",
+        "created_at": dt.datetime.now(dt.timezone.utc).isoformat(),
+        "rollback_snapshot": rollback_snapshot,
+        "baseline": facts,
+    }
+    atomic_json(state_path, document)
+    return result("baseline", "incomplete" if baseline_passed else "failed", checks, facts)
+
+
+def require_phase(state: dict[str, object], expected: set[str]) -> None:
+    phase = str(state.get("phase", "unknown"))
+    if phase not in expected:
+        raise WorkflowError(f"workflow phase is {phase}; expected one of {', '.join(sorted(expected))}")
+
+
+def update_system(*, root: Path, state_path: Path, runner: Runner) -> dict[str, object]:
+    state = load_state(state_path)
+    require_phase(state, {"baseline"})
+    state["phase"] = "update-started"
+    atomic_json(state_path, state)
+
+    code, output = runner(
+        [
+            "snapper", "--no-dbus", "--config", "root", "create", "--type", "pre",
+            "--print-number", "--read-only", "--cleanup-algorithm", "number",
+            "--description", "Lyra Beta 2 update smoke",
+        ],
+        120,
+    )
+    if code != 0 or not output.strip().isdigit():
+        state["phase"] = "update-failed"
+        state["failure"] = "cannot create pre-update snapshot"
+        atomic_json(state_path, state)
+        raise WorkflowError(str(state["failure"]))
+    pre_number = int(output.strip())
+    state["phase"] = "update-running"
+    state["pre_snapshot"] = pre_number
+    atomic_json(state_path, state)
+
+    refresh_code, _ = runner(
+        ["zypper", "--non-interactive", "--non-interactive-include-reboot-patches", "refresh"],
+        1800,
+    )
+    update_codes: list[int] = []
+    if refresh_code == 0:
+        for _ in range(3):
+            update_code, _ = runner(
+                [
+                    "zypper",
+                    "--non-interactive",
+                    "--non-interactive-include-reboot-patches",
+                    "--userdata",
+                    "lyra-beta2-update-smoke",
+                    "update",
+                ],
+                7200,
+            )
+            update_codes.append(update_code)
+            if update_code != 103:
+                break
+    final_update_code = update_codes[-1] if update_codes else 125
+    update_succeeded = final_update_code in {0, 102}
+    if refresh_code != 0 or not update_succeeded:
+        state["phase"] = "update-failed"
+        state["failure"] = {
+            "refresh_exit": refresh_code,
+            "update_exits": update_codes or [final_update_code],
+        }
+        atomic_json(state_path, state)
+        raise WorkflowError(
+            f"update failed (refresh={refresh_code}, update={final_update_code})"
+        )
+
+    code, output = runner(
+        [
+            "snapper", "--no-dbus", "--config", "root", "create", "--type", "post",
+            "--pre-number", str(pre_number), "--print-number", "--read-only",
+            "--cleanup-algorithm", "number", "--description", "Lyra Beta 2 update smoke",
+        ],
+        120,
+    )
+    if code != 0 or not output.strip().isdigit():
+        state["phase"] = "update-failed"
+        state["failure"] = "cannot create post-update snapshot"
+        atomic_json(state_path, state)
+        raise WorkflowError(str(state["failure"]))
+    post_number = int(output.strip())
+
+    checks, facts = audit_system(root, runner)
+    facts.update(
+        {
+            "pre_snapshot": pre_number,
+            "post_snapshot": post_number,
+            "update_exit_codes": update_codes,
+            "reboot_suggested": 102 in update_codes,
+        }
+    )
+    snapshot_numbers = set(facts["snapshot_numbers"])
+    checks.append(
+        {
+            "id": "update-snapshot-pair",
+            "status": "passed" if {pre_number, post_number} <= snapshot_numbers else "failed",
+            "detail": f"pre={pre_number}, post={post_number}",
+        }
+    )
+    state["phase"] = "updated" if checks_pass(checks) else "update-failed"
+    state["post_snapshot"] = post_number
+    state["updated"] = facts
+    atomic_json(state_path, state)
+    return result("updated", "incomplete" if checks_pass(checks) else "failed", checks, facts)
+
+
+def verify_updated(*, root: Path, state_path: Path, runner: Runner) -> dict[str, object]:
+    state = load_state(state_path)
+    require_phase(state, {"updated", "updated-verified"})
+    checks, facts = audit_system(root, runner)
+    expected = {int(state["pre_snapshot"]), int(state["post_snapshot"])}
+    present = set(facts["snapshot_numbers"])
+    checks.append(
+        {
+            "id": "update-snapshot-pair",
+            "status": "passed" if expected <= present else "failed",
+            "detail": f"expected snapshots: {', '.join(str(number) for number in sorted(expected))}",
+        }
+    )
+    baseline_facts = state.get("baseline")
+    if not isinstance(baseline_facts, dict):
+        raise WorkflowError("baseline facts are missing from workflow state")
+    kernel_changed = (
+        facts.get("kernel") != baseline_facts.get("kernel")
+        and facts.get("kernel") != "unknown"
+    )
+    checks.append(
+        {
+            "id": "updated-kernel-booted",
+            "status": "passed" if kernel_changed else "failed",
+            "detail": (
+                f"baseline={baseline_facts.get('kernel', 'unknown')}, "
+                f"running={facts.get('kernel', 'unknown')}"
+            ),
+        }
+    )
+    if checks_pass(checks):
+        state["phase"] = "updated-verified"
+        state["updated_verified"] = facts
+        atomic_json(state_path, state)
+    return result("updated-verified", "incomplete" if checks_pass(checks) else "failed", checks, facts)
+
+
+def prepare_rollback(*, state_path: Path, runner: Runner) -> dict[str, object]:
+    state = load_state(state_path)
+    require_phase(state, {"updated-verified"})
+    snapshot = int(state["rollback_snapshot"])
+    code, _ = runner(
+        ["snapper", "--no-dbus", "--config", "root", "rollback", str(snapshot)],
+        600,
+    )
+    checks = [
+        {
+            "id": "rollback-prepared",
+            "status": "passed" if code == 0 else "failed",
+            "detail": f"snapper rollback {snapshot} exit code: {code}",
+        }
+    ]
+    if code == 0:
+        state["phase"] = "rollback-prepared"
+        atomic_json(state_path, state)
+    return result("rollback-prepared", "incomplete" if code == 0 else "failed", checks, {"rollback_snapshot": snapshot})
+
+
+def verify_rollback(*, root: Path, state_path: Path, runner: Runner) -> dict[str, object]:
+    state = load_state(state_path)
+    require_phase(state, {"rollback-prepared", "rollback-verified"})
+    checks, facts = audit_system(root, runner)
+    baseline_facts = state.get("baseline")
+    if not isinstance(baseline_facts, dict):
+        raise WorkflowError("baseline facts are missing from workflow state")
+    updated_facts = state.get("updated_verified")
+    if not isinstance(updated_facts, dict):
+        raise WorkflowError("updated boot facts are missing from workflow state")
+    identity_matches = all(
+        facts.get(key) == baseline_facts.get(key)
+        for key in ("release_sha256", "build_info_sha256", "kernel")
+    )
+    checks.extend(
+        [
+            {
+                "id": "baseline-restored",
+                "status": "passed" if identity_matches else "failed",
+                "detail": "release identity and kernel match the pre-update baseline",
+            },
+            {
+                "id": "booted-default-subvolume",
+                "status": "passed"
+                if facts.get("default_subvolume_id") == facts.get("current_subvolume_id")
+                and facts.get("current_subvolume_id") is not None
+                else "failed",
+                "detail": "mounted root is the Btrfs default subvolume",
+            },
+            {
+                "id": "kernel-update-covered",
+                "status": "passed"
+                if updated_facts.get("kernel") != baseline_facts.get("kernel")
+                and updated_facts.get("kernel") != "unknown"
+                else "failed",
+                "detail": (
+                    f"baseline={baseline_facts.get('kernel', 'unknown')}, "
+                    f"updated={updated_facts.get('kernel', 'unknown')}"
+                ),
+            },
+        ]
+    )
+    passed = checks_pass(checks)
+    if passed:
+        state["phase"] = "rollback-verified"
+        state["completed_at"] = dt.datetime.now(dt.timezone.utc).isoformat()
+        atomic_json(state_path, state)
+    return result("rollback-verified", "passed" if passed else "failed", checks, facts)
+
+
+def failure_report(phase: str, message: str) -> dict[str, object]:
+    return result(
+        phase,
+        "failed",
+        [{"id": "workflow", "status": "failed", "detail": message}],
+        {},
+    )
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "phase",
+        choices=("baseline", "update", "verify-updated", "prepare-rollback", "verify-rollback"),
+    )
+    parser.add_argument("--state", type=Path, default=DEFAULT_STATE)
+    parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
+    parser.add_argument("--rollback-snapshot", type=int)
+    parser.add_argument("--restart", action="store_true")
+    args = parser.parse_args()
+
+    if os.geteuid() != 0:
+        report = failure_report(args.phase, "run this exercise as root inside the installed VM")
+        atomic_json(args.output, report)
+        print(args.output)
+        return 1
+
+    try:
+        if args.phase == "baseline":
+            report = baseline(
+                root=Path("/"),
+                state_path=args.state,
+                runner=run_command,
+                requested_snapshot=args.rollback_snapshot,
+                restart=args.restart,
+            )
+        elif args.phase == "update":
+            report = update_system(root=Path("/"), state_path=args.state, runner=run_command)
+        elif args.phase == "verify-updated":
+            report = verify_updated(root=Path("/"), state_path=args.state, runner=run_command)
+        elif args.phase == "prepare-rollback":
+            report = prepare_rollback(state_path=args.state, runner=run_command)
+        else:
+            report = verify_rollback(root=Path("/"), state_path=args.state, runner=run_command)
+    except (WorkflowError, OSError) as error:
+        report = failure_report(args.phase, str(error))
+
+    atomic_json(args.output, report)
+    print(args.output)
+    return 1 if report["status"] == "failed" else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

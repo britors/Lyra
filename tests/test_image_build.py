@@ -117,6 +117,10 @@ class ImagePolicyTests(unittest.TestCase):
         )
         self.assertIn('"usr/bin/lyra-live-smoke"', deploy)
 
+        update_smoke = ROOT / "kiwi/root/usr/bin/lyra-update-smoke"
+        self.assertTrue(update_smoke.is_file())
+        self.assertNotEqual(update_smoke.stat().st_mode & 0o111, 0)
+
     def test_export_is_derived_from_canonical_kiwi_without_duplicate_package_list(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             destination = Path(temporary) / "export"
