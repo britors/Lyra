@@ -79,10 +79,13 @@ Residual risks:
 
 ## Current Beta 2 state
 
-**NO-GO.** The OBS health gate detected `postgres-draco` 2.1.4 in the release
-project without an accepted staging promotion, and its release build was not
-green when the gate ran. This line may be changed only after the package is
-published through the reviewed staging flow and a fresh health report passes.
+**NO-GO pending the new candidate ISO and runtime evidence.** The OBS health
+gate passed on 2026-08-09 for all three release projects and all 15 source
+packages after the reviewed staging promotions. Repository publication,
+package provenance, metadata, keys and RPM signatures are green. The remaining
+blocking work is to build the clean candidate from the recorded commit and
+complete the live-session, installer, first-boot, Secure Boot, rollback and
+hardware-matrix evidence above.
 
 If a defect is found after publication, hide or remove the affected files on
 SourceForge, record their checksums as withdrawn, stage and review the fix, and
