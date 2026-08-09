@@ -28,7 +28,7 @@ pub const ESP_MINIMUM_SIZE_BYTES: u64 = 32 * 1024 * 1024;
 /// Wire-format version for [`InstallPlan`]. Any structural or semantic change
 /// that an older privileged service could misinterpret must increment this
 /// value. The service rejects unknown versions before running an operation.
-pub const INSTALL_PLAN_SCHEMA_VERSION: u32 = 2;
+pub const INSTALL_PLAN_SCHEMA_VERSION: u32 = 3;
 
 /// Fixed size used by the guided "swap em disco" choice. Keeping the size
 /// in the typed plan makes the destructive layout explicit and lets the
@@ -37,12 +37,19 @@ pub const DISK_SWAP_SIZE_BYTES: u64 = 8 * 1024 * 1024 * 1024;
 
 // --- Btrfs layout used by Lyra's native installer ---
 
+/// Filesystem-wide Btrfs policy. Btrfs does not implement `compress` or
+/// `nodatacow` independently per subvolume, so every mount and fstab entry
+/// must agree. Zstd's current default is level 3; spelling it out keeps the
+/// release policy stable if the upstream default changes.
+pub const BTRFS_MOUNT_OPTIONS: &str = "compress=zstd:3";
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SubvolumePlan {
     pub mount_point: PathBuf,
     pub subvolume: String,
-    /// Lyra mounts write-heavy subvolumes with `nodatacow`; the typed plan
-    /// keeps that policy explicit and testable.
+    /// Mark the empty subvolume root with `chattr +C` before deployment so
+    /// new database/VM files inherit NOCOW without changing filesystem-wide
+    /// mount options.
     pub nodatacow: bool,
 }
 

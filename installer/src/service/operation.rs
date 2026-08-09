@@ -37,6 +37,7 @@ pub const ALLOWED_BINARIES: &[&str] = &[
     "mount",
     "umount",
     "btrfs",
+    "chattr",
     "sync",
     "unsquashfs",
     "useradd",

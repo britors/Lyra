@@ -17,9 +17,9 @@ pub use device::{
 };
 pub use discovery::{DiscoveryBackend, DiscoveryError, SystemDiscoveryBackend};
 pub use plan::{
-    DISK_SWAP_SIZE_BYTES, DestructiveSummary, EspPlan, FilesystemPlan, GuidedChoice,
-    INSTALL_PLAN_SCHEMA_VERSION, InstallPlan, LogicalVolumePlan, PlanBuilder, PlanError, RawTarget,
-    SizePolicy, SubvolumePlan, SwapChoice, SwapPlan, VolumeLayer,
+    BTRFS_MOUNT_OPTIONS, DISK_SWAP_SIZE_BYTES, DestructiveSummary, EspPlan, FilesystemPlan,
+    GuidedChoice, INSTALL_PLAN_SCHEMA_VERSION, InstallPlan, LogicalVolumePlan, PlanBuilder,
+    PlanError, RawTarget, SizePolicy, SubvolumePlan, SwapChoice, SwapPlan, VolumeLayer,
 };
 
 #[cfg(test)]

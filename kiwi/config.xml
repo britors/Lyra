@@ -185,6 +185,10 @@
       is what makes the GRUB panic-button rollback menu exist at all.
     -->
     <package name="btrfsprogs"/>
+    <!-- Provides chattr. The installer sets +C on empty database/VM
+         subvolume roots instead of incorrectly requesting per-subvolume
+         nodatacow mount options, which Btrfs does not implement. -->
+    <package name="e2fsprogs"/>
     <!-- The installer creates a FAT32 EFI System Partition and deploys the
          live squashfs into the target. These tools are runtime requirements,
          not merely image-build utilities. -->

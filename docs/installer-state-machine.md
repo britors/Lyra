@@ -37,7 +37,7 @@ Exemplo reduzido:
 
 ```json
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "raw_target": {"Disk": "/dev/sda"},
   "volume_layer": "Direct",
   "esp": {"Create": {"size_bytes": 314572800}},

@@ -38,6 +38,7 @@ Requires:       coreutils
 Requires:       dconf
 Requires:       dosfstools
 Requires:       dracut
+Requires:       e2fsprogs
 Requires:       gptfdisk
 Requires:       grub2
 Requires:       grub2-common

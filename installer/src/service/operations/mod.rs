@@ -11,7 +11,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::storage::{
-    EspPlan, FilesystemPlan, InstallPlan, RawTarget, SubvolumePlan, SwapPlan, VolumeLayer,
+    BTRFS_MOUNT_OPTIONS, EspPlan, FilesystemPlan, InstallPlan, RawTarget, SubvolumePlan, SwapPlan,
+    VolumeLayer,
 };
 
 use super::executor::Executor;
@@ -127,7 +128,6 @@ pub fn plan_to_operations(
             mount_point: subvolume.mount_point.clone(),
             subvolume: subvolume.subvolume.clone(),
             partition: root_partition.clone(),
-            nodatacow: subvolume.nodatacow,
         }));
     }
 
@@ -341,6 +341,12 @@ impl PrivilegedOperation for CreateSubvolumes {
                     path_str(&leaf),
                 ],
             })?;
+            if subvolume.nodatacow {
+                executor.run(&ArgvCommand {
+                    binary: "chattr".to_string(),
+                    args: vec!["+C".to_string(), path_str(&leaf)],
+                })?;
+            }
         }
 
         executor.run(&ArgvCommand {
@@ -356,7 +362,6 @@ struct MountSubvolume {
     mount_point: PathBuf,
     subvolume: String,
     partition: PathBuf,
-    nodatacow: bool,
 }
 
 impl PrivilegedOperation for MountSubvolume {
@@ -371,14 +376,7 @@ impl PrivilegedOperation for MountSubvolume {
     fn perform(&self, executor: &dyn Executor) -> Result<(), OperationError> {
         let dest = join_under(&self.target_root, &self.mount_point);
         fs::create_dir_all(&dest).map_err(io_error)?;
-        // nodatacow and Btrfs compression are mutually exclusive at mount
-        // time (nodatacow silently wins); rather than rely on that, only
-        // ever request one or the other explicitly per subvolume.
-        let options = if self.nodatacow {
-            format!("subvol={},nodatacow", self.subvolume)
-        } else {
-            format!("subvol={},compress=zstd", self.subvolume)
-        };
+        let options = format!("subvol={},{BTRFS_MOUNT_OPTIONS}", self.subvolume);
         executor.run(&ArgvCommand {
             binary: "mount".to_string(),
             args: vec![
@@ -478,13 +476,8 @@ impl PrivilegedOperation for WriteFstab {
 
         let mut content = String::from("# Gerado pelo Lyra Installer\n");
         for subvolume in &self.subvolumes {
-            let options = if subvolume.nodatacow {
-                "nodatacow"
-            } else {
-                "compress=zstd"
-            };
             content.push_str(&format!(
-                "UUID={root_uuid} {} btrfs subvol={},{options} 0 0\n",
+                "UUID={root_uuid} {} btrfs subvol={},{BTRFS_MOUNT_OPTIONS} 0 0\n",
                 subvolume.mount_point.display(),
                 subvolume.subvolume,
             ));
@@ -890,7 +883,6 @@ mod tests {
             mount_point: PathBuf::from("/home"),
             subvolume: "/@/home".to_string(),
             partition: PathBuf::from("/dev/sda2"),
-            nodatacow: false,
         };
         let executor = FakeExecutor::new();
 
@@ -899,7 +891,7 @@ mod tests {
         assert_eq!(
             executor.calls(),
             vec![
-                "mount -o subvol=/@/home,compress=zstd /dev/sda2 ".to_string()
+                "mount -o subvol=/@/home,compress=zstd:3 /dev/sda2 ".to_string()
                     + &temp.0.join("home").to_string_lossy()
             ]
         );
@@ -912,21 +904,20 @@ mod tests {
     }
 
     #[test]
-    fn mount_subvolume_uses_nodatacow_instead_of_compress_when_flagged() {
-        let temp = TempRoot::new("mount-subvolume-nodatacow");
+    fn every_subvolume_mount_uses_the_same_filesystem_wide_policy() {
+        let temp = TempRoot::new("mount-subvolume-policy");
         let op = MountSubvolume {
             target_root: temp.0.clone(),
             mount_point: PathBuf::from("/var/lib/mariadb"),
             subvolume: "/@/var/lib/mariadb".to_string(),
             partition: PathBuf::from("/dev/sda2"),
-            nodatacow: true,
         };
         let executor = FakeExecutor::new();
 
         op.perform(&executor).expect("mount should succeed");
         let call = executor.calls().into_iter().next().unwrap();
-        assert!(call.contains("nodatacow"));
-        assert!(!call.contains("compress"));
+        assert!(call.contains("compress=zstd:3"));
+        assert!(!call.contains("nodatacow"));
     }
 
     #[test]
@@ -937,7 +928,6 @@ mod tests {
             mount_point: PathBuf::from("/"),
             subvolume: "/@".to_string(),
             partition: PathBuf::from("/dev/sda2"),
-            nodatacow: false,
         };
         let executor = FakeExecutor::new();
 
@@ -995,9 +985,9 @@ mod tests {
 
         let content =
             fs::read_to_string(temp.0.join("etc/fstab")).expect("fstab should have been written");
-        assert!(content.contains("UUID-FOR-/dev/sda2 / btrfs subvol=/@,compress=zstd 0 0"));
+        assert!(content.contains("UUID-FOR-/dev/sda2 / btrfs subvol=/@,compress=zstd:3 0 0"));
         assert!(content.contains(
-            "UUID-FOR-/dev/sda2 /var/lib/mariadb btrfs subvol=/@/var/lib/mariadb,nodatacow 0 0"
+            "UUID-FOR-/dev/sda2 /var/lib/mariadb btrfs subvol=/@/var/lib/mariadb,compress=zstd:3 0 0"
         ));
         assert!(content.contains("UUID-FOR-/dev/sda1 /boot/efi vfat defaults,umask=0077 0 2"));
     }
@@ -1034,7 +1024,7 @@ mod tests {
             SubvolumePlan {
                 mount_point: PathBuf::from("/var/lib/machines"),
                 subvolume: "/@/var/lib/machines".to_string(),
-                nodatacow: false,
+                nodatacow: true,
             },
         ];
         let op = CreateSubvolumes {
@@ -1054,6 +1044,10 @@ mod tests {
                 format!("btrfs subvolume create {}", staging.0.join("@").display()),
                 format!(
                     "btrfs subvolume create {}",
+                    staging.0.join("@/var/lib/machines").display()
+                ),
+                format!(
+                    "chattr +C {}",
                     staging.0.join("@/var/lib/machines").display()
                 ),
                 format!("umount {}", staging.0.display()),

@@ -1,4 +1,12 @@
 -------------------------------------------------------------------
+Sun Aug  9 13:43:49 UTC 2026 - Rodrigo Brito <rodrigo@w3ti.com.br>
+
+- Use one filesystem-wide Btrfs compression policy, compress=zstd:3.
+- Set NOCOW granularly on empty database and VM subvolume roots.
+- Bump the destructive installation plan schema from version 2 to 3.
+- Require e2fsprogs for the privileged service's chattr operation.
+
+-------------------------------------------------------------------
 Sun Aug  9 12:23:49 UTC 2026 - Rodrigo Brito <rodrigo@w3ti.com.br>
 
 - Match the Tauri GTK application ID and desktop ID on GNOME Wayland.
