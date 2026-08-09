@@ -5,6 +5,7 @@ import json
 import sys
 import tempfile
 import unittest
+import urllib.error
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -143,6 +144,52 @@ class SafetyTests(unittest.TestCase):
     def test_command_formatter_does_not_interpolate_shell(self) -> None:
         rendered = obs_release.Obs.format_command(["osc", "-m", "test; $(bad)"])
         self.assertEqual(rendered, "osc -m 'test; $(bad)'")
+
+
+class HttpDownloaderTests(unittest.TestCase):
+    def test_transient_failures_are_retried_with_bounded_backoff(self) -> None:
+        attempts = 0
+        delays: list[int] = []
+
+        class Response:
+            status = 200
+
+            def __enter__(self) -> "Response":
+                return self
+
+            def __exit__(self, *_args: object) -> None:
+                return None
+
+            def read(self) -> bytes:
+                return b"rpm"
+
+        def opener(_request: object, *, timeout: int) -> Response:
+            nonlocal attempts
+            attempts += 1
+            self.assertEqual(timeout, 120)
+            if attempts < 3:
+                raise urllib.error.URLError("temporary mirror failure")
+            return Response()
+
+        downloader = obs_release.HttpDownloader(opener=opener, sleeper=delays.append)
+        self.assertEqual(downloader.get("https://example.invalid/package.rpm"), b"rpm")
+        self.assertEqual(attempts, 3)
+        self.assertEqual(delays, [1, 2])
+
+    def test_client_error_is_not_retried(self) -> None:
+        attempts = 0
+
+        def opener(request: object, *, timeout: int) -> None:
+            nonlocal attempts
+            attempts += 1
+            raise urllib.error.HTTPError(
+                request.full_url, 404, "not found", {}, None
+            )
+
+        downloader = obs_release.HttpDownloader(opener=opener, sleeper=lambda _: None)
+        with self.assertRaisesRegex(obs_release.PolicyError, "returned HTTP 404"):
+            downloader.get("https://example.invalid/missing.rpm")
+        self.assertEqual(attempts, 1)
 
 
 class PromotionTraceTests(unittest.TestCase):

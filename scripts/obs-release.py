@@ -13,6 +13,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import tomllib
 import urllib.error
 import urllib.request
@@ -201,15 +202,46 @@ class Obs:
 class HttpDownloader:
     """Fetch public repository artifacts without using OBS credentials."""
 
+    def __init__(
+        self,
+        *,
+        attempts: int = 3,
+        timeout: int = 120,
+        opener: Any = None,
+        sleeper: Any = None,
+    ) -> None:
+        if attempts < 1:
+            raise ValueError("download attempts must be positive")
+        self.attempts = attempts
+        self.timeout = timeout
+        self.opener = opener or urllib.request.urlopen
+        self.sleeper = sleeper or time.sleep
+
     def get(self, url: str) -> bytes:
         request = urllib.request.Request(url, headers={"User-Agent": "lyra-obs-health/1"})
-        try:
-            with urllib.request.urlopen(request, timeout=60) as response:
-                if response.status != 200:
-                    raise PolicyError(f"download failed: {url} returned HTTP {response.status}")
-                return response.read()
-        except (OSError, urllib.error.URLError) as error:
-            raise PolicyError(f"download failed: {url}: {error}") from error
+        last_error: OSError | urllib.error.URLError | None = None
+        for attempt in range(1, self.attempts + 1):
+            try:
+                with self.opener(request, timeout=self.timeout) as response:
+                    if response.status != 200:
+                        raise PolicyError(
+                            f"download failed: {url} returned HTTP {response.status}"
+                        )
+                    return response.read()
+            except urllib.error.HTTPError as error:
+                if 400 <= error.code < 500:
+                    raise PolicyError(
+                        f"download failed: {url} returned HTTP {error.code}"
+                    ) from error
+                last_error = error
+            except (OSError, urllib.error.URLError) as error:
+                last_error = error
+            if attempt < self.attempts:
+                self.sleeper(2 ** (attempt - 1))
+        assert last_error is not None
+        raise PolicyError(
+            f"download failed after {self.attempts} attempts: {url}: {last_error}"
+        ) from last_error
 
 
 def run_checked(arguments: list[str]) -> str:
