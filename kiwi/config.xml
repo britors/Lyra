@@ -7,7 +7,7 @@
   session, Btrfs/Snapper and zram-generator packages present, official
   Leap 16 repos + the Lyra OBS repos, the native Lyra Installer,
   Vega/Sheliak/Fina + a
-  curated GNOME app set + Firefox/Prosa/Calco/CUPS/Flatpak pre-installed. See
+  curated GNOME app set + Firefox/CUPS/Flatpak pre-installed. See
   kiwi/README.md for the remaining gaps (installer artwork, multimedia
   codecs pending upstream, release automation, and end-to-end testing).
 -->
@@ -344,16 +344,12 @@
     <package name="chord"/>
 
     <!-- Lyra's native remote-access clients, pinned in the default GNOME
-         favorites together with Vega, Firefox and Prosa. -->
+         favorites together with Vega and Firefox. -->
     <package name="beam"/>
     <package name="sulafat"/>
 
-    <!-- Prosa, Lyra's native Rust/GTK word processor. It replaces the
-         LibreOffice suite in the curated Beta 2 image. -->
-    <package name="prosa"/>
-
-    <!-- Calco, Lyra's native Rust/GTK spreadsheet editor. -->
-    <package name="calco"/>
+    <!-- Prosa and Calco remain available from Lyra's OBS repositories, but
+         are intentionally excluded from Beta 2 while they stabilize. -->
 
     <!--
       Sheliak, Lyra's GNOME 48 dock. Installing a system extension alone

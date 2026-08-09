@@ -103,8 +103,9 @@ através do Vega.
 - **GNOME Terminal** (`gnome-terminal`) como terminal padrão, com o
   **GNOME Console** (`gnome-console`) também pré-instalado como alternativa
 - **Firefox** como navegador padrão
-- **Prosa** e **Calco** pré-instalados como editor de texto e planilha
-  nativos; LibreOffice não entra na imagem padrão
+- **Prosa** e **Calco** disponíveis nos repositórios Lyra, mas excluídos da
+  imagem Beta 2 enquanto passam por estabilização; LibreOffice também não
+  entra na imagem padrão
 - **CUPS** + drivers comuns, pré-instalado e habilitado (impressão/scanner)
 - **GNOME Software** mantido e coexistindo com o Vega — GNOME Software
   cuida da loja de apps/gerenciamento de pacotes gráfico; o Vega cuida
@@ -203,7 +204,8 @@ antiga vibrante azul-safira→violeta):
       acessíveis, com os pacotes corretos instaláveis de cada um
 - [ ] Flatpak/Flathub configurado como canal de apps de terceiros
 - [ ] Codecs multimídia instaláveis via OBS do Lyra, sem depender do Packman
-- [ ] Vega (GTK4), Prosa, Calco, Sheliak e Fina pré-instalados e funcionais
+- [ ] Vega (GTK4), Sheliak e Fina pré-instalados e funcionais
+- [ ] Prosa e Calco ausentes da imagem padrão Beta 2
 - [ ] GNOME Terminal, GNOME Console, Firefox e CUPS pré-instalados
 - [ ] LibreOffice ausente da imagem padrão
 - [ ] GNOME Software presente e funcional, coexistindo com o Vega

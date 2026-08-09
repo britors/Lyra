@@ -21,13 +21,15 @@ o instalador da edição **Odisseia Beta 2** para computadores x86_64.
 - escolha na instalação entre ZRAM com Zstandard, swap em disco ou nenhuma
   memória virtual;
 - Firefox, GNOME Software, Flatpak e Flathub;
-- Vega, Prosa, Calco, Sheliak e Fina pré-instalados pelos repositórios OBS do Lyra;
+- Vega, Sheliak e Fina pré-instalados pelos repositórios OBS do Lyra;
 - identidade visual Lyra Enterprise no desktop e no GRUB;
 - `lyra-report` para diagnóstico local e sob demanda, sem telemetria ou envio
   automático de dados.
 
 O sistema não habilita o Packman. Os repositórios oficiais do Leap têm
 prioridade sobre os repositórios OBS do ecossistema Lyra no sistema instalado.
+Prosa e Calco continuam publicados nesses repositórios, mas não são instalados
+na Beta 2 enquanto passam por estabilização.
 
 ## Estado atual
 

@@ -145,18 +145,18 @@ class ImagePolicyTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
         self.assertIn("'org.lyraos.Chord.desktop'", defaults)
 
-    def test_prosa_and_calco_replace_libreoffice_with_only_prosa_favorited(self) -> None:
+    def test_unstable_office_apps_are_excluded_from_beta2(self) -> None:
         root = ET.parse(ROOT / "kiwi/config.xml").getroot()
         packages = {node.attrib["name"] for node in root.findall("packages/package")}
-        self.assertIn("prosa", packages)
-        self.assertIn("calco", packages)
+        self.assertNotIn("prosa", packages)
+        self.assertNotIn("calco", packages)
         self.assertFalse(any(name.startswith("libreoffice") for name in packages))
 
         defaults = (
             ROOT
             / "kiwi/root/usr/share/glib-2.0/schemas/99-lyra-desktop-defaults.gschema.override"
         ).read_text(encoding="utf-8")
-        self.assertIn("'br.com.rodrigobrito.Prosa.Native.desktop'", defaults)
+        self.assertNotIn("br.com.rodrigobrito.Prosa.Native.desktop", defaults)
         self.assertNotIn("br.com.w3ti.Calco.desktop", defaults)
         self.assertNotIn("libreoffice", defaults.lower())
 
