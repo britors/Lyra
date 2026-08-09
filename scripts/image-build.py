@@ -51,6 +51,7 @@ class Manifest:
     obs_role: str
     package_sources: tuple[ObsPackageSource, ...]
     required_artifacts: tuple[str, ...]
+    required_test_results: tuple[str, ...]
 
     @classmethod
     def load(cls, path: Path = DEFAULT_MANIFEST) -> "Manifest":
@@ -75,6 +76,7 @@ class Manifest:
                 ObsPackageSource(**item) for item in obs["package_sources"]
             ),
             required_artifacts=tuple(data["artifacts"]["required"]),
+            required_test_results=tuple(data["evidence"]["required_test_results"]),
         )
         result.validate()
         return result
@@ -113,6 +115,17 @@ class Manifest:
         }
         if set(self.required_artifacts) != expected_artifacts:
             raise PolicyError("artifact policy is incomplete")
+        expected_results = {
+            "obs-repositories",
+            "live-session",
+            "installer",
+            "first-boot",
+            "uefi-secure-boot",
+            "rollback",
+            "hardware-matrix",
+        }
+        if set(self.required_test_results) != expected_results:
+            raise PolicyError("release evidence policy is incomplete")
 
 
 def git(*args: str) -> str:
@@ -384,12 +397,32 @@ def artifact_manifest(manifest: Manifest, directory: Path, output: Path, tests: 
         path = Path(filename).resolve()
         if not name or not path.is_file():
             raise PolicyError(f"invalid test result: {item}")
-        test_results[name] = {"filename": path.name, "sha256": sha256(path), "size_bytes": path.stat().st_size}
+        if name in test_results:
+            raise PolicyError(f"duplicate test result: {name}")
+        try:
+            result = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as error:
+            raise PolicyError(f"test result is not valid JSON: {path}") from error
+        if not isinstance(result, dict) or result.get("status") != "passed":
+            raise PolicyError(f"test result did not pass: {name}")
+        test_results[name] = {
+            "filename": path.name,
+            "sha256": sha256(path),
+            "size_bytes": path.stat().st_size,
+            "status": "passed",
+        }
+    missing_results = sorted(set(manifest.required_test_results) - set(test_results))
+    if missing_results:
+        raise PolicyError(f"required release evidence is missing: {missing_results}")
+    source_commit = git("rev-parse", "HEAD")
+    source_dirty = bool(git("status", "--porcelain", "--untracked-files=normal"))
+    if source_dirty:
+        raise PolicyError("final release evidence requires a clean source commit")
     document = {
         "schema_version": 1,
         "product": manifest.image_name,
         "version": version_id(),
-        "source": {"commit": git("rev-parse", "HEAD"), "dirty": bool(git("status", "--porcelain"))},
+        "source": {"commit": source_commit, "dirty": False},
         "package_count": len(package_rows),
         "packages": [
             {"name": row[0], "epoch": row[1], "version": row[2], "release": row[3], "arch": row[4], "source": row[5], "license": row[6]}

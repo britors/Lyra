@@ -57,6 +57,10 @@ As notas devem registrar o nome da ISO, o SHA-256 e os campos `built_at` e
 `source.commit` do manifesto. Uma árvore marcada como `source.dirty: true` é
 adequada para desenvolvimento local, mas não para publicação.
 
+A decisão final segue a checklist versionada em
+[`release-gate.md`](release-gate.md). O manifesto de evidências rejeita árvore
+suja, resultado vermelho e qualquer evidência obrigatória ausente.
+
 ## Campos sincronizados
 
 O renderizador mantém alinhados:

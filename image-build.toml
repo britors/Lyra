@@ -42,3 +42,14 @@ required = [
   "cyclonedx_sbom",
   "spdx_sbom",
 ]
+
+[evidence]
+required_test_results = [
+  "obs-repositories",
+  "live-session",
+  "installer",
+  "first-boot",
+  "uefi-secure-boot",
+  "rollback",
+  "hardware-matrix",
+]

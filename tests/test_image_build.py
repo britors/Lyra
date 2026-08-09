@@ -173,33 +173,71 @@ class ImagePolicyTests(unittest.TestCase):
                 image_build.verify_export(self.manifest, destination)
 
 class ArtifactTests(unittest.TestCase):
+    def create_artifacts(self, directory: Path) -> None:
+        (directory / "lyra.iso").write_bytes(b"iso")
+        (directory / "lyra.packages").write_text(
+            "fina|(none)|0.4.0|12.1|x86_64|obs://build.opensuse.org/"
+            "home:rodrigosbrito:fina/repo/revision-fina|MIT\n",
+            encoding="utf-8",
+        )
+        (directory / "lyra.verified").write_text("verified\n", encoding="utf-8")
+        (directory / "lyra.report").write_text("<report/>\n", encoding="utf-8")
+        (directory / "lyra.iso.sha256").write_text(
+            "checksum  lyra.iso\n", encoding="utf-8"
+        )
+        (directory / "lyra.iso.sha256.asc").write_text(
+            "signature\n", encoding="utf-8"
+        )
+        (directory / "lyra.cdx.json").write_text("{}\n", encoding="utf-8")
+        (directory / "lyra.spdx.json").write_text("{}\n", encoding="utf-8")
+
+    def create_test_results(
+        self, manifest: image_build.Manifest, directory: Path
+    ) -> list[str]:
+        results = []
+        for name in manifest.required_test_results:
+            path = directory / f"{name}.json"
+            path.write_text('{"status":"passed"}\n', encoding="utf-8")
+            results.append(f"{name}={path}")
+        return results
+
     def test_manifest_hashes_all_evidence_and_records_exact_package_sources(self) -> None:
         manifest = image_build.Manifest.load()
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
-            (directory / "lyra.iso").write_bytes(b"iso")
-            (directory / "lyra.packages").write_text(
-                "fina|(none)|0.4.0|12.1|x86_64|obs://build.opensuse.org/"
-                "home:rodrigosbrito:fina/repo/revision-fina|MIT\n",
-                encoding="utf-8",
-            )
-            (directory / "lyra.verified").write_text("verified\n", encoding="utf-8")
-            (directory / "lyra.report").write_text("<report/>\n", encoding="utf-8")
-            (directory / "lyra.iso.sha256").write_text("checksum  lyra.iso\n", encoding="utf-8")
-            (directory / "lyra.iso.sha256.asc").write_text("signature\n", encoding="utf-8")
-            (directory / "lyra.cdx.json").write_text("{}\n", encoding="utf-8")
-            (directory / "lyra.spdx.json").write_text("{}\n", encoding="utf-8")
-            test_result = directory / "smoke.json"
-            test_result.write_text('{"result":"pass"}\n', encoding="utf-8")
+            self.create_artifacts(directory)
             output = directory / "manifest.json"
-            image_build.artifact_manifest(
-                manifest, directory, output, [f"smoke={test_result}"]
-            )
+            tests = self.create_test_results(manifest, directory)
+            real_git = image_build.git
+            with mock.patch.object(
+                image_build,
+                "git",
+                side_effect=lambda *args: "" if args[0] == "status" else real_git(*args),
+            ):
+                image_build.artifact_manifest(manifest, directory, output, tests)
             document = json.loads(output.read_text(encoding="utf-8"))
             self.assertEqual(set(document["artifacts"]), set(manifest.required_artifacts))
             self.assertEqual(document["packages"][0]["license"], "MIT")
             self.assertIn("revision-fina", document["packages"][0]["source"])
-            self.assertIn("smoke", document["test_results"])
+            self.assertEqual(
+                set(document["test_results"]), set(manifest.required_test_results)
+            )
+            self.assertFalse(document["source"]["dirty"])
+
+    def test_manifest_rejects_missing_or_failed_release_evidence(self) -> None:
+        manifest = image_build.Manifest.load()
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            self.create_artifacts(directory)
+            failed = directory / "obs.json"
+            failed.write_text('{"status":"failed"}\n', encoding="utf-8")
+            with self.assertRaisesRegex(image_build.PolicyError, "did not pass"):
+                image_build.artifact_manifest(
+                    manifest,
+                    directory,
+                    directory / "manifest.json",
+                    [f"obs-repositories={failed}"],
+                )
 
 
 if __name__ == "__main__":

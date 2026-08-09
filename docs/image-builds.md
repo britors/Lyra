@@ -107,12 +107,19 @@ smoke-test results:
 ./scripts/image-build.py artifact-manifest /path/to/kiwi/results \
   --output /path/to/lyra-os.evidence.json \
   --test-result obs-repositories=/path/to/obs-health-2026.08-beta2.json \
+  --test-result live-session=/path/to/live-session-result.json \
   --test-result installer=/path/to/manual-install-result.json \
-  --test-result smoke=/path/to/issue-51-result.json
+  --test-result first-boot=/path/to/first-boot-result.json \
+  --test-result uefi-secure-boot=/path/to/uefi-secure-boot-result.json \
+  --test-result rollback=/path/to/rollback-result.json \
+  --test-result hardware-matrix=/path/to/hardware-matrix-result.json
 ```
 
-The command fails if an artifact is absent or ambiguous, the package inventory
-does not contain exact sources, or a named test result does not exist.
+Every result is JSON with top-level `"status": "passed"`. The command fails if
+the source tree is dirty, an artifact is absent or ambiguous, the package
+inventory does not contain exact sources, required evidence is missing, or any
+provided result is not green. The full decision policy and publication
+checklist are in [`release-gate.md`](release-gate.md).
 
 After the checksum and release gates pass, publish the ISO and its evidence on
 SourceForge. Upload credentials and the SourceForge release operation remain
