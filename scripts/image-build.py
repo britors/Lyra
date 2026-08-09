@@ -16,6 +16,7 @@ import shutil
 import subprocess
 import sys
 import tarfile
+import tempfile
 import tomllib
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -25,6 +26,17 @@ ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MANIFEST = ROOT / "image-build.toml"
 KIWI = ROOT / "kiwi"
 RELEASE = ROOT / "release.toml"
+PACKAGE_SIGNING_KEYRING = KIWI / "keys/obs-package-signing-keyring.asc"
+PACKAGE_SIGNING_FINGERPRINTS = {
+    "1C59D66FCD52563A16933DBCFEC28EAF09D9EA69",
+    "F044C2C507A1262B538AAADD8A49EB0325DB7AE0",
+    "BF3F9A67D3A2FF98A73F5E07488C583D287A0027",
+    "AD485664E901B867051AB15F35A2F86E29B700A4",
+    "FEAB502539D846DB2C0961CA70AF9E8139DB7C82",
+    "7F009157B127B994D5CFBE76F74F09BC3FA1D6CE",
+    "85E26470357A6391DBA1BC9E0739B8027BF939EF",
+    "399218A6E088C4053F4533BE58097F767EDCA82E",
+}
 INSTALLER_APP_ID = "org.lyraos.LyraInstaller"
 INSTALLER_EXEC = "/usr/bin/lyra-install-lock /usr/bin/lyra-installer"
 INSTALLER_TRY_EXEC = "/usr/bin/lyra-installer"
@@ -215,6 +227,37 @@ def validate_installer_identity() -> None:
 
 def validate_sources(manifest: Manifest) -> None:
     validate_installer_identity()
+    if not PACKAGE_SIGNING_KEYRING.is_file():
+        raise PolicyError("versioned RPM package signing keyring is missing")
+    gpg = shutil.which("gpg")
+    if gpg is None:
+        raise PolicyError("gpg is required to validate the RPM package signing keyring")
+    with tempfile.TemporaryDirectory(prefix="lyra-image-keyring-") as gpg_home:
+        key_result = subprocess.run(
+            [
+                gpg,
+                "--batch",
+                "--homedir",
+                gpg_home,
+                "--with-colons",
+                "--import-options",
+                "show-only",
+                "--import",
+                str(PACKAGE_SIGNING_KEYRING),
+            ],
+            check=False,
+            text=True,
+            capture_output=True,
+        )
+    if key_result.returncode:
+        raise PolicyError("versioned RPM package signing keyring is invalid")
+    fingerprints = {
+        fields[9].upper()
+        for line in key_result.stdout.splitlines()
+        if (fields := line.split(":"))[0] == "fpr" and len(fields) > 9
+    }
+    if fingerprints != PACKAGE_SIGNING_FINGERPRINTS:
+        raise PolicyError("RPM package signing keyring fingerprints differ from policy")
     for relative in (
         "root/usr/bin/lyra-hardware-matrix",
         "root/usr/bin/lyra-live-smoke",
@@ -333,6 +376,7 @@ def export(manifest: Manifest, destination: Path, commit: str, allow_dirty: bool
     ensure_export_target(destination)
     for name in ("config.xml", "config.sh", "edit_boot_config.sh"):
         shutil.copy2(KIWI / name, destination / name)
+    shutil.copytree(KIWI / "keys", destination / "keys")
     shutil.copytree(KIWI / "root", destination / "root", symlinks=True)
     (destination / "build-source.json").write_text(
         json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8"
@@ -365,6 +409,11 @@ def verify_export(manifest: Manifest, directory: Path) -> None:
     for name in (manifest.description, "config.sh", "edit_boot_config.sh"):
         if sha256(directory / name) != sha256(KIWI / name):
             raise PolicyError(f"exported KIWI file differs from the GitHub source: {name}")
+    exported_keyring = directory / "keys/obs-package-signing-keyring.asc"
+    if not exported_keyring.is_file() or sha256(exported_keyring) != sha256(
+        PACKAGE_SIGNING_KEYRING
+    ):
+        raise PolicyError("exported RPM package signing keyring differs from policy")
     embedded = directory / "root/usr/lib/lyra-os/build-source"
     if metadata["commit"] not in embedded.read_text(encoding="utf-8"):
         raise PolicyError("embedded source identity differs from export manifest")

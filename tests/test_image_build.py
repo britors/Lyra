@@ -182,6 +182,7 @@ class ImagePolicyTests(unittest.TestCase):
     def test_vm_helper_can_build_without_destroying_existing_vm(self) -> None:
         helper = (ROOT / "kiwi/test/build-and-run-vm.sh").read_text(encoding="utf-8")
         self.assertIn("--build-only", helper)
+        self.assertIn('--signing-key "$PACKAGE_SIGNING_KEYRING"', helper)
         self.assertIn('if [ "$BUILD_ONLY" -eq 0 ]; then', helper)
         self.assertIn(
             "build-only complete; existing VM disk and UEFI state were not changed",
@@ -208,6 +209,12 @@ class ImagePolicyTests(unittest.TestCase):
             exported_packages = [node.attrib["name"] for node in exported.findall("packages/package")]
             self.assertEqual(exported_packages, canonical_packages)
             self.assertFalse((destination / "_multibuild").exists())
+            self.assertEqual(
+                image_build.sha256(
+                    destination / "keys/obs-package-signing-keyring.asc"
+                ),
+                image_build.sha256(image_build.PACKAGE_SIGNING_KEYRING),
+            )
             self.assertEqual(
                 image_build.sha256(destination / "config.xml"),
                 image_build.sha256(ROOT / "kiwi/config.xml"),

@@ -42,6 +42,7 @@ KIWI_DESC="$(dirname "$SCRIPT_DIR")"
 REPO_ROOT="$(dirname "$KIWI_DESC")"
 RELEASE_TOOL="$REPO_ROOT/scripts/release.py"
 INSTALLER_DIR="$REPO_ROOT/installer"
+PACKAGE_SIGNING_KEYRING="$KIWI_DESC/keys/obs-package-signing-keyring.asc"
 CURRENT_UID="$(id -u)"
 # Keep the large KIWI tree, ISO and VM disk on the persistent filesystem.
 # On many systems /tmp is a small RAM-backed tmpfs and cannot hold a full
@@ -235,6 +236,10 @@ if [ "$SKIP_BUILD" -eq 0 ]; then
       fi
     done
   fi
+  if [ ! -r "$PACKAGE_SIGNING_KEYRING" ]; then
+    echo "required RPM package signing keyring is missing: $PACKAGE_SIGNING_KEYRING" >&2
+    exit 1
+  fi
 fi
 
 if [ "$BUILD_ONLY" -eq 0 ]; then
@@ -344,6 +349,7 @@ if [ "$SKIP_BUILD" -eq 0 ]; then
       --setenv="LYRA_BUILD_SOURCE_EPOCH=$BUILD_SOURCE_EPOCH" \
       --setenv="LYRA_IMAGE_BUILT_AT=$IMAGE_BUILT_AT" \
       system build \
+      --signing-key "$PACKAGE_SIGNING_KEYRING" \
       --description "$BUILD_DESCRIPTION" \
       --target-dir "$BUILD_DIR"; then
     BUILD_STATUS=0

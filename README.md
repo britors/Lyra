@@ -130,6 +130,7 @@ comando equivalente sem as validações posteriores é:
 ```bash
 ./scripts/release.py check
 sudo kiwi-ng system build \
+  --signing-key kiwi/keys/obs-package-signing-keyring.asc \
   --description kiwi \
   --target-dir /tmp/lyra-os-build
 ```

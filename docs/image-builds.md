@@ -31,8 +31,9 @@ destination="$(mktemp -d)/lyra-image"
 that state and cannot pass `verify-export`.
 
 The export contains the canonical `config.xml`, `config.sh`, final
-`edit_boot_config.sh` hook, root overlay, and a normalized `root.tar.gz`. The
-hook runs after KIWI has generated the live bootloader files and keeps the
+`edit_boot_config.sh` hook, pinned RPM signing keyring, root overlay, and a
+normalized `root.tar.gz`. The hook runs after KIWI has generated the live
+bootloader files and keeps the
 installed rootfs theme path under `/usr/share/grub/themes` without changing
 the ISO's separate `/boot/grub2/themes` layout. The export also records the full Git commit, commit
 epoch, and deterministic UTC build timestamp in `build-source.json` and
@@ -102,7 +103,10 @@ Signature verification is mandatory through `rpm-check-signatures`,
 canonical HTTPS openSUSE and Lyra package repositories. Flathub's URL and
 signing key are versioned at
 `kiwi/root/etc/flatpak/remotes.d/flathub.flatpakrepo`; no network command runs
-from `config.sh`.
+from `config.sh`. The build helper passes the reviewed
+`kiwi/keys/obs-package-signing-keyring.asc` through KIWI's `--signing-key`
+option before package preload; a missing key or fingerprint drift fails the
+local image policy gate instead of disabling signature verification.
 
 The NVIDIA ISO remains a separate optional deliverable. It does not introduce
 an OBS image flavor and cannot block the standard ISO.
