@@ -49,6 +49,10 @@ pub const ALLOWED_BINARIES: &[&str] = &[
     "grub2-mkconfig",
     "shim-install",
     "snapper",
+    // Removes the live-only installer package from the target RPM database.
+    // Deleting only its files would let a later package update restore the
+    // privileged service and polkit rule on the installed system.
+    "rpm",
     // Compiles /etc/dconf/db/local.d/* into the binary dconf database
     // WriteKeyboard just wrote — no arguments beyond the fixed "update".
     "dconf",

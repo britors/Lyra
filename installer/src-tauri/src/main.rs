@@ -62,6 +62,7 @@ fn validate_install_config(config: InstallConfig) -> Result<(), String> {
 const SERVICE_PATH: &str = "/usr/libexec/lyra-installer-service";
 const SYSTEMCTL_PATH: &str = "/usr/bin/systemctl";
 const TRACE_FILENAME: &str = "lyra-installer-trace.log";
+const EVIDENCE_FILENAME: &str = "lyra-installer-result.json";
 
 fn redacted_config(config: &InstallConfig) -> serde_json::Value {
     serde_json::json!({
@@ -132,6 +133,53 @@ fn create_install_trace(request: &ExecutionRequest) -> Result<(File, PathBuf), S
 fn append_trace(trace: &mut File, line: &str) {
     let _ = writeln!(trace, "{line}");
     let _ = trace.flush();
+}
+
+fn write_installer_evidence(
+    home: &std::path::Path,
+    events: &[ExecutionEvent],
+) -> Result<PathBuf, String> {
+    let output = home.join(EVIDENCE_FILENAME);
+    let temporary = home.join(format!(".{EVIDENCE_FILENAME}.tmp-{}", std::process::id()));
+    let source = fs::read_to_string("/usr/share/lyra-installer/build-source.txt")
+        .unwrap_or_else(|error| format!("indisponível: {error}"));
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_secs())
+        .unwrap_or_default();
+    let document = serde_json::json!({
+        "schema": 1,
+        "status": "passed",
+        "mode": "installer",
+        "generated_at_unix": timestamp,
+        "installer_version": env!("CARGO_PKG_VERSION"),
+        "build_source": source.trim(),
+        "checks": [
+            {"id": "service-exit", "status": "passed", "detail": "privileged service exited successfully"},
+            {"id": "completed-event", "status": "passed", "detail": "terminal Completed event received"}
+        ],
+        "events": events,
+    });
+
+    let result = (|| -> Result<(), String> {
+        let mut stream = OpenOptions::new()
+            .create_new(true)
+            .write(true)
+            .mode(0o600)
+            .open(&temporary)
+            .map_err(|error| format!("não foi possível criar {}: {error}", temporary.display()))?;
+        serde_json::to_writer_pretty(&mut stream, &document)
+            .map_err(|error| format!("não foi possível serializar a evidência: {error}"))?;
+        writeln!(stream).map_err(|error| error.to_string())?;
+        stream.sync_all().map_err(|error| error.to_string())?;
+        fs::rename(&temporary, &output)
+            .map_err(|error| format!("não foi possível publicar {}: {error}", output.display()))?;
+        Ok(())
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(&temporary);
+    }
+    result.map(|()| output)
 }
 
 /// Reuses the packaged application artwork inside the static frontend instead
@@ -387,6 +435,17 @@ fn execute_plan_blocking(
         return Err("o serviço terminou sem confirmar a conclusão".to_string());
     }
 
+    let home = trace_path
+        .parent()
+        .ok_or("o trace do instalador não possui diretório pai")?;
+    match write_installer_evidence(home, &events) {
+        Ok(path) => append_trace(
+            &mut trace,
+            &format!("release_evidence={}", path.display()),
+        ),
+        Err(error) => append_trace(&mut trace, &format!("evidence_error={error}")),
+    }
+
     Ok(events)
 }
 
@@ -424,6 +483,29 @@ mod tests {
         let summary = redacted_config(&config);
         assert_eq!(summary["password"], "<redacted>");
         assert!(!summary.to_string().contains(&config.password));
+    }
+
+    #[test]
+    fn installer_evidence_is_structured_private_and_contains_no_request_secret() {
+        let directory = std::env::temp_dir().join(format!(
+            "lyra-installer-evidence-test-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&directory);
+        fs::create_dir(&directory).unwrap();
+        let events = vec![ExecutionEvent::Started, ExecutionEvent::Completed];
+
+        let output = write_installer_evidence(&directory, &events).unwrap();
+        let metadata = fs::metadata(&output).unwrap();
+        let document: serde_json::Value =
+            serde_json::from_slice(&fs::read(&output).unwrap()).unwrap();
+
+        assert_eq!(metadata.permissions().mode() & 0o777, 0o600);
+        assert_eq!(document["status"], "passed");
+        assert_eq!(document["mode"], "installer");
+        assert_eq!(document["events"].as_array().unwrap().len(), 2);
+        assert!(!document.to_string().contains("password"));
+        fs::remove_dir_all(&directory).unwrap();
     }
 
     #[test]

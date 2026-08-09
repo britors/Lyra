@@ -165,13 +165,15 @@ pub fn deployment_operations(
         Box::new(RegenerateInitramfsWithFstab {
             target_root: target_root.clone(),
         }),
+        // The first rollback snapshot must not retain the live-only installer
+        // package, especially its privileged service and polkit rule.
+        Box::new(RemoveTransitionalInstallerArtifacts {
+            target_root: target_root.clone(),
+        }),
         Box::new(SnapperCreateFirstSnapshot {
             target_root: target_root.clone(),
         }),
-        Box::new(GenerateGrubConfig {
-            target_root: target_root.clone(),
-        }),
-        Box::new(RemoveTransitionalInstallerArtifacts { target_root }),
+        Box::new(GenerateGrubConfig { target_root }),
     ]
 }
 
@@ -1233,6 +1235,8 @@ const LYRA_INSTALLER_ARTIFACTS: &[&str] = &[
     "usr/share/applications/org.lyraos.LyraInstaller.desktop",
     "usr/share/polkit-1/actions/io.lyra.Installer.policy",
     "etc/polkit-1/rules.d/01-lyra-installer-service.rules",
+    // Development images add this outside the RPM payload.
+    "usr/lib/lyra-os/local-installer-build",
 ];
 
 struct RemoveTransitionalInstallerArtifacts {
@@ -1244,7 +1248,22 @@ impl PrivilegedOperation for RemoveTransitionalInstallerArtifacts {
         "remover artefatos transitórios do instalador".to_string()
     }
 
-    fn perform(&self, _executor: &dyn Executor) -> Result<(), OperationError> {
+    fn perform(&self, executor: &dyn Executor) -> Result<(), OperationError> {
+        executor.run(&ArgvCommand {
+            binary: "rpm".to_string(),
+            args: vec![
+                "--root".to_string(),
+                path_str(&self.target_root),
+                "--erase".to_string(),
+                "--noscripts".to_string(),
+                "lyra-installer".to_string(),
+            ],
+        })?;
+
+        // Keep this cleanup explicit for development-image overlays and for
+        // defense in depth if the RPM payload changes. The RPM erase above is
+        // still mandatory so the package database cannot restore these files
+        // during a later update.
         let _ = fs::remove_file(
             self.target_root
                 .join("usr/libexec/lyra-configure-btrfs-rollback"),
@@ -2209,15 +2228,21 @@ mod tests {
     }
 
     #[test]
-    fn remove_transitional_installer_artifacts_is_best_effort() {
+    fn remove_transitional_installer_artifacts_erases_the_rpm() {
         let temp = TempRoot::new("remove-transitional");
 
         let op = RemoveTransitionalInstallerArtifacts {
             target_root: temp.0.clone(),
         };
-        // Missing helper script must not be an error.
-        op.perform(&FakeExecutor::new())
-            .expect("missing helper script must not fail");
+        let executor = FakeExecutor::new();
+        op.perform(&executor).unwrap();
+        assert_eq!(
+            executor.calls(),
+            vec![format!(
+                "rpm --root {} --erase --noscripts lyra-installer",
+                temp.0.display()
+            )]
+        );
     }
 
     #[test]
@@ -2326,7 +2351,7 @@ mod tests {
     }
 
     #[test]
-    fn deployment_operations_runs_grub_and_snapper_after_liveuser_cleanup() {
+    fn deployment_operations_snapshots_only_after_all_live_cleanup() {
         let config = InstallConfig::default();
         let describe: Vec<String> = deployment_operations(&config, &SwapPlan::Zram)
             .iter()
@@ -2341,9 +2366,17 @@ mod tests {
             .iter()
             .position(|d| d == "criar primeiro snapshot somente leitura")
             .unwrap();
+        let installer_cleanup_index = describe
+            .iter()
+            .position(|d| d == "remover artefatos transitórios do instalador")
+            .unwrap();
         assert!(
             cleanup_index < first_snapshot_index,
             "the first snapshot must be taken after liveuser cleanup, or it would capture it"
+        );
+        assert!(
+            installer_cleanup_index < first_snapshot_index,
+            "the first snapshot must not retain the installer RPM, privileged service or polkit rule"
         );
 
         // grub2-mkconfig runs twice: once before shim-install, once again
@@ -2358,9 +2391,6 @@ mod tests {
         assert_eq!(grub_indexes.len(), 2);
         assert!(grub_indexes[1] > first_snapshot_index);
 
-        assert_eq!(
-            describe.last().unwrap(),
-            "remover artefatos transitórios do instalador"
-        );
+        assert_eq!(describe.last().unwrap(), "gerar configuração do GRUB");
     }
 }

@@ -191,10 +191,15 @@ target (sem chroot — é só um argumento de caminho) + remove `subvol=`/
 `prepare-root` real) → `chroot snapper create-config` → confere
 `/.snapshots` e acrescenta a linha dele no fstab (porta do `mount-snapshots`
 real) → `chroot dracut --force --fstab` (chamada separada da de #41,
-pra reincorporar o fstab sem `subvol=`) → `chroot snapper create
---read-only ...` (primeiro snapshot) → `grub2-mkconfig` de novo (pro
-submenu de rollback aparecer) → remove o helper bash e os próprios artefatos
-do Lyra Installer do target.
+pra reincorporar o fstab sem `subvol=`) → remove o RPM `lyra-installer` do
+banco do target e limpa qualquer overlay local → `chroot snapper create
+--read-only ...` (primeiro snapshot já sem o serviço privilegiado) →
+`grub2-mkconfig` de novo (pro submenu de rollback aparecer).
+
+A remoção pelo RPM é obrigatória: apagar somente os arquivos deixaria o pacote
+registrado e permitiria que uma atualização restaurasse o serviço e a regra
+polkit exclusivos do ambiente live. Ela ocorre antes do primeiro snapshot para
+que rollback algum volte a expor esse caminho privilegiado.
 
 **Achado real #2**: o `grubcfg` de verdade duplica `"splash"` —
 `kernel_params: ["quiet","splash"]` do YAML mais a própria detecção

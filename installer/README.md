@@ -260,6 +260,13 @@ e status final do processo. Ele é atualizado enquanto os eventos chegam, por
 isso permanece útil quando a instalação é interrompida e pode ser anexado
 diretamente a um relatório de erro.
 
+Quando o serviço termina com sucesso e emite o evento terminal `Completed`, o
+frontend também grava atomicamente `~/lyra-installer-result.json`, com permissão
+`0600`. Esse arquivo contém somente versão/origem e eventos estruturados, sem a
+configuração da conta ou senha, e é a evidência `installer` consumida pelo gate
+da Beta 2. Uma falha ao gravá-lo fica anotada no trace sem transformar uma
+instalação já concluída em falha falsa.
+
 `operations::deploy` implanta o rootfs no target já particionado: extrai o
 squashfs da sessão live, machine-id, fuso horário, teclado, locale
 (mapeamento de teclado fixo por locale por enquanto — sem tela própria),
@@ -274,7 +281,10 @@ NVRAM já saem de graça dessa ferramenta, não precisei reimplementar),
 `lyra-configure-btrfs-rollback` real), `snapper create-config`, fstab com
 `/.snapshots`, `dracut --force --fstab` de novo, primeiro snapshot
 somente-leitura do Snapper, e `grub2-mkconfig` mais uma vez pro submenu de
-rollback aparecer. Achei e corrigi outro bug real de quebra: o `grubcfg`
+rollback aparecer. Antes da primeira snapshot, o RPM live-only
+`lyra-installer` é removido também do banco RPM do target; isso impede que uma
+atualização ou rollback restaure o serviço privilegiado e sua regra polkit.
+Achei e corrigi outro bug real de quebra: o `grubcfg`
 duplicava `"splash"` em `GRUB_CMDLINE_LINUX_DEFAULT` (detecção automática
 de plymouth somada ao valor já configurado) — ver
 `docs/installer-architecture.md`. `operations::build(request)` junta
