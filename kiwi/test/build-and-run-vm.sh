@@ -367,6 +367,30 @@ if [ "$SKIP_BUILD" -eq 0 ]; then
     exit 1
   fi
 
+  IMAGE_WALLPAPER_DIR="$BUILD_DIR/build/image-root/usr/share/backgrounds/lyra"
+  IMAGE_GNOME_DEFAULTS="$BUILD_DIR/build/image-root/usr/share/glib-2.0/schemas/99-lyra-os.gschema.override"
+  for WALLPAPER_ASSET in \
+      nebula.png \
+      nebula-light.png \
+      nebula.jxl \
+      nebula-light.jxl; do
+    if [ ! -s "$IMAGE_WALLPAPER_DIR/$WALLPAPER_ASSET" ]; then
+      echo "!!! built image is missing the default Nebula wallpaper asset:" >&2
+      echo "  $IMAGE_WALLPAPER_DIR/$WALLPAPER_ASSET" >&2
+      exit 1
+    fi
+  done
+  if ! grep -Fx \
+      "picture-uri='file:///usr/share/backgrounds/lyra/nebula-light.png'" \
+      "$IMAGE_GNOME_DEFAULTS" >/dev/null ||
+     ! grep -Fx \
+      "picture-uri-dark='file:///usr/share/backgrounds/lyra/nebula.png'" \
+      "$IMAGE_GNOME_DEFAULTS" >/dev/null; then
+    echo "!!! built image does not use Nebula as the default GNOME wallpaper" >&2
+    exit 1
+  fi
+  echo "--- validated Nebula wallpaper assets and GNOME defaults ---"
+
   IMAGE_INSTALLER_GUI="$BUILD_DIR/build/image-root/usr/bin/lyra-installer"
   IMAGE_INSTALLER_LOCK="$BUILD_DIR/build/image-root/usr/bin/lyra-install-lock"
   IMAGE_INSTALLER_SERVICE="$BUILD_DIR/build/image-root/usr/libexec/lyra-installer-service"

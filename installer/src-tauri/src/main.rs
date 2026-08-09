@@ -417,8 +417,10 @@ mod tests {
 
     #[test]
     fn diagnostic_config_never_contains_the_password() {
-        let mut config = InstallConfig::default();
-        config.password = "segredo-que-nao-pode-ir-ao-log".to_string();
+        let config = InstallConfig {
+            password: "segredo-que-nao-pode-ir-ao-log".to_string(),
+            ..InstallConfig::default()
+        };
         let summary = redacted_config(&config);
         assert_eq!(summary["password"], "<redacted>");
         assert!(!summary.to_string().contains(&config.password));

@@ -335,12 +335,12 @@ impl<'a> PlanBuilder<'a> {
             );
         }
 
-        if let Some(bytes) = root_available_bytes {
-            if bytes < MINIMUM_ROOT_SIZE_BYTES {
-                errors.push(format!(
-                    "espaço insuficiente para a raiz: {bytes} bytes após ESP/swap, mínimo {MINIMUM_ROOT_SIZE_BYTES} bytes"
-                ));
-            }
+        if let Some(bytes) = root_available_bytes
+            && bytes < MINIMUM_ROOT_SIZE_BYTES
+        {
+            errors.push(format!(
+                "espaço insuficiente para a raiz: {bytes} bytes após ESP/swap, mínimo {MINIMUM_ROOT_SIZE_BYTES} bytes"
+            ));
         }
 
         if !errors.is_empty() {
