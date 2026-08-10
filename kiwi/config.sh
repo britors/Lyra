@@ -77,6 +77,19 @@ AutomaticLoginEnable=true
 AutomaticLogin=liveuser
 EOF
 
+# Passwordless sudo for the live session only. liveuser's password is
+# locked ("!" in config.xml), so without this it cannot authenticate to
+# sudo at all - this is what lets a live-session terminal actually run
+# admin commands (e.g. cfdisk to inspect a disk before installing). The
+# Rust installer removes this file during deployment (LIVE_ONLY_ARTIFACTS
+# in deploy.rs); it must never reach an installed system, which gets its
+# own sudo user with a real password instead.
+cat > /etc/sudoers.d/00-liveuser-nopasswd <<EOF
+liveuser ALL=(ALL) NOPASSWD: ALL
+EOF
+chmod 0440 /etc/sudoers.d/00-liveuser-nopasswd
+visudo -cf /etc/sudoers.d/00-liveuser-nopasswd
+
 # zram-generator activates its own systemd generator at boot from
 # /etc/systemd/zram-generator.conf - no service to enable here.
 

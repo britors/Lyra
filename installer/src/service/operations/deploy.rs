@@ -34,6 +34,10 @@ const LIVE_ONLY_ARTIFACTS: &[&str] = &[
     "etc/gdm/custom.conf",
     "etc/xdg/autostart/lyra-installer-autostart.desktop",
     "usr/bin/lyra-live-smoke",
+    // liveuser's passwordless sudo (kiwi/config.sh) - must never survive
+    // onto the installed system, which gets its own sudo user with a real
+    // password.
+    "etc/sudoers.d/00-liveuser-nopasswd",
 ];
 
 /// Essential services enabled in the installed system.

@@ -1,4 +1,11 @@
 -------------------------------------------------------------------
+Mon Aug 10 19:29:10 UTC 2026 - Rodrigo Brito <rodrigo@w3ti.com.br>
+
+- Strip liveuser's live-session-only passwordless sudo drop-in
+  (etc/sudoers.d/00-liveuser-nopasswd) from the installed system, matching
+  the existing live-only artifact cleanup.
+
+-------------------------------------------------------------------
 Mon Aug 10 18:48:31 UTC 2026 - Rodrigo Brito <rodrigo@w3ti.com.br>
 
 - Deactivate LVM volume groups with a physical volume on the target disk
