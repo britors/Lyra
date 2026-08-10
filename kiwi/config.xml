@@ -404,6 +404,69 @@
     <package name="lyra-os-theme"/>
     <package name="lyra-os-icons"/>
     <package name="fastfetch"/>
+
+    <!--
+      Translations: Leap packages ship UI strings in a separate
+      "<name>-lang" subpackage, pulled in only as a Recommends - which
+      onlyRequired (see above) drops just like everything else, so the
+      built image ends up with the pt_BR/en_US locale set (<locale> above)
+      but almost every GNOME app and gnome-shell itself still in English.
+      This list was cross-checked against a running reference image
+      (`rpm -qa`/`zypper se '*-lang'`) for the desktop-facing packages
+      above and the gnome_basic/gnome pattern's GDM/GNOME Session/Seahorse/
+      accessibility Requires chain; backend-only libraries with no
+      user-visible strings (gstreamer, tracker/localsearch, wireplumber,
+      etc.) are deliberately left out.
+    -->
+    <package name="accountsservice-lang"/>
+    <package name="appstream-glib-lang"/>
+    <package name="AppStream-lang"/>
+    <package name="at-spi2-core-lang"/>
+    <package name="baobab-lang"/>
+    <package name="evince-lang"/>
+    <package name="firewalld-lang"/>
+    <package name="fontconfig-lang"/>
+    <package name="gdm-lang"/>
+    <package name="glib-networking-lang"/>
+    <package name="gnome-calculator-lang"/>
+    <package name="gnome-characters-lang"/>
+    <package name="gnome-console-lang"/>
+    <package name="gnome-control-center-lang"/>
+    <package name="gnome-disk-utility-lang"/>
+    <package name="gnome-keyring-lang"/>
+    <package name="gnome-logs-lang"/>
+    <package name="gnome-session-lang"/>
+    <package name="gnome-settings-daemon-lang"/>
+    <package name="gnome-shell-lang"/>
+    <package name="gnome-software-lang"/>
+    <package name="gnome-system-monitor-lang"/>
+    <package name="gnome-terminal-lang"/>
+    <package name="gnome-text-editor-lang"/>
+    <package name="gnome-tweaks-lang"/>
+    <package name="gnome-user-share-lang"/>
+    <package name="gsettings-desktop-schemas-lang"/>
+    <package name="gvfs-lang"/>
+    <package name="loupe-lang"/>
+    <package name="malcontent-lang"/>
+    <package name="mutter-lang"/>
+    <package name="nautilus-lang"/>
+    <package name="NetworkManager-lang"/>
+    <package name="orca-lang"/>
+    <package name="PackageKit-lang"/>
+    <package name="pipewire-lang"/>
+    <package name="plymouth-lang"/>
+    <package name="seahorse-lang"/>
+    <package name="shared-mime-info-lang"/>
+    <package name="simple-scan-lang"/>
+    <package name="snapshot-lang"/>
+    <package name="system-config-printer-common-lang"/>
+    <package name="tecla-keyboard-layout-viewer-lang"/>
+    <package name="udisks2-lang"/>
+    <package name="xdg-desktop-portal-lang"/>
+    <package name="xdg-desktop-portal-gnome-lang"/>
+    <package name="xdg-user-dirs-lang"/>
+    <package name="xdg-user-dirs-gtk-lang"/>
+    <package name="xkeyboard-config-lang"/>
   </packages>
 
 </image>
