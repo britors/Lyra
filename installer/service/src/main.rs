@@ -62,7 +62,7 @@ fn main() {
         }
     };
 
-    let operations = match build(&request) {
+    let operations = match build(&request, &snapshot) {
         Ok(operations) => operations,
         Err(error) => {
             emit(ExecutionEvent::Failed {

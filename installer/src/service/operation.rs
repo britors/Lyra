@@ -36,6 +36,7 @@ pub const ALLOWED_BINARIES: &[&str] = &[
     "lvcreate",
     "mount",
     "umount",
+    "swapoff",
     "btrfs",
     "chattr",
     "sync",

@@ -11,8 +11,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::storage::{
-    BTRFS_MOUNT_OPTIONS, EspPlan, FilesystemPlan, InstallPlan, RawTarget, SubvolumePlan, SwapPlan,
-    VolumeLayer,
+    BTRFS_MOUNT_OPTIONS, EspPlan, FilesystemPlan, InstallPlan, RawTarget, StorageSnapshot,
+    SubvolumePlan, SwapPlan, VolumeLayer,
 };
 
 use super::executor::Executor;
@@ -27,6 +27,7 @@ const STAGING_ROOT: &str = "/run/lyra-installer/staging";
 
 pub fn plan_to_operations(
     plan: &InstallPlan,
+    snapshot: &StorageSnapshot,
 ) -> Result<Vec<Box<dyn PrivilegedOperation>>, OperationError> {
     let disk = match &plan.raw_target {
         Some(RawTarget::Disk(path)) => path.clone(),
@@ -81,11 +82,15 @@ pub fn plan_to_operations(
         EspPlan::Reuse { path } => path.clone(),
     };
 
-    let mut operations: Vec<Box<dyn PrivilegedOperation>> = vec![Box::new(CreatePartitionTable {
+    let mut operations: Vec<Box<dyn PrivilegedOperation>> = Vec::new();
+    if let Some(release) = ReleaseDisk::for_target(&disk, snapshot) {
+        operations.push(Box::new(release));
+    }
+    operations.push(Box::new(CreatePartitionTable {
         disk: disk.clone(),
         esp_size_bytes,
         swap_size_bytes,
-    })];
+    }));
 
     if matches!(plan.esp, EspPlan::Create { .. }) {
         operations.push(Box::new(FormatEsp {
@@ -152,8 +157,9 @@ pub fn plan_to_operations(
 /// partitioning-only sequence without the identity data `deploy` needs.
 pub fn build(
     request: &super::ExecutionRequest,
+    snapshot: &StorageSnapshot,
 ) -> Result<Vec<Box<dyn PrivilegedOperation>>, OperationError> {
-    let mut operations = plan_to_operations(&request.plan)?;
+    let mut operations = plan_to_operations(&request.plan, snapshot)?;
     operations.extend(deploy::deployment_operations(
         &request.config,
         &request.plan.swap,
@@ -187,6 +193,80 @@ fn join_under(root: &Path, mount_point: &Path) -> PathBuf {
         root.to_path_buf()
     } else {
         root.join(mount_point.strip_prefix("/").unwrap_or(mount_point))
+    }
+}
+
+/// Releases whatever the kernel still holds open on a whole-disk install
+/// target that arrived with partitions already in use — mounted
+/// filesystems, active swap. The disk-selection flow accepts such
+/// "occupied" disks and wipes them (see `PlanBuilder::eligible_disk`), but
+/// `wipefs`/`sgdisk` fail with "device or resource busy" unless whatever is
+/// using the disk is released first, so this runs immediately before
+/// `CreatePartitionTable`.
+struct ReleaseDisk {
+    disk: PathBuf,
+    /// Deepest mount points first, so a parent is never unmounted while a
+    /// child mount underneath it is still active.
+    mountpoints: Vec<PathBuf>,
+    swap_partitions: Vec<PathBuf>,
+}
+
+impl ReleaseDisk {
+    /// `None` when the target disk is unknown to `snapshot` or has nothing
+    /// mounted/swapped-on to release — the common case, where inserting a
+    /// no-op step into the plan would just be noise in the UI.
+    fn for_target(disk: &Path, snapshot: &StorageSnapshot) -> Option<Self> {
+        let target = snapshot.disks.iter().find(|d| d.path == disk)?;
+
+        let mut mountpoints: Vec<PathBuf> = target
+            .partitions
+            .iter()
+            .flat_map(|partition| partition.mountpoints.iter().cloned())
+            .collect();
+        mountpoints.sort_by_key(|m| std::cmp::Reverse(m.components().count()));
+
+        let swap_partitions: Vec<PathBuf> = target
+            .partitions
+            .iter()
+            .filter(|partition| {
+                partition
+                    .filesystem
+                    .as_deref()
+                    .is_some_and(|fs| fs.eq_ignore_ascii_case("swap"))
+            })
+            .map(|partition| partition.path.clone())
+            .collect();
+
+        if mountpoints.is_empty() && swap_partitions.is_empty() {
+            return None;
+        }
+        Some(ReleaseDisk {
+            disk: disk.to_path_buf(),
+            mountpoints,
+            swap_partitions,
+        })
+    }
+}
+
+impl PrivilegedOperation for ReleaseDisk {
+    fn describe(&self) -> String {
+        format!("liberar partições em uso em {}", self.disk.display())
+    }
+
+    fn perform(&self, executor: &dyn Executor) -> Result<(), OperationError> {
+        for swap_partition in &self.swap_partitions {
+            executor.run(&ArgvCommand {
+                binary: "swapoff".to_string(),
+                args: vec![path_str(swap_partition)],
+            })?;
+        }
+        for mountpoint in &self.mountpoints {
+            executor.run(&ArgvCommand {
+                binary: "umount".to_string(),
+                args: vec!["-R".to_string(), path_str(mountpoint)],
+            })?;
+        }
+        Ok(())
     }
 }
 
@@ -625,7 +705,7 @@ mod tests {
 
     const LARGE: u64 = 40 * 1024 * 1024 * 1024;
 
-    fn whole_disk_plan_with_new_esp() -> InstallPlan {
+    fn whole_disk_plan_with_new_esp() -> (InstallPlan, StorageSnapshot) {
         let snapshot = StorageSnapshot {
             uefi: true,
             disks: vec![disk("sda", LARGE)],
@@ -638,24 +718,25 @@ mod tests {
             volume_layer: VolumeLayer::Direct,
             swap: crate::storage::SwapChoice::Zram,
         };
-        PlanBuilder::new(&snapshot)
+        let plan = PlanBuilder::new(&snapshot)
             .build(&choice)
-            .expect("fixture plan should be valid")
+            .expect("fixture plan should be valid");
+        (plan, snapshot)
     }
 
-    fn whole_disk_plan_with_swap_partition() -> InstallPlan {
-        let mut plan = whole_disk_plan_with_new_esp();
+    fn whole_disk_plan_with_swap_partition() -> (InstallPlan, StorageSnapshot) {
+        let (mut plan, snapshot) = whole_disk_plan_with_new_esp();
         plan.swap = SwapPlan::Partition {
             size_bytes: crate::storage::DISK_SWAP_SIZE_BYTES,
         };
-        plan
+        (plan, snapshot)
     }
 
     #[test]
     fn whole_disk_with_new_esp_produces_operations_in_mount_safe_order() {
-        let plan = whole_disk_plan_with_new_esp();
+        let (plan, snapshot) = whole_disk_plan_with_new_esp();
         let operations =
-            plan_to_operations(&plan).expect("direct whole-disk plan should translate");
+            plan_to_operations(&plan, &snapshot).expect("direct whole-disk plan should translate");
 
         let describe: Vec<String> = operations.iter().map(|op| op.describe()).collect();
         assert_eq!(describe[0], "criar tabela de partições em /dev/sda");
@@ -687,7 +768,7 @@ mod tests {
 
     #[test]
     fn build_assembles_partitioning_then_deployment_then_a_final_sync() {
-        let plan = whole_disk_plan_with_new_esp();
+        let (plan, snapshot) = whole_disk_plan_with_new_esp();
         let request = super::super::ExecutionRequest {
             choice: GuidedChoice {
                 raw_target: Some(RawTarget::Disk(PathBuf::from("/dev/sda"))),
@@ -698,7 +779,7 @@ mod tests {
             config: crate::InstallConfig::default(),
         };
 
-        let operations = build(&request).expect("request should translate");
+        let operations = build(&request, &snapshot).expect("request should translate");
         let describe: Vec<String> = operations.iter().map(|op| op.describe()).collect();
 
         // Partitioning ends with the fstab write (see the test above);
@@ -716,8 +797,8 @@ mod tests {
 
     #[test]
     fn create_partition_table_argv_matches_expected_sgdisk_invocations_when_creating_an_esp() {
-        let plan = whole_disk_plan_with_new_esp();
-        let operations = plan_to_operations(&plan).unwrap();
+        let (plan, snapshot) = whole_disk_plan_with_new_esp();
+        let operations = plan_to_operations(&plan, &snapshot).unwrap();
         let executor = FakeExecutor::new();
 
         operations[0]
@@ -737,8 +818,8 @@ mod tests {
 
     #[test]
     fn disk_swap_gets_its_own_partition_and_is_formatted() {
-        let plan = whole_disk_plan_with_swap_partition();
-        let operations = plan_to_operations(&plan).unwrap();
+        let (plan, snapshot) = whole_disk_plan_with_swap_partition();
+        let operations = plan_to_operations(&plan, &snapshot).unwrap();
         let executor = FakeExecutor::new();
 
         operations[0].perform(&executor).unwrap();
@@ -791,7 +872,7 @@ mod tests {
             .build(&choice)
             .expect("fixture plan should be valid");
 
-        let operations = plan_to_operations(&plan).expect("plan should translate");
+        let operations = plan_to_operations(&plan, &snapshot).expect("plan should translate");
         assert!(
             !operations
                 .iter()
@@ -809,6 +890,75 @@ mod tests {
                 "sgdisk -n1:0:0 -t1:8300 /dev/sdb"
             ],
             "the target disk gets only a root partition; the existing ESP on the other disk is untouched"
+        );
+    }
+
+    #[test]
+    fn occupied_disk_is_released_before_being_wiped() {
+        let mut occupied = disk("sda", LARGE);
+        occupied.role = DeviceRole::Unsupported;
+        occupied.partitions.push(crate::storage::Partition {
+            path: PathBuf::from("/dev/sda1"),
+            number: 1,
+            size_bytes: 300 * 1024 * 1024,
+            filesystem: Some("ext4".to_string()),
+            mountpoints: vec![PathBuf::from("/mnt/dados")],
+            part_type: None,
+            uuid: None,
+        });
+        occupied.partitions.push(crate::storage::Partition {
+            path: PathBuf::from("/dev/sda2"),
+            number: 2,
+            size_bytes: 2 * 1024 * 1024 * 1024,
+            filesystem: Some("swap".to_string()),
+            mountpoints: Vec::new(),
+            part_type: None,
+            uuid: None,
+        });
+        let snapshot = StorageSnapshot {
+            uefi: true,
+            disks: vec![occupied],
+            raid_arrays: Vec::new(),
+            volume_groups: Vec::new(),
+            logical_volumes: Vec::new(),
+        };
+        let choice = GuidedChoice {
+            raw_target: Some(RawTarget::Disk(PathBuf::from("/dev/sda"))),
+            volume_layer: VolumeLayer::Direct,
+            swap: crate::storage::SwapChoice::Zram,
+        };
+        let plan = PlanBuilder::new(&snapshot)
+            .build(&choice)
+            .expect("whole-disk install should accept an occupied disk");
+
+        let operations = plan_to_operations(&plan, &snapshot).expect("plan should translate");
+        assert_eq!(
+            operations[0].describe(),
+            "liberar partições em uso em /dev/sda",
+            "the disk must be released before CreatePartitionTable runs wipefs/sgdisk"
+        );
+
+        let executor = FakeExecutor::new();
+        operations[0].perform(&executor).unwrap();
+        assert_eq!(
+            executor.calls(),
+            vec!["swapoff /dev/sda2", "umount -R /mnt/dados"]
+        );
+
+        assert_eq!(
+            operations[1].describe(),
+            "criar tabela de partições em /dev/sda"
+        );
+    }
+
+    #[test]
+    fn free_disk_gets_no_release_step() {
+        let (plan, snapshot) = whole_disk_plan_with_new_esp();
+        let operations = plan_to_operations(&plan, &snapshot).expect("plan should translate");
+        assert_eq!(
+            operations[0].describe(),
+            "criar tabela de partições em /dev/sda",
+            "a disk with nothing mounted or swapped-on needs no release step"
         );
     }
 
@@ -838,7 +988,7 @@ mod tests {
             .build(&raid_choice)
             .expect("valid raid plan");
         assert!(matches!(
-            plan_to_operations(&raid_plan),
+            plan_to_operations(&raid_plan, &raid_snapshot),
             Err(OperationError::NotImplemented(_))
         ));
 
@@ -870,7 +1020,7 @@ mod tests {
             .build(&vg_choice)
             .expect("valid vg plan");
         assert!(matches!(
-            plan_to_operations(&vg_plan),
+            plan_to_operations(&vg_plan, &vg_snapshot),
             Err(OperationError::NotImplemented(_))
         ));
     }
