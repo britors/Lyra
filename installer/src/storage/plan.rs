@@ -269,7 +269,14 @@ impl<'a> PlanBuilder<'a> {
             }
         }
 
-        let esp = match self.existing_esp() {
+        // A whole-disk install always recreates the target disk's partition
+        // table.  Do not reuse an ESP that lives on that disk: its path will
+        // be destroyed by sgdisk before the new layout is created.
+        let target_disk = match &choice.raw_target {
+            Some(RawTarget::Disk(path)) => Some(path.as_path()),
+            _ => None,
+        };
+        let esp = match self.existing_esp(target_disk) {
             Some(path) => EspPlan::Reuse { path },
             None => EspPlan::Create {
                 size_bytes: ESP_RECOMMENDED_SIZE_BYTES,
@@ -382,10 +389,10 @@ impl<'a> PlanBuilder<'a> {
                 "{}: já é um physical volume LVM em uso",
                 path.display()
             )),
-            DeviceRole::Unsupported => Err(format!(
-                "{}: já contém partições ou dados — particionamento manual ainda não é suportado",
-                path.display()
-            )),
+            // A whole-disk guided install is explicitly destructive. Existing
+            // partitions are reported in the plan summary and wiped by the
+            // partitioning operations after the user confirms installation.
+            DeviceRole::Unsupported => Ok(disk),
         }
     }
 
@@ -416,8 +423,11 @@ impl<'a> PlanBuilder<'a> {
     /// UEFI-only per `config.xml`'s `firmware="uefi"`, so ESP detection is
     /// simply "an existing vfat/EFI-typed partition" — reused verbatim,
     /// never reformatted (matches `partition.conf`'s ESP override).
-    fn existing_esp(&self) -> Option<PathBuf> {
+    fn existing_esp(&self, excluded_disk: Option<&std::path::Path>) -> Option<PathBuf> {
         self.snapshot.disks.iter().find_map(|disk| {
+            if excluded_disk.is_some_and(|excluded| excluded == disk.path.as_path()) {
+                return None;
+            }
             disk.partitions
                 .iter()
                 .find(|p| {

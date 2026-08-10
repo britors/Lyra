@@ -157,8 +157,14 @@ function diskIneligibleReason(disk){
   if(disk.is_live_media) return 'É a mídia de instalação (live) — não pode ser destino';
   if(disk.role==='RaidMember') return 'Já é membro de um array RAID';
   if(disk.role==='LvmPhysicalVolume') return 'Já é um physical volume LVM em uso';
-  if(disk.role==='Unsupported') return 'Já contém partições ou dados';
   return null;
+}
+
+function diskStatus(disk){
+  const reason=diskIneligibleReason(disk);
+  if(reason) return reason;
+  if(disk.role==='Unsupported') return 'Partições/dados existentes serão apagados';
+  return 'Disponível para instalação';
 }
 
 function renderRaidLevelOptions(){
@@ -222,7 +228,7 @@ function renderDiskCards(){
         <input type="radio" name="disk" value="${disk.path}" ${selected?'checked':''} ${reason?'disabled':''}/>
         <span class="disk-top"><strong>${title}</strong><b>✓</b></span>
         <small>${disk.path} · ${formatBytes(disk.size_bytes)} · ${transportLabels[disk.transport]||disk.transport}</small>
-        <span class="disk-status${reason?' disk-status-blocked':''}">${reason||'Disponível para instalação'}</span>
+        <span class="disk-status${reason?' disk-status-blocked':''}">${diskStatus(disk)}</span>
       </label>`;
     }).join('');
     const manualNote=selectedDiskPath&&!disks.some(d=>d.path===selectedDiskPath)?` · caminho manual selecionado: ${selectedDiskPath}`:'';

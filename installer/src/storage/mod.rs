@@ -132,7 +132,7 @@ mod tests {
     }
 
     #[test]
-    fn occupied_disk_is_blocked_with_a_clear_reason() {
+    fn occupied_disk_is_accepted_and_reports_its_data_for_erasure() {
         let mut occupied = disk("sda", LARGE);
         occupied.role = DeviceRole::Unsupported;
         occupied.partitions.push(Partition {
@@ -146,16 +146,12 @@ mod tests {
         });
         let snapshot = snapshot_with_disks(vec![occupied]);
 
-        let error = PlanBuilder::new(&snapshot)
+        let plan = PlanBuilder::new(&snapshot)
             .build(&whole_disk_choice("/dev/sda"))
-            .unwrap_err();
+            .expect("whole-disk install should wipe an occupied disk");
 
-        assert!(
-            error
-                .0
-                .iter()
-                .any(|reason| reason.contains("partições ou dados"))
-        );
+        assert_eq!(plan.destructive_summary.erased.len(), 1);
+        assert!(plan.destructive_summary.erased[0].contains("/dev/sda1"));
     }
 
     #[test]
@@ -185,6 +181,26 @@ mod tests {
                 path: PathBuf::from("/dev/sda1")
             }
         );
+    }
+
+    #[test]
+    fn target_disk_esp_is_recreated_when_the_disk_is_wiped() {
+        let mut target = disk("sda", LARGE);
+        target.partitions.push(Partition {
+            path: PathBuf::from("/dev/sda1"),
+            number: 1,
+            size_bytes: 300 * 1024 * 1024,
+            filesystem: Some("vfat".to_string()),
+            mountpoints: vec![PathBuf::from("/boot/efi")],
+            part_type: Some("esp".to_string()),
+            uuid: None,
+        });
+
+        let plan = PlanBuilder::new(&snapshot_with_disks(vec![target]))
+            .build(&whole_disk_choice("/dev/sda"))
+            .expect("occupied target disk should be accepted");
+
+        assert!(matches!(plan.esp, EspPlan::Create { .. }));
     }
 
     #[test]
