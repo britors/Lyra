@@ -34,6 +34,7 @@ pub const ALLOWED_BINARIES: &[&str] = &[
     "mdadm",
     "vgcreate",
     "lvcreate",
+    "vgchange",
     "mount",
     "umount",
     "swapoff",

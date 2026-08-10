@@ -198,23 +198,27 @@ fn join_under(root: &Path, mount_point: &Path) -> PathBuf {
 
 /// Releases whatever the kernel still holds open on a whole-disk install
 /// target that arrived with partitions already in use — mounted
-/// filesystems, active swap. The disk-selection flow accepts such
-/// "occupied" disks and wipes them (see `PlanBuilder::eligible_disk`), but
-/// `wipefs`/`sgdisk` fail with "device or resource busy" unless whatever is
-/// using the disk is released first, so this runs immediately before
-/// `CreatePartitionTable`.
+/// filesystems, active swap, or an LVM volume group with a physical volume
+/// on this disk. The disk-selection flow accepts such "occupied" disks and
+/// wipes them (see `PlanBuilder::eligible_disk`), but `wipefs`/`sgdisk` fail
+/// with "device or resource busy" unless whatever is using the disk is
+/// released first, so this runs immediately before `CreatePartitionTable`.
 struct ReleaseDisk {
     disk: PathBuf,
     /// Deepest mount points first, so a parent is never unmounted while a
     /// child mount underneath it is still active.
     mountpoints: Vec<PathBuf>,
     swap_partitions: Vec<PathBuf>,
+    /// Volume groups with a PV on this disk — deactivated before `umount`
+    /// would be pointless, since the dm devices they back keep the
+    /// underlying partition open even once nothing is mounted on it.
+    volume_groups: Vec<String>,
 }
 
 impl ReleaseDisk {
     /// `None` when the target disk is unknown to `snapshot` or has nothing
-    /// mounted/swapped-on to release — the common case, where inserting a
-    /// no-op step into the plan would just be noise in the UI.
+    /// mounted/swapped-on/LVM-active to release — the common case, where
+    /// inserting a no-op step into the plan would just be noise in the UI.
     fn for_target(disk: &Path, snapshot: &StorageSnapshot) -> Option<Self> {
         let target = snapshot.disks.iter().find(|d| d.path == disk)?;
 
@@ -237,13 +241,25 @@ impl ReleaseDisk {
             .map(|partition| partition.path.clone())
             .collect();
 
-        if mountpoints.is_empty() && swap_partitions.is_empty() {
+        let volume_groups: Vec<String> = snapshot
+            .volume_groups
+            .iter()
+            .filter(|vg| {
+                vg.physical_volumes
+                    .iter()
+                    .any(|pv| target.partitions.iter().any(|p| &p.path == pv))
+            })
+            .map(|vg| vg.name.clone())
+            .collect();
+
+        if mountpoints.is_empty() && swap_partitions.is_empty() && volume_groups.is_empty() {
             return None;
         }
         Some(ReleaseDisk {
             disk: disk.to_path_buf(),
             mountpoints,
             swap_partitions,
+            volume_groups,
         })
     }
 }
@@ -264,6 +280,16 @@ impl PrivilegedOperation for ReleaseDisk {
             executor.run(&ArgvCommand {
                 binary: "umount".to_string(),
                 args: vec!["-R".to_string(), path_str(mountpoint)],
+            })?;
+        }
+        // Deactivate *after* unmounting/swapoff: a mount point or swap
+        // partition living on a logical volume of this VG would otherwise
+        // still be held open, and `vgchange -an` would fail the same way
+        // `wipefs` did.
+        for vg in &self.volume_groups {
+            executor.run(&ArgvCommand {
+                binary: "vgchange".to_string(),
+                args: vec!["-an".to_string(), vg.clone()],
             })?;
         }
         Ok(())
@@ -948,6 +974,66 @@ mod tests {
         assert_eq!(
             operations[1].describe(),
             "criar tabela de partições em /dev/sda"
+        );
+    }
+
+    #[test]
+    fn occupied_disk_with_active_lvm_deactivates_the_volume_group_before_being_wiped() {
+        let mut occupied = disk("nvme0n1", LARGE);
+        occupied.role = DeviceRole::Unsupported;
+        occupied.partitions.push(crate::storage::Partition {
+            path: PathBuf::from("/dev/nvme0n1p1"),
+            number: 1,
+            size_bytes: 512 * 1024 * 1024,
+            filesystem: Some("vfat".to_string()),
+            mountpoints: Vec::new(),
+            part_type: None,
+            uuid: None,
+        });
+        occupied.partitions.push(crate::storage::Partition {
+            path: PathBuf::from("/dev/nvme0n1p2"),
+            number: 2,
+            size_bytes: LARGE,
+            filesystem: Some("LVM2_member".to_string()),
+            mountpoints: Vec::new(),
+            part_type: None,
+            uuid: None,
+        });
+        let snapshot = StorageSnapshot {
+            uefi: true,
+            disks: vec![occupied],
+            raid_arrays: Vec::new(),
+            volume_groups: vec![VolumeGroup {
+                name: "system".to_string(),
+                physical_volumes: vec![PathBuf::from("/dev/nvme0n1p2")],
+                size_bytes: LARGE,
+                free_bytes: 0,
+            }],
+            logical_volumes: Vec::new(),
+        };
+        let choice = GuidedChoice {
+            raw_target: Some(RawTarget::Disk(PathBuf::from("/dev/nvme0n1"))),
+            volume_layer: VolumeLayer::Direct,
+            swap: crate::storage::SwapChoice::Zram,
+        };
+        let plan = PlanBuilder::new(&snapshot)
+            .build(&choice)
+            .expect("whole-disk install should accept a disk occupied by an LVM PV");
+
+        let operations = plan_to_operations(&plan, &snapshot).expect("plan should translate");
+        assert_eq!(
+            operations[0].describe(),
+            "liberar partições em uso em /dev/nvme0n1"
+        );
+
+        let executor = FakeExecutor::new();
+        operations[0].perform(&executor).unwrap();
+        assert_eq!(
+            executor.calls(),
+            vec!["vgchange -an system"],
+            "an LVM PV on the target disk has nothing mounted or swapped on \
+             directly, but the VG it backs must still be deactivated or \
+             wipefs sees the partition as busy"
         );
     }
 
