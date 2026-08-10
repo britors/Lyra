@@ -49,11 +49,26 @@ content and hardware coverage; a bare green status is rejected:
 - [ ] `rollback`: update, Snapper snapshots and GRUB rollback pass;
 - [ ] `hardware-matrix`: required real/virtual hardware scenarios are recorded.
 
+## Release signing key
+
+The ISO checksum is signed with the release coordinator's own GPG key, not a
+key this repository generates or holds. The current canonical key is:
+
+- **Fingerprint:** `E765 8249 6F86 597D A854  7BA4 FE28 7BB5 4891 BA80`
+- **UID:** `Lyra OS Release <britors@live.com>`
+- **Public key:** [`docs/release-signing-key.asc`](release-signing-key.asc)
+
+Anyone verifying a published ISO should import that file and confirm the
+fingerprint matches before trusting `*.iso.sha256.asc`. If the key is ever
+rotated, replace both this fingerprint and `release-signing-key.asc` in the
+same commit that publishes the first candidate signed with the new key.
+
 ## Artifact and publication checks
 
 - [ ] ISO, package inventory, KIWI verification/report and both SBOM formats
   are present;
-- [ ] SHA-256 is generated, signed and independently verified;
+- [ ] SHA-256 is generated, signed with the key above and independently
+  verified;
 - [ ] release notes list requirements, limitations, P2/P3 issues and tested
   workarounds;
 - [ ] the evidence manifest is generated from a clean commit and contains all
