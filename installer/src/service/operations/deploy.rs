@@ -641,7 +641,17 @@ impl PrivilegedOperation for WriteSudoers {
         let dir = self.target_root.join("etc/sudoers.d");
         fs::create_dir_all(&dir).map_err(io_error)?;
         let path = dir.join("10-installer");
-        fs::write(&path, "%wheel ALL=(ALL) ALL\n").map_err(io_error)?;
+        // openSUSE's stock /etc/sudoers ships "Defaults targetpw" active,
+        // which makes sudo prompt for the *target* user's password (root)
+        // instead of the invoking user's - the opposite of what "root
+        // disabled, sudo user created at install" promises. `@includedir
+        // /etc/sudoers.d` comes after that line in the stock file, so this
+        // override here is what actually takes effect.
+        fs::write(
+            &path,
+            "Defaults !targetpw\n%wheel ALL=(ALL) ALL\n",
+        )
+        .map_err(io_error)?;
         fs::set_permissions(&path, fs::Permissions::from_mode(0o440)).map_err(io_error)?;
         Ok(())
     }
@@ -1807,7 +1817,10 @@ mod tests {
         op.perform(&FakeExecutor::new()).unwrap();
 
         let path = temp.0.join("etc/sudoers.d/10-installer");
-        assert_eq!(fs::read_to_string(&path).unwrap(), "%wheel ALL=(ALL) ALL\n");
+        assert_eq!(
+            fs::read_to_string(&path).unwrap(),
+            "Defaults !targetpw\n%wheel ALL=(ALL) ALL\n"
+        );
         let mode = fs::metadata(&path).unwrap().permissions().mode() & 0o777;
         assert_eq!(mode, 0o440);
     }
