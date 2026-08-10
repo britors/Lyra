@@ -1,5 +1,14 @@
 # Roadmap do Lyra OS
 
+## Ciclo pós-release
+
+A ISO com o driver proprietário NVIDIA pré-instalado e configurado é um
+deliverable planejado para depois do lançamento da versão final (20/09/2026),
+conforme `PROMPT-LYRA-OS.md`. O rascunho de arquitetura, incluindo as
+questões em aberto que bloqueiam o início da implementação (rota de Secure
+Boot, proveniência do pacote do driver, escopo de laptops híbridos e política
+de lockstep kernel+kmp), está em [`nvidia-iso.md`](nvidia-iso.md).
+
 ## Beta 3
 
 A meta principal da Beta 3 é a **internacionalização (i18n) dos pacotes
