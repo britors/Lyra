@@ -1,0 +1,10 @@
+{
+  "policies": {
+    "Homepage": {
+      "URL": "https://lyraos.com.br/",
+      "Locked": false,
+      "StartPage": "homepage",
+      "ShowHomeButton": true
+    }
+  }
+}
