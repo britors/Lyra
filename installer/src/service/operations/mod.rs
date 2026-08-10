@@ -82,12 +82,20 @@ pub fn plan_to_operations(
         EspPlan::Reuse { path } => path.clone(),
     };
 
+    let existing_partitions: Vec<PathBuf> = snapshot
+        .disks
+        .iter()
+        .find(|d| d.path == disk)
+        .map(|d| d.partitions.iter().map(|p| p.path.clone()).collect())
+        .unwrap_or_default();
+
     let mut operations: Vec<Box<dyn PrivilegedOperation>> = Vec::new();
     if let Some(release) = ReleaseDisk::for_target(&disk, snapshot) {
         operations.push(Box::new(release));
     }
     operations.push(Box::new(CreatePartitionTable {
         disk: disk.clone(),
+        existing_partitions,
         esp_size_bytes,
         swap_size_bytes,
     }));
@@ -298,6 +306,20 @@ impl PrivilegedOperation for ReleaseDisk {
 
 struct CreatePartitionTable {
     disk: PathBuf,
+    /// Partitions that existed on this disk before the install. `wipefs -a`
+    /// on the *disk* device only reaches signatures libblkid probes there
+    /// (GPT/MBR), never a filesystem/LVM/RAID member signature living inside
+    /// one of its partitions, and `sgdisk --zap-all` only destroys the
+    /// partition table, not partition contents. Left alone, a stale
+    /// `LVM2_member` label survives on disk; if a newly created partition
+    /// later lands on those same bytes, udev's `lvm2-pvscan@.service`
+    /// rediscovers it and reactivates the old volume group against the new
+    /// partition mid-install, so the next `mkfs`/`mkswap` fails with
+    /// "device or resource busy" (confirmed against a real disk that
+    /// previously held an LVM-based openSUSE install). Wiping every old
+    /// partition individually, before the table itself is touched, removes
+    /// those signatures while their device nodes are still addressable.
+    existing_partitions: Vec<PathBuf>,
     /// `None` when the plan reuses an existing ESP elsewhere — #39's
     /// eligibility rules already guarantee this disk has no partitions of
     /// its own in that case, so only the root partition is created here.
@@ -312,6 +334,12 @@ impl PrivilegedOperation for CreatePartitionTable {
 
     fn perform(&self, executor: &dyn Executor) -> Result<(), OperationError> {
         let disk = path_str(&self.disk);
+        for partition in &self.existing_partitions {
+            executor.run(&ArgvCommand {
+                binary: "wipefs".to_string(),
+                args: vec!["-a".to_string(), path_str(partition)],
+            })?;
+        }
         executor.run(&ArgvCommand {
             binary: "wipefs".to_string(),
             args: vec!["-a".to_string(), disk.clone()],
@@ -1034,6 +1062,29 @@ mod tests {
             "an LVM PV on the target disk has nothing mounted or swapped on \
              directly, but the VG it backs must still be deactivated or \
              wipefs sees the partition as busy"
+        );
+
+        assert_eq!(
+            operations[1].describe(),
+            "criar tabela de partições em /dev/nvme0n1"
+        );
+        operations[1].perform(&executor).unwrap();
+        assert_eq!(
+            executor.calls()[1..],
+            vec![
+                "wipefs -a /dev/nvme0n1p1",
+                "wipefs -a /dev/nvme0n1p2",
+                "wipefs -a /dev/nvme0n1",
+                "sgdisk --zap-all /dev/nvme0n1",
+                "sgdisk -n1:0:+300M -t1:ef00 /dev/nvme0n1",
+                "sgdisk -n2:0:0 -t2:8300 /dev/nvme0n1",
+            ],
+            "the old LVM2_member signature on nvme0n1p2 lives inside the \
+             partition and survives `wipefs`/`sgdisk` run only against the \
+             disk; deactivating the volume group isn't enough — without an \
+             explicit wipe of the old partition, its stale signature can \
+             resurface under lvm2-pvscan once a new partition lands on the \
+             same bytes and the next mkfs sees the device as busy"
         );
     }
 
