@@ -1,4 +1,11 @@
 -------------------------------------------------------------------
+Mon Aug 10 17:28:48 UTC 2026 - Rodrigo Brito <rodrigo@w3ti.com.br>
+
+- Release the target disk's mounted partitions and active swap before
+  wiping it, fixing partitioning failures on whole-disk installs onto an
+  already-occupied disk.
+
+-------------------------------------------------------------------
 Sun Aug  9 21:53:00 UTC 2026 - Rodrigo Brito <rodrigo@w3ti.com.br>
 
 - Standardize installer text and select controls at 13 px for readability.
