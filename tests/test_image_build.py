@@ -377,8 +377,37 @@ class ServerImagePolicyTests(unittest.TestCase):
         # <version> values (independent release cycles - docs/server-edition.md).
         # Comparing the server's KIWI block against the desktop's
         # release.toml (or vice versa) must fail loudly, not silently pass.
-        with self.assertRaisesRegex(image_build.PolicyError, "differs from"):
+        with self.assertRaisesRegex(image_build.PolicyError, "does not belong to profile"):
             image_build.validate_sources(self.manifest, profile="server", release_file=image_build.RELEASE)
+
+    def test_build_identity_rejects_a_manifest_profile_mismatch(self) -> None:
+        with self.assertRaisesRegex(image_build.PolicyError, "differs from manifest profile"):
+            image_build.build_identity(
+                self.manifest,
+                profile="desktop",
+                release_file=ROOT / "release-server.toml",
+            )
+
+    def test_server_identity_is_derived_from_the_manifest(self) -> None:
+        profile, release_file = image_build.build_identity(self.manifest)
+        self.assertEqual(profile, "server")
+        self.assertEqual(release_file, ROOT / "release-server.toml")
+
+    def test_identity_options_are_accepted_after_the_subcommand(self) -> None:
+        args = image_build.parser().parse_args(
+            [
+                "validate",
+                "--manifest",
+                "image-build-server.toml",
+                "--profile",
+                "server",
+                "--release-file",
+                "release-server.toml",
+            ]
+        )
+        self.assertEqual(args.manifest, Path("image-build-server.toml"))
+        self.assertEqual(args.profile, "server")
+        self.assertEqual(args.release_file, Path("release-server.toml"))
 
     def test_invalid_profile_is_rejected(self) -> None:
         bogus = dataclasses.replace(self.manifest, profile="bogus")

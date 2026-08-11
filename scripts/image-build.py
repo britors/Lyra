@@ -26,6 +26,10 @@ ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MANIFEST = ROOT / "image-build.toml"
 KIWI = ROOT / "kiwi"
 RELEASE = ROOT / "release.toml"
+PROFILE_RELEASE_FILES = {
+    "desktop": RELEASE,
+    "server": ROOT / "release-server.toml",
+}
 PACKAGE_SIGNING_KEYRING = KIWI / "keys/obs-package-signing-keyring.asc"
 PACKAGE_SIGNING_FINGERPRINTS = {
     "1C59D66FCD52563A16933DBCFEC28EAF09D9EA69",
@@ -257,7 +261,34 @@ def validate_installer_identity() -> None:
         raise PolicyError("KIWI installer icon differs from the packaged icon")
 
 
-def validate_sources(manifest: Manifest, *, profile: str = "desktop", release_file: Path = RELEASE) -> None:
+def build_identity(
+    manifest: Manifest,
+    *,
+    profile: str | None = None,
+    release_file: Path | None = None,
+) -> tuple[str, Path]:
+    """Return a coherent profile/release pair, rejecting mixed products."""
+    effective_profile = profile or manifest.profile
+    if effective_profile != manifest.profile:
+        raise PolicyError(
+            f"CLI profile {effective_profile!r} differs from manifest profile {manifest.profile!r}"
+        )
+    expected_release = PROFILE_RELEASE_FILES[manifest.profile]
+    effective_release = release_file or expected_release
+    if effective_release.resolve() != expected_release.resolve():
+        raise PolicyError(
+            f"release file {effective_release.name!r} does not belong to profile {manifest.profile!r}; "
+            f"expected {expected_release.name!r}"
+        )
+    return effective_profile, effective_release
+
+
+def validate_sources(
+    manifest: Manifest, *, profile: str | None = None, release_file: Path | None = None
+) -> None:
+    profile, release_file = build_identity(
+        manifest, profile=profile, release_file=release_file
+    )
     validate_installer_identity()
     if not PACKAGE_SIGNING_KEYRING.is_file():
         raise PolicyError("versioned RPM package signing keyring is missing")
@@ -406,8 +437,8 @@ def export(
     commit: str,
     allow_dirty: bool,
     *,
-    profile: str = "desktop",
-    release_file: Path = RELEASE,
+    profile: str | None = None,
+    release_file: Path | None = None,
 ) -> None:
     validate_sources(manifest, profile=profile, release_file=release_file)
     dirty = bool(git("status", "--porcelain", "--untracked-files=normal"))
@@ -584,8 +615,14 @@ def validate_test_result(
 
 
 def artifact_manifest(
-    manifest: Manifest, directory: Path, output: Path, tests: list[str], *, release_file: Path = RELEASE
+    manifest: Manifest,
+    directory: Path,
+    output: Path,
+    tests: list[str],
+    *,
+    release_file: Path | None = None,
 ) -> None:
+    _, release_file = build_identity(manifest, release_file=release_file)
     roles = {
         "iso": one(directory, "*.iso", "ISO"),
         "packages": one(directory, "*.packages", "package revision list"),
@@ -655,20 +692,31 @@ def artifact_manifest(
 def parser() -> argparse.ArgumentParser:
     cli = argparse.ArgumentParser(description=__doc__)
     cli.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
-    # Desktop defaults preserve every existing invocation unchanged; the
-    # server profile passes --profile=server --release-file=release-server.toml
-    # (docs/server-edition.md: own release cycle, no shared release.toml).
-    cli.add_argument("--profile", default="desktop")
-    cli.add_argument("--release-file", type=Path, default=RELEASE)
+    cli.add_argument("--profile")
+    cli.add_argument("--release-file", type=Path)
     commands = cli.add_subparsers(dest="command", required=True)
-    commands.add_parser("validate")
+
+    # Also expose the identity options on each subcommand. argparse normally
+    # accepts top-level options only before the subcommand, while the release
+    # documentation naturally places them after it. SUPPRESS preserves a
+    # value supplied before the subcommand when none follows it.
+    def add_identity_options(command: argparse.ArgumentParser) -> None:
+        command.add_argument("--manifest", type=Path, default=argparse.SUPPRESS)
+        command.add_argument("--profile", default=argparse.SUPPRESS)
+        command.add_argument("--release-file", type=Path, default=argparse.SUPPRESS)
+
+    validate = commands.add_parser("validate")
+    add_identity_options(validate)
     export_command = commands.add_parser("export")
+    add_identity_options(export_command)
     export_command.add_argument("destination", type=Path)
     export_command.add_argument("--commit", default="HEAD")
     export_command.add_argument("--allow-dirty", action="store_true")
     verify = commands.add_parser("verify-export")
+    add_identity_options(verify)
     verify.add_argument("directory", type=Path)
     artifacts = commands.add_parser("artifact-manifest")
+    add_identity_options(artifacts)
     artifacts.add_argument("directory", type=Path)
     artifacts.add_argument("--output", required=True, type=Path)
     artifacts.add_argument("--test-result", action="append", default=[])
@@ -679,8 +727,11 @@ def main() -> int:
     args = parser().parse_args()
     try:
         manifest = Manifest.load(args.manifest)
+        profile, release_file = build_identity(
+            manifest, profile=args.profile, release_file=args.release_file
+        )
         if args.command == "validate":
-            validate_sources(manifest, profile=args.profile, release_file=args.release_file)
+            validate_sources(manifest, profile=profile, release_file=release_file)
             print("OK: GitHub sources, RPM repositories, signatures, and distribution policy are valid")
         elif args.command == "export":
             export(
@@ -688,13 +739,13 @@ def main() -> int:
                 args.destination,
                 args.commit,
                 args.allow_dirty,
-                profile=args.profile,
-                release_file=args.release_file,
+                profile=profile,
+                release_file=release_file,
             )
         elif args.command == "verify-export":
             verify_export(manifest, args.directory)
         else:
-            artifact_manifest(manifest, args.directory, args.output, args.test_result, release_file=args.release_file)
+            artifact_manifest(manifest, args.directory, args.output, args.test_result, release_file=release_file)
     except (KeyError, OSError, PolicyError, subprocess.SubprocessError, tomllib.TOMLDecodeError, ET.ParseError, json.JSONDecodeError) as error:
         print(f"ERROR: {error}", file=sys.stderr)
         return 1
