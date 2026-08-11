@@ -378,6 +378,18 @@ def export(manifest: Manifest, destination: Path, commit: str, allow_dirty: bool
         shutil.copy2(KIWI / name, destination / name)
     shutil.copytree(KIWI / "keys", destination / "keys")
     shutil.copytree(KIWI / "root", destination / "root", symlinks=True)
+    # KIWI overlays a directory named after each active profile on top of
+    # root/ (kiwi.system.setup.import_overlay_files) - e.g. kiwi/server/
+    # for the server profile's getty autologin, pinned installer script
+    # and release metadata (docs/server-edition.md). Reading profile names
+    # from config.xml instead of hardcoding them means a new profile's
+    # overlay directory is picked up automatically as soon as it exists,
+    # with no export()-side change required.
+    for profile in canonical_xml().getroot().findall("profiles/profile"):
+        profile_name = profile.attrib["name"]
+        profile_dir = KIWI / profile_name
+        if profile_dir.is_dir():
+            shutil.copytree(profile_dir, destination / profile_name, symlinks=True)
     (destination / "build-source.json").write_text(
         json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )

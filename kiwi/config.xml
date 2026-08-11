@@ -1,14 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Lyra OS - Odisseia (v1)
-  KIWI appliance description for the x86_64 live/installer ISO.
+  Lyra OS - Odisseia (desktop) + Lyra OS Server
+  KIWI appliance description for the x86_64 live/installer ISO, with two
+  profiles sharing one base (official Leap 16 repos + the Lyra OBS repos,
+  kernel-default, partitioning/bootloader tooling):
 
-  Scope of this file: base Leap 16 system, kernel-default, GNOME live
-  session, Btrfs/Snapper and zram-generator packages present, official
-  Leap 16 repos + the Lyra OBS repos, the native Lyra Installer,
-  Vega/Sheliak/Fina + a
-  curated GNOME app set + Firefox/CUPS/Flatpak pre-installed. See
-  kiwi/README.md for the remaining gaps (installer artwork, multimedia
+  - "desktop" (default, matches pre-profile behavior): GNOME live session,
+    Btrfs/Snapper, the native Lyra Installer (Rust/Tauri GUI),
+    Vega(GTK4)/Sheliak/Fina/Chord/Beam/Sulafat + a curated GNOME app set +
+    Firefox/CUPS/Flatpak.
+  - "server": headless, no GNOME/theme/icons, ext4 (no Btrfs/Snapper/
+    RAID/LVM in v1), vega-cli + vegad + vega-web instead of vega-gtk, no
+    Lyra Installer GUI (console installer in scripts/server-install.sh
+    instead). See docs/server-edition.md for the full rationale.
+
+  See kiwi/README.md for the remaining gaps (installer artwork, multimedia
   codecs pending upstream, release automation, and end-to-end testing).
 -->
 <image schemaversion="8.3" name="lyra-os" displayname="Lyra OS">
@@ -19,15 +25,27 @@
     <specification>Lyra OS "Odisseia" Alpha 2 - live/installer ISO, openSUSE Leap 16 base, GNOME desktop, x86_64</specification>
   </description>
 
+  <profiles>
+    <!-- import="true": building with no explicit profile selection keeps
+         the exact pre-profile (desktop) behavior, matching every existing
+         build script/CI invocation. -->
+    <profile name="desktop" description="Lyra OS desktop live/installer ISO" import="true"/>
+    <profile name="server" description="Lyra OS Server headless live/installer ISO"/>
+  </profiles>
+
   <preferences>
-    <!-- Generated from release.toml; user-facing strings say "Alpha 2". -->
-    <version>2026.08-alpha2</version>
+    <!-- Shared by both profiles. -->
     <packagemanager>zypper</packagemanager>
     <rpm-excludedocs>true</rpm-excludedocs>
     <rpm-check-signatures>true</rpm-check-signatures>
     <locale>pt_BR,en_US</locale>
     <keytable>us</keytable>
     <timezone>UTC</timezone>
+  </preferences>
+
+  <preferences profiles="desktop">
+    <!-- Generated from release.toml; user-facing strings say "Alpha 2". -->
+    <version>2026.08-alpha2</version>
     <!--
       Selects lyra-os-theme's "Lyra-OS" assets. The
       bootloader theme is active in the live GRUB menu. The bootsplash
@@ -53,18 +71,45 @@
     </type>
   </preferences>
 
+  <preferences profiles="server">
+    <!-- Generated from release-server.toml by scripts/server-release.py;
+         own alpha/beta/rc/final cycle, does not share release.toml's
+         calendar_version with the desktop profile. -->
+    <version>2026.08-alpha1</version>
+    <type
+      image="iso"
+      primary="true"
+      flags="overlay"
+      filesystem="squashfs"
+      firmware="uefi"
+      editbootconfig="edit_boot_config.sh"
+      volid="LYRA_OS_SERVER_2026_08_ALPHA1"
+      application_id="LyraOSServer"
+      publisher="Lyra OS Project">
+      <bootloader name="grub2" timeout="10"/>
+    </type>
+  </preferences>
+
   <users>
     <!--
-      root is locked in the image itself (build/live concern only).
-      The spec's "root disabled, sudo user created at install time" is
-      an installer behavior on the installed system, not this file.
+      root is locked in the image itself (build/live concern only), on
+      both profiles. The spec's "root disabled, sudo user created at
+      install time" is an installer behavior on the installed system, not
+      this file. The server profile autologs into a root console via a
+      systemd getty override (kiwi/server/etc/systemd/system/getty@tty1.service.d/) -
+      locked password does not block that, the same way it does not block
+      the desktop's GDM autologin as liveuser below.
     -->
     <user name="root" password="!" pwdformat="encrypted" home="/root" shell="/bin/bash"/>
+  </users>
+
+  <users profiles="desktop">
     <!--
       Live-session convenience account with GDM autologin (configured
       in config.sh) so the ISO boots to a usable desktop before an
       installer exists. Locked password, no relation to the installed
-      system's user model.
+      system's user model. The server profile has no graphical session
+      and autologs directly into root on the console instead (see above).
     -->
     <user name="liveuser" password="!" pwdformat="encrypted" home="/home/liveuser" shell="/bin/bash" groups="wheel,video,audio"/>
   </users>
@@ -108,8 +153,11 @@
               repository_gpgcheck="true" package_gpgcheck="true">
     <source path="https://download.opensuse.org/repositories/home:/rodrigosbrito:/vega/openSUSE_Leap_16.0/"/>
   </repository>
+  <!-- Fina is desktop-only (see docs/server-edition.md); scoping the repo
+       itself, not just the package, keeps the server profile from pulling
+       in a source it never installs from. -->
   <repository alias="repo-fina" priority="3" type="rpm-md" imageinclude="true"
-              repository_gpgcheck="true" package_gpgcheck="true">
+              repository_gpgcheck="true" package_gpgcheck="true" profiles="desktop">
     <source path="https://download.opensuse.org/repositories/home:/rodrigosbrito:/fina/openSUSE_Leap_16.0/"/>
   </repository>
 
@@ -131,6 +179,10 @@
       spec's "no onboarding" rule). Everything actually wanted is added
       back explicitly below instead of trying to block-list from a much
       larger default set.
+
+      This first (profile-less) block is shared by desktop and server:
+      base Leap system, kernel, bootloader/Secure Boot tooling, and the
+      partitioning/filesystem/network tools both installers need.
     -->
 
     <!-- Base system -->
@@ -149,6 +201,9 @@
     <package name="ucode-intel"/>
     <package name="grub2"/>
     <package name="grub2-x86_64-efi"/>
+    <!-- shim + mokutil: Secure Boot is in scope for both installers (see
+         docs/server-edition.md - the server profile does not treat it as
+         a v2 trade-off). -->
     <package name="shim"/>
     <package name="mokutil"/>
     <!-- Neither is pulled in as a hard Requires under onlyRequired, but
@@ -169,14 +224,48 @@
 
     <!--
       Required for the "root disabled, sudo user created at install"
-      model (PROMPT-LYRA-OS.md) to work on the installed system. The Rust
-      installer writes /etc/sudoers.d/10-installer on the target; without
-      this package the directory is absent. The image doubles as the target
-      rootfs, so sudo is also present in the live session even though
-      liveuser's password is locked and never used there.
+      model (PROMPT-LYRA-OS.md) to work on the installed system, on both
+      profiles. The desktop's Rust installer writes /etc/sudoers.d/10-installer
+      on the target; the server's scripts/server-install.sh does the
+      equivalent. Without this package the directory is absent. The image
+      doubles as the target rootfs, so sudo is also present in the live
+      session even though liveuser's password is locked and never used
+      there.
     -->
     <package name="sudo"/>
 
+    <!-- Provides chattr (desktop's Btrfs nodatacow workaround) and mke2fs
+         (the server profile's ext4 root filesystem - see
+         docs/server-edition.md). Needed by both profiles for different
+         reasons. -->
+    <package name="e2fsprogs"/>
+    <!-- Both installers create a FAT32 EFI System Partition and deploy the
+         live squashfs into the target. These tools are runtime
+         requirements, not merely image-build utilities. -->
+    <package name="dosfstools"/>
+    <package name="squashfs"/>
+    <!-- sgdisk currently arrives transitively, but both installers invoke it
+         directly, so keep its provider explicit under onlyRequired. -->
+    <package name="gptfdisk"/>
+    <!-- mount/blkid/mkswap and friends; mkswap is used when the desktop's
+         guided installer selects disk-backed swap. -->
+    <package name="util-linux"/>
+
+    <!-- ZRAM remains the default swap mechanism for both profiles; it
+         activates its own systemd generator at boot with no service to
+         enable (see kiwi/config.sh). The desktop's guided installer can
+         remove this configuration for disk-backed swap or a no-swap
+         installation; the server profile has no such prompt in v1. -->
+    <package name="zram-generator"/>
+
+    <!-- Leap defaults, listed explicitly so a minimal bootstrap doesn't
+         drop them. Both profiles need networking; firewalld's default
+         policy differs per profile (kiwi/config.sh), not the package set. -->
+    <package name="NetworkManager"/>
+    <package name="firewalld"/>
+  </packages>
+
+  <packages type="image" patternType="onlyRequired" profiles="desktop">
     <!--
       Filesystem / snapshots. Btrfs itself stays the Leap default; the
       Snapper config on the installed system is bootstrapped by the Rust
@@ -184,22 +273,9 @@
       grub2-snapper-plugin provides /etc/grub.d/80_suse_btrfs_snapshot,
       which SUSE_BTRFS_SNAPSHOT_BOOTING (grubcfg.conf) turns on - this
       is what makes the GRUB panic-button rollback menu exist at all.
+      Server profile uses plain ext4 instead (docs/server-edition.md).
     -->
     <package name="btrfsprogs"/>
-    <!-- Provides chattr. The installer sets +C on empty database/VM
-         subvolume roots instead of incorrectly requesting per-subvolume
-         nodatacow mount options, which Btrfs does not implement. -->
-    <package name="e2fsprogs"/>
-    <!-- The installer creates a FAT32 EFI System Partition and deploys the
-         live squashfs into the target. These tools are runtime requirements,
-         not merely image-build utilities. -->
-    <package name="dosfstools"/>
-    <package name="squashfs"/>
-    <!-- sgdisk currently arrives transitively, but the installer invokes it
-         directly, so keep its provider explicit under onlyRequired. -->
-    <package name="gptfdisk"/>
-    <!-- mkswap is used when the guided installer selects disk-backed swap. -->
-    <package name="util-linux"/>
     <package name="snapper"/>
     <!-- snapper only Recommends this package; onlyRequired would otherwise
          omit the plugin that creates pre/post snapshots for zypper. -->
@@ -213,18 +289,12 @@
       alone, but LVM has no sysfs-only equivalent - without lvm2 installed,
       volume groups/logical volumes are simply invisible to discovery, and
       neither tool exists yet for the plan-execution step (#40) to actually
-      create an array or a VG.
+      create an array or a VG. Server profile's installer v1 is single-disk
+      only, no RAID/LVM (docs/server-edition.md).
     -->
     <package name="mdadm"/>
     <package name="lvm2"/>
 
-    <!-- ZRAM remains the guided default; the installer can remove this
-         configuration for disk-backed swap or a no-swap installation. -->
-    <package name="zram-generator"/>
-
-    <!-- Leap defaults, listed explicitly so a minimal bootstrap doesn't drop them -->
-    <package name="NetworkManager"/>
-    <package name="firewalld"/>
     <package name="pipewire"/>
     <package name="pipewire-pulseaudio"/>
     <package name="wireplumber"/>
@@ -232,6 +302,31 @@
          plymouth-dracut here: its drm dependency inflates the generic live
          initrd and caused the boot regression at "Loading initial ramdisk". -->
     <package name="plymouth"/>
+
+    <!--
+      Bluetooth. Not pulled in by gnome_basic/gnome's Requires chain under
+      onlyRequired - confirmed missing on a real installed image (rpm -q
+      bluez: "package bluez is not installed"), which is why Bluetooth
+      never turned on. bluez is the actual stack/daemon (bluetooth.service,
+      enabled in config.sh); gnome-bluetooth is GNOME Settings' Bluetooth
+      panel integration (libgnome-bluetooth itself already arrives
+      transitively, but not this package); bluez-firmware covers common
+      built-in adapters that need a firmware upload before they work.
+    -->
+    <package name="bluez"/>
+    <package name="bluez-firmware"/>
+    <package name="gnome-bluetooth"/>
+
+    <!--
+      GStreamer plugins for GNOME Shell's built-in screen recorder
+      (Ctrl+Shift+Alt+R) - it encodes to VP8/WebM via gstreamer's vp8enc,
+      which lives in gstreamer-plugins-good, not gstreamer-plugins-base
+      (already present transitively). Without it, screenshots work
+      (a separate, non-GStreamer code path) but recording silently fails.
+      Confirmed missing on a real installed image the same way as bluez
+      above.
+    -->
+    <package name="gstreamer-plugins-good"/>
 
     <!-- The Rust installer's privileged service is authorized separately;
          the graphical process continues to run as liveuser. -->
@@ -335,7 +430,9 @@
       Vega (GTK4 frontend). Package name confirmed against
       home:rodrigosbrito:vega's real OBS package list (vega-gtk,
       alongside vega-cli/vegad which aren't pulled in explicitly - RPM
-      deps will bring in whatever vega-gtk actually needs).
+      deps will bring in whatever vega-gtk actually needs). The server
+      profile installs vega-cli/vegad/vega-web directly instead, see
+      below.
     -->
     <package name="vega-gtk"/>
 
@@ -358,7 +455,8 @@
     -->
     <package name="sheliak"/>
 
-    <!-- Fina, from the dedicated home:rodrigosbrito:fina OBS repository. -->
+    <!-- Fina, from the dedicated home:rodrigosbrito:fina OBS repository.
+         Desktop-only (docs/server-edition.md). -->
     <package name="fina"/>
 
     <!--
@@ -367,7 +465,9 @@
       desktop entry, polkit policy and lock wrapper. The overlay pins the
       wrapper, launcher and icon so repository publication lag cannot break
       the GDM autostart or branding; tests require those copies to remain
-      byte-identical to their package sources.
+      byte-identical to their package sources. The server profile has no
+      GNOME session to launch this from; it uses
+      scripts/server-install.sh in console instead.
     -->
     <package name="lyra-installer"/>
 
@@ -416,7 +516,8 @@
       above and the gnome_basic/gnome pattern's GDM/GNOME Session/Seahorse/
       accessibility Requires chain; backend-only libraries with no
       user-visible strings (gstreamer, tracker/localsearch, wireplumber,
-      etc.) are deliberately left out.
+      etc.) are deliberately left out. Desktop-only: the server profile has
+      no GUI strings to translate.
     -->
     <package name="accountsservice-lang"/>
     <package name="appstream-glib-lang"/>
@@ -467,6 +568,34 @@
     <package name="xdg-user-dirs-lang"/>
     <package name="xdg-user-dirs-gtk-lang"/>
     <package name="xkeyboard-config-lang"/>
+  </packages>
+
+  <packages type="image" patternType="onlyRequired" profiles="server">
+    <!--
+      Vega's headless components, all from the same
+      home:rodrigosbrito:vega OBS project as vega-gtk (repo-vega,
+      already declared above - no new repository needed). vega-web is
+      the admin interface for this profile (docs/server-edition.md);
+      it listens on 9090/tcp, opened by scripts/server-install.sh on the
+      installed target (firewall-offline-cmd in the chroot step, not here -
+      this file only affects the live image).
+    -->
+    <package name="vega-cli"/>
+    <package name="vegad"/>
+    <package name="vega-web"/>
+
+    <!-- SSH is the only other port opened by default (alongside
+         vega-web/9090) per docs/server-edition.md; the package providing
+         sshd in Leap is "openssh". -->
+    <package name="openssh"/>
+
+    <!-- scripts/server-install.sh's TUI. onlyRequired under gptfdisk
+         (common block) does not pull in partprobe either - that binary is
+         provided by parted, not gptfdisk or util-linux, confirmed against
+         this repo's own dev machine (`rpm -ql parted | grep partprobe`)
+         after a real VM install run hit "partprobe: command not found". -->
+    <package name="dialog"/>
+    <package name="parted"/>
   </packages>
 
 </image>

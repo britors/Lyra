@@ -145,6 +145,36 @@ class ImagePolicyTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
         self.assertIn("'org.lyraos.Chord.desktop'", defaults)
 
+    def test_bluetooth_and_screen_recording_are_installed_and_enabled(self) -> None:
+        # Real gap found on an installed image: onlyRequired dropped both
+        # (neither is a hard Requires of gnome_basic/gnome), so Bluetooth
+        # never turned on and GNOME Shell's Ctrl+Shift+Alt+R screen
+        # recorder silently failed while plain screenshots (a different,
+        # non-GStreamer code path) kept working. Desktop-only: the server
+        # profile is headless (docs/server-edition.md).
+        root = ET.parse(ROOT / "kiwi/config.xml").getroot()
+        desktop_packages = {
+            node.attrib["name"]
+            for packages in root.findall('packages[@profiles="desktop"]')
+            for node in packages.findall("package")
+        }
+        server_packages = {
+            node.attrib["name"]
+            for packages in root.findall('packages[@profiles="server"]')
+            for node in packages.findall("package")
+        }
+        for name in ("bluez", "bluez-firmware", "gnome-bluetooth", "gstreamer-plugins-good"):
+            self.assertIn(name, desktop_packages, name)
+            self.assertNotIn(name, server_packages, name)
+
+        config_sh = (ROOT / "kiwi/config.sh").read_text(encoding="utf-8")
+        # Must be inside the desktop-only display-manager block, not the
+        # shared/server path (config.sh runs once per profile build).
+        desktop_branch = config_sh[
+            config_sh.index("# Display manager") : config_sh.index("# zram-generator")
+        ]
+        self.assertIn("suseInsertService bluetooth", desktop_branch)
+
     def test_unstable_office_apps_are_excluded_from_beta2(self) -> None:
         root = ET.parse(ROOT / "kiwi/config.xml").getroot()
         packages = {node.attrib["name"] for node in root.findall("packages/package")}
@@ -174,6 +204,12 @@ class ImagePolicyTests(unittest.TestCase):
         hook = hook_path.read_text(encoding="utf-8")
         self.assertIn("GRUB_THEME_ASSET=usr/share/grub/themes/Lyra-OS/theme.txt", hook)
         self.assertIn('GRUB_THEME="/usr/share/grub/themes/Lyra-OS/theme.txt"', hook)
+        # Real regression, found running --profile server in a VM: this hook
+        # used to hard-require the theme asset unconditionally, which broke
+        # the server profile build (no lyra-os-theme there,
+        # docs/server-edition.md). It must be conditional on the asset
+        # existing, not on a hardcoded profile name.
+        self.assertIn('if [ -s "$GRUB_THEME_ASSET" ]; then', hook)
         helper = (ROOT / "kiwi/test/build-and-run-vm.sh").read_text(encoding="utf-8")
         self.assertIn("IMAGE_INSTALLED_GRUB_THEME", helper)
         self.assertIn("IMAGE_INSTALLED_GRUB_DEFAULT", helper)
@@ -191,6 +227,15 @@ class ImagePolicyTests(unittest.TestCase):
         iso_ready = helper.index('echo "--- ISO ready:')
         destructive_vm_reset = helper.rindex("\nstop_previous_vm\n")
         self.assertLess(iso_ready, destructive_vm_reset)
+
+    def test_vm_helper_forwards_ssh_and_vega_web_ports_for_server(self) -> None:
+        # QEMU's user-mode/SLIRP networking is NAT-only by default - without
+        # hostfwd, the server profile's ssh/vega-web could not be reached
+        # from the host running the VM at all.
+        helper = (ROOT / "kiwi/test/build-and-run-vm.sh").read_text(encoding="utf-8")
+        self.assertIn("hostfwd=tcp::2222-:22", helper)
+        self.assertIn("hostfwd=tcp::9090-:9090", helper)
+        self.assertIn('if [ "$PROFILE" = server ]; then', helper)
 
     def test_export_is_derived_from_canonical_kiwi_without_duplicate_package_list(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -223,6 +268,40 @@ class ImagePolicyTests(unittest.TestCase):
             self.assertRegex(source["commit"], r"^[0-9a-f]{40}$")
             self.assertFalse(source["dirty"])
             self.assertTrue((destination / "root.tar.gz").is_file())
+
+    def test_export_includes_the_server_profile_overlay(self) -> None:
+        # kiwi/server/ overlays getty autologin, the pinned console
+        # installer and release metadata on top of root/ only when the
+        # server profile is selected (kiwi.system.setup.import_overlay_files).
+        # A `kiwi-ng system build --profile server` against an export
+        # missing this directory would fail immediately - config.sh
+        # requires /usr/lib/lyra-os/server-release, which only exists here.
+        with tempfile.TemporaryDirectory() as temporary:
+            destination = Path(temporary) / "export"
+            real_git = image_build.git
+            with mock.patch.object(
+                image_build,
+                "git",
+                side_effect=lambda *args: "" if args[0] == "status" else real_git(*args),
+            ):
+                image_build.export(self.manifest, destination, "HEAD", allow_dirty=False)
+            self.assertTrue((destination / "server/usr/lib/lyra-os/server-release").is_file())
+            self.assertTrue((destination / "server/usr/sbin/lyra-server-install").is_file())
+            self.assertTrue(
+                (destination / "server/etc/systemd/system/getty@tty1.service.d/override.conf").is_file()
+            )
+            self.assertTrue(
+                (destination / "server/etc/profile.d/lyra-server-info.sh").is_file()
+            )
+
+    def test_server_login_banner_shows_ip_cpu_disk_memory(self) -> None:
+        banner = (
+            ROOT / "kiwi/server/etc/profile.d/lyra-server-info.sh"
+        ).read_text(encoding="utf-8")
+        self.assertIn("ip -4", banner)
+        self.assertIn("/proc/cpuinfo", banner)
+        self.assertIn("free ", banner)
+        self.assertIn("df -h /", banner)
 
     def test_root_archive_is_deterministic(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
