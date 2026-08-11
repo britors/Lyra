@@ -34,6 +34,14 @@ def sample_release(**overrides: object) -> Release:
 
 
 class ReleaseConventionTests(unittest.TestCase):
+    def test_alpha_identifiers(self) -> None:
+        release = sample_release(stage="alpha", iteration=2)
+        self.assertEqual(release.version_id, "2026.08-alpha2")
+        self.assertEqual(release.tag, "v2026.08-alpha2")
+        self.assertEqual(release.iso_filename, "lyra-os.x86_64-2026.08-alpha2.iso")
+        self.assertEqual(release.volume_id, "LYRA_OS_2026_08_ALPHA2")
+        self.assertEqual(release.pretty_name, "Lyra OS Alpha 2 (Odisseia)")
+
     def test_beta_identifiers(self) -> None:
         release = sample_release()
         self.assertEqual(release.version_id, "2026.08-beta2")

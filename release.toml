@@ -1,6 +1,6 @@
 [release]
 calendar_version = "2026.08"
-stage = "beta"
+stage = "alpha"
 iteration = 2
 codename = "Odisseia"
 codename_id = "odisseia"

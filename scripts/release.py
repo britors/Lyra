@@ -64,8 +64,8 @@ class Release:
             raise ValueError("iteration must be an integer")
         if not re.fullmatch(r"20\d{2}\.(?:0[1-9]|1[0-2])", self.calendar_version):
             raise ValueError("calendar_version must use YYYY.MM")
-        if self.stage not in {"beta", "rc", "release"}:
-            raise ValueError("stage must be beta, rc, or release")
+        if self.stage not in {"alpha", "beta", "rc", "release"}:
+            raise ValueError("stage must be alpha, beta, rc, or release")
         if self.stage == "release" and self.iteration != 0:
             raise ValueError("a final release must use iteration = 0")
         if self.stage != "release" and self.iteration < 1:
@@ -89,7 +89,7 @@ class Release:
     def stage_label(self) -> str:
         if self.stage == "release":
             return "Release"
-        prefix = "Beta" if self.stage == "beta" else "RC"
+        prefix = {"alpha": "Alpha", "beta": "Beta", "rc": "RC"}[self.stage]
         return f"{prefix} {self.iteration}"
 
     @property

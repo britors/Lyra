@@ -16,12 +16,12 @@
   <description type="system">
     <author>Rodrigo Brito</author>
     <contact>rodrigo@w3ti.com.br</contact>
-    <specification>Lyra OS "Odisseia" Beta 2 - live/installer ISO, openSUSE Leap 16 base, GNOME desktop, x86_64</specification>
+    <specification>Lyra OS "Odisseia" Alpha 2 - live/installer ISO, openSUSE Leap 16 base, GNOME desktop, x86_64</specification>
   </description>
 
   <preferences>
-    <!-- Generated from release.toml; user-facing strings say "Beta 2". -->
-    <version>2026.08-beta2</version>
+    <!-- Generated from release.toml; user-facing strings say "Alpha 2". -->
+    <version>2026.08-alpha2</version>
     <packagemanager>zypper</packagemanager>
     <rpm-excludedocs>true</rpm-excludedocs>
     <rpm-check-signatures>true</rpm-check-signatures>
@@ -46,7 +46,7 @@
       filesystem="squashfs"
       firmware="uefi"
       editbootconfig="edit_boot_config.sh"
-      volid="LYRA_OS_2026_08_BETA2"
+      volid="LYRA_OS_2026_08_ALPHA2"
       application_id="LyraOS"
       publisher="Lyra OS Project">
       <bootloader name="grub2" timeout="10"/>
