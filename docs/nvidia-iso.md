@@ -75,7 +75,13 @@ uma com trade-off diferente, nenhuma escolhida ainda:
 
 1. **kmp já assinado pela SUSE/comunidade**, se existir para a versão de
    Leap 16 alvo — mantém o mesmo modelo de confiança da ISO padrão, mas
-   depende de disponibilidade fora do nosso controle.
+   depende de disponibilidade fora do nosso controle. **Validado como real
+   nesta rota** (2026-08-11): `nvidia-open-driver-G06-signed-kmp-default`
+   carregou sem nenhum enrollment manual de MOK na máquina física de teste
+   do Rodrigo (Secure Boot ligado) — a disponibilidade não é hipotética
+   pelo menos para a família G06 (Turing e mais novo) em Leap 16.0. Não
+   elimina a decisão (ainda depende de disponibilidade contínua, fora do
+   nosso controle), mas tira a incerteza de "existe de verdade?".
 2. **MOK próprio da Lyra**, gerado e usado para assinar o módulo no build
    (OBS ou KIWI), com enrollment do MOK feito pelo Lyra Installer só neste
    profile — replica o padrão akmod/DKMS de outras distros, mas adiciona uma
@@ -100,6 +106,51 @@ kmp novo antes de liberar o kernel novo no canal Lyra — análoga à política 
 descrita em `PROMPT-LYRA-OS.md` para upgrades de ponto de versão do Leap
 (testar os repositórios Lyra contra o alvo antes de liberar a migração).
 
+**Achado real, não hipotético** (2026-08-11, na própria máquina física de
+teste do Rodrigo — GTX 1650 Mobile/TU117, híbrida com Intel): o mesmo tipo
+de problema existe um nível abaixo, entre o **kmp e os pacotes de
+userspace/firmware**, não só entre kernel e kmp. `zypper install
+nvidia-open-driver-G06-signed-kmp-default` sozinho trouxe o kernel module
+na versão `580.159.03`, mas deixou `nvidia-video-G06`/`nvidia-gl-G06`/
+`nvidia-common-G06` parados em `570.172.08` (já instalados antes, de uma
+tentativa anterior). O firmware GSP fica em
+`/usr/lib/firmware/nvidia/<versão>/gsp_tu10x.bin`, organizado por versão —
+com userspace em 570 e kmp em 580, o firmware certo (580) nem estava no
+disco. Sintoma: `nvidia`/`nvidia-drm`/`nvidia-modeset` carregam
+normalmente (aparecem no `lsmod`, PCI vinculado ao driver certo), **sem
+nenhum erro visível pro usuário** — só em
+`dmesg`/`journalctl` aparece a causa real:
+
+```
+nvidia 0000:01:00.0: Direct firmware load for nvidia/580.159.03/gsp_tu10x.bin failed with error -2
+[drm:nv_drm_dev_load [nvidia_drm]] *ERROR* [nvidia-drm] Failed to allocate NvKmsKapiDevice
+```
+
+Sem essa entrada DRM, nenhuma saída de vídeo da GPU dedicada aparece (no
+caso do Rodrigo, o monitor externo por HDMI, cabeado na NVIDIA nesse
+notebook, simplesmente não existia em `/sys/class/drm/` — não era "detectado
+e falhou", era como se a porta não existisse).
+
+Resolvido tentando `zypper install` pacote a pacote (esbarrou em mais dois
+conflitos de solver por causa de múltiplas revisões de build da mesma
+versão `580.159.03` no repositório `NVIDIA:repo-non-free`), e só saiu limpo
+removendo tudo relacionado e reinstalando do zero via dois pacotes "meta"
+que existem exatamente pra isso: `nvidia-open-driver-G06-signed-kmp-meta`
+(kernel module) + `nvidia-userspace-meta-G06` (userspace em sync). Com o
+sistema limpo (sem nenhuma versão já fixada por um pacote individual), o
+resolvedor de dependências escolheu um conjunto 100% consistente sozinho,
+sem conflito.
+
+**Implicação pra ISO NVIDIA**: a política de lockstep não pode travar só
+kernel+kmp — precisa cobrir kmp+userspace+firmware como uma unidade só. Os
+pacotes "meta" (`*-kmp-meta`/`nvidia-userspace-meta-G06`) parecem ser o
+mecanismo certo pra isso (existem exatamente com esse propósito, "manter em
+sync"), mas só foram testados aqui reinstalando do zero — não foi validado
+se eles também resolvem uma atualização incremental sem conflito quando já
+há um pacote individual desalinhado (foi exatamente esse caso que forçou a
+remoção completa). Vale essa mesma cautela ao desenhar como o Vega
+atualizaria o trio kernel+kmp+userspace numa máquina já instalada.
+
 ## Gate e evidência (não bloqueante para a ISO padrão)
 
 Reaproveitar o formato de `docs/release-gate.md`/`hardware-matrix.md`, mas
@@ -121,8 +172,19 @@ como gate próprio e independente:
 2. Fonte/proveniência do pacote do driver: novo projeto OBS Lyra vs. repo
    oficial NVIDIA direto.
 3. Laptops híbridos Optimus/PRIME entram no escopo do primeiro ciclo desta
-   ISO, ou fica limitado a desktops com GPU NVIDIA dedicada única?
-4. Política de lockstep kernel+kmp em atualizações via Vega/`zypper dup`.
+   ISO, ou fica limitado a desktops com GPU NVIDIA dedicada única? A
+   máquina física de teste do Rodrigo é justamente um híbrido
+   Intel+NVIDIA — o driver+firmware corretos e em lockstep bastaram pra
+   saída de vídeo cabeada na NVIDIA (HDMI, neste caso) funcionar, sem
+   precisar de nenhum ajuste específico de PRIME/mux além disso. Não é
+   validação completa do cenário híbrido (não cobre alternar GPU em uso,
+   render offload, etc.), só evidência de que o caso básico (saída de
+   vídeo fixa na dGPU) funciona com o driver certo.
+4. Política de lockstep kernel+kmp **e kmp+userspace+firmware** (achado
+   real, ver seção "Kernel e módulo em lockstep") em atualizações via
+   Vega/`zypper dup` — os pacotes `*-kmp-meta`/`nvidia-userspace-meta-G06`
+   parecem ser o mecanismo certo, mas só testados reinstalando do zero, não
+   numa atualização incremental com pacotes já desalinhados.
 5. Nome/branding público da variante (ex.: "Lyra OS NVIDIA Edition") e se ela
    compartilha `release.toml`/calendar version com a ISO padrão ou tem o
    próprio ciclo de release.
