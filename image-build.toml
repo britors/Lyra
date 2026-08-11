@@ -4,6 +4,7 @@ schema = 1
 name = "lyra-os"
 description = "config.xml"
 architecture = "x86_64"
+profile = "desktop"
 
 [source]
 repository = "https://github.com/britors/Lyra"

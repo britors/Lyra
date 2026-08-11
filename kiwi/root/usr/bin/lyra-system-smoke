@@ -30,6 +30,41 @@ LIVE_ONLY_PATHS = (
     "/usr/lib/lyra-os/local-installer-build",
 )
 
+# Mirrors scripts/server-install.sh's own "strip live-only artifacts" step
+# (docs/server-edition.md) - the server profile has none of the desktop
+# installer's files to begin with, so its live-only set is unrelated:
+# console autologin and the pinned installer script itself.
+SERVER_LIVE_ONLY_PATHS = (
+    "/etc/systemd/system/getty@tty1.service.d/override.conf",
+    "/root/.bash_profile",
+    "/usr/sbin/lyra-server-install",
+)
+
+# Desktop expects Btrfs+Snapper; the server profile's v1 installer uses
+# plain ext4 with no rollback (docs/server-edition.md - deliberately out of
+# scope without an entry criterion for a v2).
+EXPECTED_ROOT_FSTYPE = {"desktop": "btrfs", "server": "ext4"}
+
+# Desktop-only units (gdm, cups) vs the services the server's console
+# installer enables (scripts/server-install.sh): sshd and the two Vega
+# daemons. NetworkManager/firewalld are common to both profiles.
+EXPECTED_ACTIVE_UNITS = {
+    "desktop": (
+        "graphical.target",
+        "gdm.service",
+        "NetworkManager.service",
+        "firewalld.service",
+        "cups.service",
+    ),
+    "server": (
+        "NetworkManager.service",
+        "firewalld.service",
+        "sshd.service",
+        "vegad.service",
+        "vega-web.service",
+    ),
+}
+
 
 def run_command(arguments: list[str]) -> tuple[int, str]:
     try:
@@ -100,7 +135,10 @@ def validate_first_boot(
     environment: dict[str, str] | None = None,
     runner: CommandRunner = run_command,
     journal_acknowledgement: str = "",
+    profile: str = "desktop",
 ) -> dict[str, object]:
+    if profile not in EXPECTED_ROOT_FSTYPE:
+        raise ValueError(f"profile must be one of {sorted(EXPECTED_ROOT_FSTYPE)}, got {profile!r}")
     username = username or getpass.getuser()
     environment = environment or dict(os.environ)
     checks: list[dict[str, str]] = []
@@ -170,7 +208,8 @@ def validate_first_boot(
     code, live_user = runner(["getent", "passwd", "liveuser"])
     check("live-user-removed", code != 0 and not live_user, "liveuser is absent")
 
-    remaining = [path for path in LIVE_ONLY_PATHS if rooted(root, path).exists()]
+    live_only_paths = LIVE_ONLY_PATHS if profile == "desktop" else SERVER_LIVE_ONLY_PATHS
+    remaining = [path for path in live_only_paths if rooted(root, path).exists()]
     check(
         "live-artifacts-removed",
         not remaining,
@@ -190,11 +229,12 @@ def validate_first_boot(
         not rooted(root, "/run/overlay/live/LiveOS/squashfs.img").exists(),
         "live squashfs is not mounted",
     )
+    expected_fstype = EXPECTED_ROOT_FSTYPE[profile]
     code, root_fstype = runner(["findmnt", "-n", "-o", "FSTYPE", "/"])
     check(
-        "btrfs-root",
-        code == 0 and root_fstype == "btrfs",
-        f"root filesystem: {root_fstype or 'unknown'}",
+        "root-filesystem",
+        code == 0 and root_fstype == expected_fstype,
+        f"root filesystem: {root_fstype or 'unknown'} (expected {expected_fstype})",
     )
     code, efi_mount = runner(["findmnt", "-n", "/boot/efi"])
     check(
@@ -220,24 +260,21 @@ def validate_first_boot(
         if grub_code == 0 and "menuentry " in grub_content
         else grub_content or "/boot/grub2/grub.cfg is unreadable",
     )
-    code, snapshots = privileged_command(
-        ["snapper", "--no-dbus", "-c", "root", "list"],
-        runner=runner,
-        required=privileged_access_required,
-    )
-    check(
-        "snapper-root",
-        code == 0 and bool(snapshots),
-        snapshots or "root snapshots unavailable",
-    )
+    if profile == "desktop":
+        # Snapper/rollback is desktop-only (docs/server-edition.md); the
+        # server's ext4 root has no snapshot concept to check.
+        code, snapshots = privileged_command(
+            ["snapper", "--no-dbus", "-c", "root", "list"],
+            runner=runner,
+            required=privileged_access_required,
+        )
+        check(
+            "snapper-root",
+            code == 0 and bool(snapshots),
+            snapshots or "root snapshots unavailable",
+        )
 
-    for unit in (
-        "graphical.target",
-        "gdm.service",
-        "NetworkManager.service",
-        "firewalld.service",
-        "cups.service",
-    ):
+    for unit in EXPECTED_ACTIVE_UNITS[profile]:
         code, output = runner(["systemctl", "is-active", unit])
         check(
             f"unit-{unit}",
@@ -245,14 +282,17 @@ def validate_first_boot(
             f"state: {output or 'unknown'}",
         )
 
-    code, output = runner(["pgrep", "-x", "gnome-shell"])
-    check(
-        "gnome-shell",
-        code == 0 and bool(output),
-        "GNOME Shell process is running",
-    )
-    observations["desktop"] = environment.get("XDG_CURRENT_DESKTOP", "")
-    observations["session_type"] = environment.get("XDG_SESSION_TYPE", "")
+    if profile == "desktop":
+        # No GNOME/graphical session on the server profile at all
+        # (docs/server-edition.md) - nothing to check a shell process for.
+        code, output = runner(["pgrep", "-x", "gnome-shell"])
+        check(
+            "gnome-shell",
+            code == 0 and bool(output),
+            "GNOME Shell process is running",
+        )
+        observations["desktop"] = environment.get("XDG_CURRENT_DESKTOP", "")
+        observations["session_type"] = environment.get("XDG_SESSION_TYPE", "")
 
     code, failed_units = runner(
         ["systemctl", "--failed", "--no-legend", "--plain"]
@@ -356,6 +396,12 @@ def main() -> int:
         default="",
         help="issue/workaround covering reviewed priority 0..3 journal entries",
     )
+    first_boot.add_argument(
+        "--profile",
+        choices=sorted(EXPECTED_ROOT_FSTYPE),
+        default="desktop",
+        help="which KIWI profile was installed (default: desktop)",
+    )
     secure_boot = commands.add_parser("secure-boot")
     secure_boot.add_argument(
         "--output", type=Path, default=Path("uefi-secure-boot-result.json")
@@ -364,7 +410,8 @@ def main() -> int:
 
     if args.mode == "first-boot":
         report = validate_first_boot(
-            journal_acknowledgement=args.acknowledge_journal
+            journal_acknowledgement=args.acknowledge_journal,
+            profile=args.profile,
         )
     else:
         report = validate_secure_boot()

@@ -100,6 +100,31 @@ class ReleaseArtifactsTests(unittest.TestCase):
         with self.assertRaisesRegex(release_artifacts.ArtifactError, "ISO does not exist"):
             self.generate()
 
+    def test_release_file_and_product_are_overridable_for_the_server_edition(self) -> None:
+        # release-server.toml has no codename field (docs/server-edition.md:
+        # the server edition has none by design) and its own calendar
+        # version/stage, independent of release.toml.
+        release_file = self.root / "release-server.toml"
+        release_file.write_text(
+            'schema = 1\n\n[release]\ncalendar_version = "2026.08"\nstage = "alpha"\n'
+            'iteration = 1\nimage_name = "lyra-os-server"\narchitecture = "x86_64"\n',
+            encoding="utf-8",
+        )
+        paths = release_artifacts.generate(
+            iso=self.iso,
+            packages_path=self.packages,
+            verified_path=self.verified,
+            output_dir=self.output_dir,
+            commit="HEAD",
+            release_file=release_file,
+            product="Lyra OS Server",
+        )
+        report = next(p for p in paths if p.suffix == ".report")
+        document = json.loads(report.read_text(encoding="utf-8"))
+        self.assertEqual(document["product"], "Lyra OS Server")
+        self.assertEqual(document["version"], "2026.08-alpha1")
+        self.assertIsNone(document["codename"])
+
 
 if __name__ == "__main__":
     unittest.main()

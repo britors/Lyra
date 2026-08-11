@@ -137,6 +137,50 @@ class SystemSmokeTests(unittest.TestCase):
             self.assertEqual(code, 0)
             self.assertIn("menuentry ", content)
 
+    def test_clean_server_install_produces_first_boot_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.create_installed_root(root)
+
+            def runner(arguments: list[str]) -> tuple[int, str]:
+                if arguments[:4] == ["findmnt", "-n", "-o", "FSTYPE"]:
+                    return 0, "ext4"
+                return self.runner(arguments)
+
+            report = system_smoke.validate_first_boot(
+                root=root, username="alice", runner=runner, profile="server"
+            )
+            self.assertEqual(report["status"], "passed")
+            self.assertEqual(report["mode"], "first-boot")
+            checked_ids = {item["id"] for item in report["checks"]}
+            self.assertIn("unit-vegad.service", checked_ids)
+            self.assertIn("unit-sshd.service", checked_ids)
+            self.assertNotIn("snapper-root", checked_ids)
+            self.assertNotIn("gnome-shell", checked_ids)
+            self.assertNotIn("desktop", report["observations"])
+
+    def test_server_install_with_btrfs_root_fails_the_filesystem_check(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.create_installed_root(root)
+            report = system_smoke.validate_first_boot(
+                root=root, username="alice", runner=self.runner, profile="server"
+            )
+            fstype_check = next(
+                item for item in report["checks"] if item["id"] == "root-filesystem"
+            )
+            self.assertEqual(report["status"], "failed")
+            self.assertEqual(fstype_check["status"], "failed")
+
+    def test_unknown_profile_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.create_installed_root(root)
+            with self.assertRaises(ValueError):
+                system_smoke.validate_first_boot(
+                    root=root, username="alice", runner=self.runner, profile="bogus"
+                )
+
     def test_secure_boot_requires_enabled_firmware(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

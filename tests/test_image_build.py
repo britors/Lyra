@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import importlib.util
 import json
 import sys
@@ -339,6 +340,51 @@ class ImagePolicyTests(unittest.TestCase):
                 image_build.export(self.manifest, destination, "HEAD", allow_dirty=True)
             with self.assertRaisesRegex(image_build.PolicyError, "source identity"):
                 image_build.verify_export(self.manifest, destination)
+
+
+class ServerImagePolicyTests(unittest.TestCase):
+    # image-build-server.toml exists specifically so the server profile can
+    # go through the same export/validate/artifact-manifest pipeline as
+    # the desktop (docs/server-edition.md - initially left out on purpose,
+    # added when Rodrigo asked to prepare a real alpha1 release). Both
+    # profiles share <image name="lyra-os"> in kiwi/config.xml (cannot be
+    # scoped per KIWI profile), so Manifest gained its own "profile" field
+    # to tell the two whitelists apart in validate() instead.
+
+    def setUp(self) -> None:
+        self.manifest = image_build.Manifest.load(ROOT / "image-build-server.toml")
+
+    def test_server_manifest_loads_with_its_own_profile_and_sources(self) -> None:
+        self.assertEqual(self.manifest.profile, "server")
+        projects = [source.project for source in self.manifest.package_sources]
+        self.assertEqual(projects, ["home:rodrigosbrito:lyra", "home:rodrigosbrito:vega"])
+        self.assertNotIn("home:rodrigosbrito:fina", projects)
+        self.assertNotIn("Virtualization:Appliances:Builder", projects)
+        self.assertNotIn("rollback", self.manifest.required_test_results)
+
+    def test_desktop_manifest_still_defaults_to_the_desktop_profile(self) -> None:
+        desktop_manifest = image_build.Manifest.load()
+        self.assertEqual(desktop_manifest.profile, "desktop")
+        self.assertIn("rollback", desktop_manifest.required_test_results)
+
+    def test_validate_sources_checks_the_server_preferences_block(self) -> None:
+        image_build.validate_sources(
+            self.manifest, profile="server", release_file=ROOT / "release-server.toml"
+        )
+
+    def test_validate_sources_rejects_a_profile_release_file_mismatch(self) -> None:
+        # The desktop and server <preferences> blocks carry different
+        # <version> values (independent release cycles - docs/server-edition.md).
+        # Comparing the server's KIWI block against the desktop's
+        # release.toml (or vice versa) must fail loudly, not silently pass.
+        with self.assertRaisesRegex(image_build.PolicyError, "differs from"):
+            image_build.validate_sources(self.manifest, profile="server", release_file=image_build.RELEASE)
+
+    def test_invalid_profile_is_rejected(self) -> None:
+        bogus = dataclasses.replace(self.manifest, profile="bogus")
+        with self.assertRaisesRegex(image_build.PolicyError, "profile must be desktop or server"):
+            bogus.validate()
+
 
 class ArtifactTests(unittest.TestCase):
     def create_artifacts(self, directory: Path) -> None:

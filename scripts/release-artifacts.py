@@ -52,13 +52,13 @@ def git(*args: str) -> str:
     return result.stdout.strip()
 
 
-def release_values() -> dict[str, object]:
-    with RELEASE.open("rb") as stream:
+def release_values(release_file: Path = RELEASE) -> dict[str, object]:
+    with release_file.open("rb") as stream:
         return tomllib.load(stream)["release"]
 
 
-def version_id() -> str:
-    release = release_values()
+def version_id(release_file: Path = RELEASE) -> str:
+    release = release_values(release_file)
     if release["stage"] == "release":
         return str(release["calendar_version"])
     return f'{release["calendar_version"]}-{release["stage"]}{release["iteration"]}'
@@ -219,12 +219,17 @@ def write_report(
     epoch: int,
     built_at: str,
     output_dir: Path,
+    release_file: Path = RELEASE,
+    product: str = "Lyra OS",
 ) -> Path:
-    release = release_values()
+    release = release_values(release_file)
     document = {
         "schema_version": 1,
-        "product": "Lyra OS",
+        "product": product,
         "version": version,
+        # codename is a desktop-only field (docs/server-edition.md: the
+        # server edition has none by design); .get() keeps this null
+        # instead of raising for release-server.toml.
         "codename": release.get("codename"),
         "source": {"commit": commit, "commit_epoch": epoch, "built_at": built_at},
         "iso": {"filename": iso.name, "size_bytes": iso.stat().st_size, "sha256": sha256(iso)},
@@ -237,7 +242,16 @@ def write_report(
     return path
 
 
-def generate(*, iso: Path, packages_path: Path, verified_path: Path, output_dir: Path, commit: str) -> list[Path]:
+def generate(
+    *,
+    iso: Path,
+    packages_path: Path,
+    verified_path: Path,
+    output_dir: Path,
+    commit: str,
+    release_file: Path = RELEASE,
+    product: str = "Lyra OS",
+) -> list[Path]:
     if not iso.is_file():
         raise ArtifactError(f"ISO does not exist: {iso}")
     if not packages_path.is_file():
@@ -246,7 +260,7 @@ def generate(*, iso: Path, packages_path: Path, verified_path: Path, output_dir:
         raise ArtifactError(f"verification report does not exist: {verified_path}")
     output_dir.mkdir(parents=True, exist_ok=True)
     packages = load_packages(packages_path)
-    version = version_id()
+    version = version_id(release_file)
     full_commit, epoch, built_at = commit_identity(commit)
     return [
         write_checksum(iso, output_dir),
@@ -266,6 +280,8 @@ def generate(*, iso: Path, packages_path: Path, verified_path: Path, output_dir:
             epoch=epoch,
             built_at=built_at,
             output_dir=output_dir,
+            release_file=release_file,
+            product=product,
         ),
     ]
 
@@ -279,6 +295,17 @@ def parser() -> argparse.ArgumentParser:
     generate_command.add_argument("--verified", required=True, type=Path)
     generate_command.add_argument("--output-dir", required=True, type=Path)
     generate_command.add_argument("--commit", default="HEAD")
+    generate_command.add_argument(
+        "--release-file",
+        type=Path,
+        default=RELEASE,
+        help="release.toml (desktop, default) or release-server.toml (server)",
+    )
+    generate_command.add_argument(
+        "--product",
+        default="Lyra OS",
+        help='report "product" field, e.g. "Lyra OS Server"',
+    )
     return cli
 
 
@@ -291,6 +318,8 @@ def main() -> int:
             verified_path=args.verified.resolve(),
             output_dir=args.output_dir.resolve(),
             commit=args.commit,
+            release_file=args.release_file.resolve(),
+            product=args.product,
         )
     except (ArtifactError, OSError, subprocess.CalledProcessError, tomllib.TOMLDecodeError) as error:
         print(f"ERROR: {error}", file=sys.stderr)
