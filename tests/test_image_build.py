@@ -367,6 +367,33 @@ class ArtifactTests(unittest.TestCase):
                     [f"obs-repositories={failed}"],
                 )
 
+    def test_hardware_matrix_with_a_single_machine_still_passes(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            iso = Path(temporary) / "lyra.iso"
+            iso.write_bytes(b"iso payload")
+            result = image_build.validate_test_result(
+                "hardware-matrix",
+                {
+                    "schema": 1,
+                    "status": "passed",
+                    "mode": "hardware-matrix",
+                    "iso": {
+                        "filename": iso.name,
+                        "sha256": image_build.sha256(iso),
+                    },
+                    "coverage": {
+                        "desktops": 1,
+                        "notebooks": 0,
+                        "cpu_vendors": ["amd"],
+                        "gpu_vendors": ["amd"],
+                        "gap": ["notebooks<2", "cpu:intel", "gpu:intel"],
+                    },
+                    "scenarios": [{"machine": "only-physical-machine"}],
+                },
+                iso_path=iso,
+            )
+            self.assertEqual(result["coverage"]["gap"], ["notebooks<2", "cpu:intel", "gpu:intel"])
+
     def test_manifest_rejects_empty_passed_or_mislabeled_evidence(self) -> None:
         manifest = image_build.Manifest.load()
         with tempfile.TemporaryDirectory() as temporary:

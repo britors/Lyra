@@ -52,7 +52,7 @@ class HardwareMatrixTests(unittest.TestCase):
             paths.append(path)
         return paths
 
-    def test_complete_matrix_requires_real_machine_and_vendor_coverage(self) -> None:
+    def test_complete_matrix_reports_full_vendor_and_form_factor_coverage(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             paths = self.write_scenarios(Path(temporary))
             result = hardware_matrix.aggregate(paths)
@@ -60,6 +60,21 @@ class HardwareMatrixTests(unittest.TestCase):
             self.assertEqual(result["coverage"]["desktops"], 1)
             self.assertEqual(result["coverage"]["notebooks"], 2)
             self.assertEqual(result["coverage"]["cpu_vendors"], ["amd", "intel"])
+            self.assertEqual(result["coverage"]["gap"], [])
+
+    def test_single_machine_still_passes_and_records_the_coverage_gap(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            document = self.scenario("only-physical-machine", "desktop", "amd", ["amd"])
+            path = Path(temporary) / "scenario.json"
+            path.write_text(json.dumps(document), encoding="utf-8")
+            result = hardware_matrix.aggregate([path])
+            self.assertEqual(result["status"], "passed")
+            self.assertEqual(result["coverage"]["desktops"], 1)
+            self.assertEqual(result["coverage"]["notebooks"], 0)
+            self.assertEqual(
+                result["coverage"]["gap"],
+                ["notebooks<2", "cpu:intel", "gpu:intel"],
+            )
 
     def test_core_checks_cannot_be_marked_not_applicable(self) -> None:
         checks = self.checks("desktop")
