@@ -16,6 +16,7 @@ FILES=(
   "$PREFIX.iso"
   "$PREFIX.iso.manifest.json"
   "$PREFIX.iso.sha256"
+  "$PREFIX.iso.sha256.asc"
   "$PREFIX.packages"
   "$PREFIX.report"
   "$PREFIX.spdx.json"

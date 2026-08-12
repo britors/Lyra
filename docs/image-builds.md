@@ -136,7 +136,7 @@ Before the KIWI build, create the signed public-repository health report:
 
 ```sh
 ./scripts/obs-release.py health \
-  --output /path/to/obs-health-2026.08-beta2.json
+  --output /path/to/obs-health-2026.08-alpha3.json
 ```
 
 When installation finishes successfully, the frontend writes
@@ -150,7 +150,7 @@ smoke-test results:
 ```sh
 ./scripts/image-build.py artifact-manifest /path/to/kiwi/results \
   --output /path/to/lyra-os.evidence.json \
-  --test-result obs-repositories=/path/to/obs-health-2026.08-beta2.json \
+  --test-result obs-repositories=/path/to/obs-health-2026.08-alpha3.json \
   --test-result live-session=/path/to/live-session-result.json \
   --test-result installer=/path/to/lyra-installer-result.json \
   --test-result first-boot=/path/to/first-boot-result.json \

@@ -1,7 +1,7 @@
-# Beta 2 release gate
+# Desktop Alpha 3 release gate
 
 This checklist is the versioned go/no-go contract for the standard Lyra OS
-Beta 2 ISO. A release coordinator may declare **GO** only when every blocking
+Desktop Alpha 3 ISO. A release coordinator may declare **GO** only when every blocking
 item below has passed and its evidence is included in the final image evidence
 manifest. Missing evidence is a failure, not an implicit exception.
 
@@ -94,15 +94,16 @@ Accepted P2/P3 issues and workarounds:
 Residual risks:
 ```
 
-## Current Beta 2 state
+## Current Desktop Alpha 3 state
 
-**NO-GO pending the new candidate ISO and runtime evidence.** The OBS health
-gate passed on 2026-08-09 for all three release projects and all 15 source
-packages after the reviewed staging promotions. Repository publication,
-package provenance, metadata, keys and RPM signatures are green. The remaining
-blocking work is to build the clean candidate from the recorded commit and
-complete the live-session, installer, first-boot, Secure Boot, rollback and
-hardware-matrix evidence above.
+**NO-GO pending the clean publication candidate and its signed artifacts.**
+Repeated installation with the installer RPM published by OBS passed, including
+first boot, login, user-password `sudo`, network/update, reboot, GRUB and
+Snapper. The installer package build and all OBS release projects are published.
+The remaining release work is to build the clean candidate from the recorded
+commit, generate and sign its artifacts, publish them, and verify the downloaded
+copy. Structured runtime evidence remains part of the formal gate when the
+project performs a fully evidenced release decision.
 
 If a defect is found after publication, hide or remove the affected files on
 SourceForge, record their checksums as withdrawn, stage and review the fix, and
