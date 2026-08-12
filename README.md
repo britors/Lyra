@@ -78,6 +78,10 @@ As opções disponíveis podem ser consultadas com:
 ./scripts/bootstrap-development.sh --help
 ```
 
+Depois de uma instalação limpa ou troca da máquina de desenvolvimento, siga o
+[guia de recuperação da estação](docs/development-workstation-recovery.md)
+antes de retomar builds ou publicações.
+
 Veja o [guia de contribuição](CONTRIBUTING.md) para configuração de Git,
 GitHub, OBS, Codex e dos demais projetos do ecossistema.
 
