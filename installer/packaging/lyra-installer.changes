@@ -7,6 +7,8 @@ Wed Aug 12 12:00:00 UTC 2026 - Rodrigo Brito <rodrigo@w3ti.com.br>
 - Identify the installer UI as Lyra OS Odisseia Alpha 3.
 - Offer only the supported whole-disk direct layout; hide RAID, LVM and
   custom storage choices until their privileged backend is implemented.
+- Record failed installer evidence when the service exits unsuccessfully or
+  emits a terminal Failed event; never report a failed install as passed.
 
 -------------------------------------------------------------------
 Mon Aug 10 19:29:10 UTC 2026 - Rodrigo Brito <rodrigo@w3ti.com.br>

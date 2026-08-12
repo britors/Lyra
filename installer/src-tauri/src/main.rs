@@ -138,6 +138,7 @@ fn append_trace(trace: &mut File, line: &str) {
 fn write_installer_evidence(
     home: &std::path::Path,
     events: &[ExecutionEvent],
+    service_succeeded: bool,
 ) -> Result<PathBuf, String> {
     let output = home.join(EVIDENCE_FILENAME);
     let temporary = home.join(format!(".{EVIDENCE_FILENAME}.tmp-{}", std::process::id()));
@@ -147,16 +148,41 @@ fn write_installer_evidence(
         .duration_since(UNIX_EPOCH)
         .map(|duration| duration.as_secs())
         .unwrap_or_default();
+    let failed_event = events
+        .iter()
+        .any(|event| matches!(event, ExecutionEvent::Failed { .. }));
+    let completed_event = events
+        .iter()
+        .any(|event| matches!(event, ExecutionEvent::Completed));
+    let passed = service_succeeded && completed_event && !failed_event;
     let document = serde_json::json!({
         "schema": 1,
-        "status": "passed",
+        "status": if passed { "passed" } else { "failed" },
         "mode": "installer",
         "generated_at_unix": timestamp,
         "installer_version": env!("CARGO_PKG_VERSION"),
         "build_source": source.trim(),
         "checks": [
-            {"id": "service-exit", "status": "passed", "detail": "privileged service exited successfully"},
-            {"id": "completed-event", "status": "passed", "detail": "terminal Completed event received"}
+            {
+                "id": "service-exit",
+                "status": if service_succeeded { "passed" } else { "failed" },
+                "detail": if service_succeeded {
+                    "privileged service exited successfully"
+                } else {
+                    "privileged service exited unsuccessfully"
+                }
+            },
+            {
+                "id": "completed-event",
+                "status": if completed_event && !failed_event { "passed" } else { "failed" },
+                "detail": if completed_event && !failed_event {
+                    "terminal Completed event received"
+                } else if failed_event {
+                    "terminal Failed event received"
+                } else {
+                    "terminal Completed event not received"
+                }
+            }
         ],
         "events": events,
     });
@@ -423,6 +449,14 @@ fn execute_plan_blocking(
         .iter()
         .any(|event| matches!(event, ExecutionEvent::Completed));
 
+    let home = trace_path
+        .parent()
+        .ok_or("o trace do instalador não possui diretório pai")?;
+    match write_installer_evidence(home, &events, status.success()) {
+        Ok(path) => append_trace(&mut trace, &format!("release_evidence={}", path.display())),
+        Err(error) => append_trace(&mut trace, &format!("evidence_error={error}")),
+    }
+
     if !status.success() && !failed_event {
         let detail = stderr.trim();
         return Err(if detail.is_empty() {
@@ -433,17 +467,6 @@ fn execute_plan_blocking(
     }
     if status.success() && !completed_event {
         return Err("o serviço terminou sem confirmar a conclusão".to_string());
-    }
-
-    let home = trace_path
-        .parent()
-        .ok_or("o trace do instalador não possui diretório pai")?;
-    match write_installer_evidence(home, &events) {
-        Ok(path) => append_trace(
-            &mut trace,
-            &format!("release_evidence={}", path.display()),
-        ),
-        Err(error) => append_trace(&mut trace, &format!("evidence_error={error}")),
     }
 
     Ok(events)
@@ -495,7 +518,7 @@ mod tests {
         fs::create_dir(&directory).unwrap();
         let events = vec![ExecutionEvent::Started, ExecutionEvent::Completed];
 
-        let output = write_installer_evidence(&directory, &events).unwrap();
+        let output = write_installer_evidence(&directory, &events, true).unwrap();
         let metadata = fs::metadata(&output).unwrap();
         let document: serde_json::Value =
             serde_json::from_slice(&fs::read(&output).unwrap()).unwrap();
@@ -505,6 +528,36 @@ mod tests {
         assert_eq!(document["mode"], "installer");
         assert_eq!(document["events"].as_array().unwrap().len(), 2);
         assert!(!document.to_string().contains("password"));
+        fs::remove_dir_all(&directory).unwrap();
+    }
+
+    #[test]
+    fn installer_evidence_cannot_pass_after_a_failed_event() {
+        let directory = std::env::temp_dir().join(format!(
+            "lyra-installer-failed-evidence-test-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&directory);
+        fs::create_dir(&directory).unwrap();
+        let events = vec![
+            ExecutionEvent::Started,
+            ExecutionEvent::Failed {
+                step: "extrair rootfs".to_string(),
+                message: "squashfs corrompido".to_string(),
+            },
+        ];
+
+        let output = write_installer_evidence(&directory, &events, false).unwrap();
+        let document: serde_json::Value =
+            serde_json::from_slice(&fs::read(&output).unwrap()).unwrap();
+
+        assert_eq!(document["status"], "failed");
+        assert_eq!(document["checks"][0]["status"], "failed");
+        assert_eq!(document["checks"][1]["status"], "failed");
+        assert_eq!(
+            document["checks"][1]["detail"],
+            "terminal Failed event received"
+        );
         fs::remove_dir_all(&directory).unwrap();
     }
 

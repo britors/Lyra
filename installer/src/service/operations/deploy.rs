@@ -647,11 +647,7 @@ impl PrivilegedOperation for WriteSudoers {
         // disabled, sudo user created at install" promises. `@includedir
         // /etc/sudoers.d` comes after that line in the stock file, so this
         // override here is what actually takes effect.
-        fs::write(
-            &path,
-            "Defaults !targetpw\n%wheel ALL=(ALL) ALL\n",
-        )
-        .map_err(io_error)?;
+        fs::write(&path, "Defaults !targetpw\n%wheel ALL=(ALL) ALL\n").map_err(io_error)?;
         fs::set_permissions(&path, fs::Permissions::from_mode(0o440)).map_err(io_error)?;
         Ok(())
     }

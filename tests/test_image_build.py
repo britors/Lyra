@@ -232,14 +232,30 @@ class ImagePolicyTests(unittest.TestCase):
         helper = (ROOT / "kiwi/test/build-and-run-vm.sh").read_text(encoding="utf-8")
         self.assertIn("--build-only", helper)
         self.assertIn('--signing-key "$PACKAGE_SIGNING_KEYRING"', helper)
-        self.assertIn('if [ "$BUILD_ONLY" -eq 0 ]; then', helper)
         self.assertIn(
             "build-only complete; existing VM disk and UEFI state were not changed",
             helper,
         )
         iso_ready = helper.index('echo "--- ISO ready:')
+        build_only_exit = helper.index("build-only complete; existing VM disk")
+        qemu_requirements = helper.index("for command in qemu-img qemu-system-x86_64")
         destructive_vm_reset = helper.rindex("\nstop_previous_vm\n")
+        self.assertLess(build_only_exit, qemu_requirements)
         self.assertLess(iso_ready, destructive_vm_reset)
+
+    def test_vm_helper_fully_extracts_squashfs_before_promoting_iso(self) -> None:
+        helper = (ROOT / "kiwi/test/build-and-run-vm.sh").read_text(encoding="utf-8")
+        extract_image = helper.index('-extract /LiveOS/squashfs.img "$ISO_SQUASHFS"')
+        verify_rootfs = helper.index(
+            "unsquashfs -no-xattrs -no-exit-code -f"
+        )
+        promote_iso = helper.index('echo "--- promoting new ISO')
+
+        self.assertLess(extract_image, verify_rootfs)
+        self.assertLess(verify_rootfs, promote_iso)
+        self.assertIn("generated ISO contains an unreadable/corrupt live SquashFS", helper)
+        self.assertIn("existing ISO contains an unreadable/corrupt live SquashFS", helper)
+        self.assertIn("refusing to boot with --skip-build", helper)
 
     def test_vm_helper_forwards_ssh_and_vega_web_ports_for_server(self) -> None:
         # QEMU's user-mode/SLIRP networking is NAT-only by default - without

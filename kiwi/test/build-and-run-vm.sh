@@ -256,17 +256,8 @@ else
   MACHINE="q35,accel=kvm"
 fi
 
-if [ "$BUILD_ONLY" -eq 0 ]; then
-  for command in qemu-img qemu-system-x86_64; do
-    if ! command -v "$command" >/dev/null 2>&1; then
-      echo "required command not found: $command" >&2
-      exit 1
-    fi
-  done
-fi
-
 if [ "$SKIP_BUILD" -eq 0 ]; then
-  for command in kiwi-ng lsinitrd sudo xorriso; do
+  for command in kiwi-ng lsinitrd sudo xorriso unsquashfs; do
     if ! command -v "$command" >/dev/null 2>&1; then
       echo "required build command not found: $command" >&2
       exit 1
@@ -282,26 +273,6 @@ if [ "$SKIP_BUILD" -eq 0 ]; then
   fi
   if [ ! -r "$PACKAGE_SIGNING_KEYRING" ]; then
     echo "required RPM package signing keyring is missing: $PACKAGE_SIGNING_KEYRING" >&2
-    exit 1
-  fi
-fi
-
-if [ "$BUILD_ONLY" -eq 0 ]; then
-  if [ ! -r "$OVMF_CODE" ] || [ ! -r "$OVMF_VARS_TEMPLATE" ]; then
-    echo "OVMF firmware files not found or unreadable:" >&2
-    echo "  $OVMF_CODE" >&2
-    echo "  $OVMF_VARS_TEMPLATE" >&2
-    exit 1
-  fi
-
-  if [ ! -r /dev/kvm ] || [ ! -w /dev/kvm ]; then
-    echo "KVM is unavailable to the current user (/dev/kvm is not readable/writable)." >&2
-    echo "Check that the KVM module is loaded and log in again after joining the kvm group." >&2
-    exit 1
-  fi
-
-  if [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ]; then
-    echo "No graphical display found (DISPLAY and WAYLAND_DISPLAY are unset)." >&2
     exit 1
   fi
 fi
@@ -582,7 +553,11 @@ if [ "$SKIP_BUILD" -eq 0 ]; then
   ISO_GRUB_CFG="$WORK_DIR/iso-grub.cfg"
   ISO_GRUB_THEME="$WORK_DIR/iso-grub-theme.txt"
   ISO_INITRD="$WORK_DIR/iso-initrd"
-  rm -f "$ISO_GRUB_CFG" "$ISO_GRUB_THEME" "$ISO_INITRD"
+  ISO_SQUASHFS="$WORK_DIR/iso-squashfs.img"
+  SQUASHFS_VERIFY_DIR="$WORK_DIR/squashfs-verify"
+  rm -f "$ISO_GRUB_CFG" "$ISO_GRUB_THEME" "$ISO_INITRD" "$ISO_SQUASHFS"
+  chmod -R u+rwX "$SQUASHFS_VERIFY_DIR" 2>/dev/null || true
+  rm -rf "$SQUASHFS_VERIFY_DIR"
   xorriso -osirrox on -indev "$BUILT_ISO" \
     -extract /boot/grub2/grub.cfg "$ISO_GRUB_CFG" >/dev/null 2>&1
   if [ "$PROFILE" = desktop ]; then
@@ -592,6 +567,8 @@ if [ "$SKIP_BUILD" -eq 0 ]; then
   fi
   xorriso -osirrox on -indev "$BUILT_ISO" \
     -extract /boot/x86_64/loader/initrd "$ISO_INITRD" >/dev/null 2>&1
+  xorriso -osirrox on -indev "$BUILT_ISO" \
+    -extract /LiveOS/squashfs.img "$ISO_SQUASHFS" >/dev/null 2>&1
 
   if [ "$PROFILE" = desktop ]; then
     if ! grep -F 'set theme=($root)/boot/grub2/themes/Lyra-OS/theme.txt' \
@@ -614,6 +591,24 @@ if [ "$SKIP_BUILD" -eq 0 ]; then
     exit 1
   fi
   echo "--- validated live initrd without Plymouth ($(du -h "$ISO_INITRD" | cut -f1)) ---"
+
+  # Reading metadata is insufficient: the Alpha 3 installer exposed an ISO
+  # whose SquashFS superblock was valid but one XZ-compressed data block was
+  # corrupt. Fully extract every inode before the image can replace the last
+  # known test ISO. This intentionally costs time and temporary disk space;
+  # an installer image whose rootfs cannot be read end-to-end is unusable.
+  echo "--- validating every compressed block in the live SquashFS ---"
+  if ! unsquashfs -no-xattrs -no-exit-code -f \
+      -d "$SQUASHFS_VERIFY_DIR" "$ISO_SQUASHFS" >/dev/null; then
+    echo "!!! generated ISO contains an unreadable/corrupt live SquashFS" >&2
+    echo "!!! refusing to promote or boot: $BUILT_ISO" >&2
+    chmod -R u+rwX "$SQUASHFS_VERIFY_DIR" 2>/dev/null || true
+    rm -rf "$SQUASHFS_VERIFY_DIR"
+    exit 1
+  fi
+  chmod -R u+rwX "$SQUASHFS_VERIFY_DIR" 2>/dev/null || true
+  rm -rf "$SQUASHFS_VERIFY_DIR"
+  echo "--- validated live SquashFS by full extraction ---"
 
   ISO_NAME="$(basename "$BUILT_ISO")"
   ISO_PATH="$ISO_DIR/$ISO_NAME"
@@ -655,11 +650,65 @@ if [ -z "$ISO_PATH" ] || [ ! -f "$ISO_PATH" ]; then
   exit 1
 fi
 
+if [ "$SKIP_BUILD" -eq 1 ]; then
+  for command in xorriso unsquashfs; do
+    if ! command -v "$command" >/dev/null 2>&1; then
+      echo "required ISO validation command not found: $command" >&2
+      exit 1
+    fi
+  done
+  ISO_SQUASHFS="$WORK_DIR/iso-squashfs.img"
+  SQUASHFS_VERIFY_DIR="$WORK_DIR/squashfs-verify"
+  rm -f "$ISO_SQUASHFS"
+  chmod -R u+rwX "$SQUASHFS_VERIFY_DIR" 2>/dev/null || true
+  rm -rf "$SQUASHFS_VERIFY_DIR"
+  xorriso -osirrox on -indev "$ISO_PATH" \
+    -extract /LiveOS/squashfs.img "$ISO_SQUASHFS" >/dev/null 2>&1
+  echo "--- validating every compressed block in the reused live SquashFS ---"
+  if ! unsquashfs -no-xattrs -no-exit-code -f \
+      -d "$SQUASHFS_VERIFY_DIR" "$ISO_SQUASHFS" >/dev/null; then
+    echo "!!! existing ISO contains an unreadable/corrupt live SquashFS" >&2
+    echo "!!! refusing to boot with --skip-build: $ISO_PATH" >&2
+    chmod -R u+rwX "$SQUASHFS_VERIFY_DIR" 2>/dev/null || true
+    rm -rf "$SQUASHFS_VERIFY_DIR"
+    exit 1
+  fi
+  chmod -R u+rwX "$SQUASHFS_VERIFY_DIR" 2>/dev/null || true
+  rm -rf "$SQUASHFS_VERIFY_DIR"
+  echo "--- validated reused live SquashFS by full extraction ---"
+fi
+
 echo "--- ISO ready: $ISO_PATH ($(du -h "$ISO_PATH" | cut -f1)) ---"
 
 if [ "$BUILD_ONLY" -eq 1 ]; then
   echo "=== build-only complete; existing VM disk and UEFI state were not changed ==="
   exit 0
+fi
+
+# Check VM runtime requirements only after the ISO has passed its complete
+# integrity validation, but still before touching the previous VM state. This
+# lets --skip-build diagnose a corrupt cache even on a shell without KVM or a
+# graphical session.
+for command in qemu-img qemu-system-x86_64; do
+  if ! command -v "$command" >/dev/null 2>&1; then
+    echo "required command not found: $command" >&2
+    exit 1
+  fi
+done
+if [ ! -r "$OVMF_CODE" ] || [ ! -r "$OVMF_VARS_TEMPLATE" ]; then
+  echo "OVMF firmware files not found or unreadable:" >&2
+  echo "  $OVMF_CODE" >&2
+  echo "  $OVMF_VARS_TEMPLATE" >&2
+  exit 1
+fi
+if [ ! -r /dev/kvm ] || [ ! -w /dev/kvm ]; then
+  echo "KVM is unavailable to the current user (/dev/kvm is not readable/writable)." >&2
+  echo "Check that the KVM module is loaded and log in again after joining the kvm group." >&2
+  exit 1
+fi
+if [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ]; then
+  echo "No graphical display found (DISPLAY and WAYLAND_DISPLAY are unset)." >&2
+  exit 1
 fi
 
 mkdir -p "$VM_DIR"
