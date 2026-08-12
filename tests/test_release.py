@@ -81,6 +81,32 @@ class RepositoryMetadataTests(unittest.TestCase):
             self.assertTrue(path.exists(), path)
             self.assertEqual(path.read_text(encoding="utf-8"), expected, path)
 
+    def test_desktop_schedule_has_no_obsolete_2026_final_date(self) -> None:
+        schedule_files = (
+            ROOT / "PROMPT-LYRA-OS.md",
+            ROOT / "docs/roadmap.md",
+            ROOT / "docs/nvidia-iso.md",
+        )
+        for path in schedule_files:
+            text = path.read_text(encoding="utf-8")
+            self.assertNotIn("20/09/2026", text, path)
+        self.assertIn(
+            "~26/jan/2027",
+            (ROOT / "docs/release-versioning.md").read_text(encoding="utf-8"),
+        )
+
+    def test_server_schedule_uses_the_same_release_cadence(self) -> None:
+        versioning = (ROOT / "docs/release-versioning.md").read_text(encoding="utf-8")
+        server = versioning.split("## Lyra OS Server 1.0", 1)[1].split(
+            "## Lyra OS 1.1", 1
+        )[0]
+        for duration in ("3 semanas", "4 semanas", "2 semanas"):
+            self.assertIn(duration, server)
+        for stage in ("alpha1", "alpha2", "beta1", "beta2", "beta3", "rc1", "rc2"):
+            self.assertIn(f"| {stage} |", server)
+        self.assertIn("~26/jan/2027", server)
+        self.assertIn("~16/fev/2027", server)
+
     def test_build_manifest_is_traceable(self) -> None:
         release = Release.from_file()
         with tempfile.TemporaryDirectory() as directory:

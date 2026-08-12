@@ -176,10 +176,12 @@ antiga vibrante azul-safira→violeta):
 
 - Pipeline de CI para refresh mensal da ISO
 - GRUB panic button (reversão via boot menu, ver Snapshots acima)
-- Target de release: 30 de agosto de 2026 (data idealizada e flexível — priorizar
-  qualidade sobre prazo; não é um requisito rígido de implementação)
-- Lançamento da versão final: 20 de setembro de 2026; a variante NVIDIA fica
-  para o ciclo pós-release.
+- Alvo interno da versão final: aproximadamente 26 de janeiro de 2027 se a
+  fase Alpha encerrar na Alpha 4, sempre priorizando qualidade sobre prazo
+- Buffer do ciclo: até aproximadamente 16 de fevereiro de 2027 caso a Alpha 5
+  seja necessária; o cronograma canônico e os critérios de promoção ficam em
+  `docs/release-versioning.md`
+- A variante NVIDIA começa somente depois da publicação da Lyra OS 1.0.
 
 ## Fora de escopo nesta fase (não implementar)
 

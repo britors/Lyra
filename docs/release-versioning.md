@@ -94,6 +94,48 @@ antecipa e a final sai em torno de **~26/jan/2027**. O alvo interno é
 janeiro; fevereiro é a folga não comprometida, não parte do prazo prometido.
 A final deste ciclo é publicada como **Lyra OS 1.0**.
 
+## Lyra OS Server 1.0
+
+O Server possui ciclo independente, mas usa os mesmos critérios de promoção e
+a mesma cadência do Desktop: Alphas de até 3 semanas, Betas de até 4 semanas,
+RCs de até 2 semanas e buffer final de 2 semanas. Uma etapa fecha quando seus
+gates ficam verdes; as datas são teto, não motivo para promover uma imagem com
+P0/P1 aberto.
+
+| Estágio | Cadência | Datas | Objetivo de saída |
+|---|---|---|---|
+| alpha1 | 3 semanas | 11/ago/2026 → 01/set/2026 | Reconfirmar instalação completa após os últimos ajustes da TUI e produzir o primeiro candidato rastreável. |
+| alpha2 | 3 semanas | 01/set/2026 → 22/set/2026 | Fechar boot UEFI/Secure Boot, primeiro boot, DHCP, SSH, firewall, `vegad` e `vega-web` com evidência automatizada. |
+| alpha3, se necessária | 3 semanas | 22/set/2026 → 13/out/2026 | Resolver P1 remanescente e ampliar a matriz de hardware; não adicionar novo escopo funcional. |
+| beta1 | 4 semanas | 13/out/2026 → 10/nov/2026 | Congelamento funcional e validação do fluxo suportado em disco inteiro/ext4. |
+| beta2 | 4 semanas | 10/nov/2026 → 08/dez/2026 | Estabilidade, atualização dos pacotes, rede e administração remota em execuções repetidas. |
+| beta3 | 4 semanas | 08/dez/2026 → 05/jan/2027 | Internacionalização dos componentes próprios aplicáveis ao Server e fechamento da documentação operacional. |
+| rc1 | 2 semanas | 05/jan/2027 → 19/jan/2027 | Candidato completo, assinado e exercitado em VM e hardware físico, sem P0/P1. |
+| rc2 | 2 semanas | 19/jan/2027 → 02/fev/2027 | Somente correções bloqueantes e repetição integral do gate. |
+| final (buffer) | 2 semanas | 02/fev/2027 → **~16/fev/2027** | Publicação da Lyra OS Server 1.0 e verificação dos artefatos baixados. |
+
+Se o Server fechar a fase Alpha na `alpha2`, sem P0/P1 e com todas as
+evidências obrigatórias, as etapas seguintes podem ser antecipadas e a final
+fica em torno de **~26/jan/2027**. O Server não precisa esperar o Desktop nem
+ser publicado no mesmo dia; cada edição só avança com o próprio gate verde.
+
+### Estado na entrada da Alpha 1
+
+O fluxo boot live → TUI → disco inteiro/GPT/ESP/ext4 → chroot → shim/GRUB →
+primeiro boot já completou em VM, com DHCP, SSH, `vegad` e `vega-web` ativos.
+Os testes locais de shell, comportamento da TUI, segurança de senha/sudo e
+identidade do overlay estão verdes. Permanecem como bloqueadores para sair da
+Alpha 1:
+
+- repetir o fluxo ponta a ponta depois das correções finais do gauge e do
+  nível de log do console;
+- validar Secure Boot e os argumentos reais de `shim-install` no candidato;
+- gerar ISO, checksum, assinatura, inventário, SBOMs e manifesto de evidência
+  a partir de uma árvore limpa;
+- executar `lyra-system-smoke` para sessão live e primeiro boot;
+- registrar a matriz de hardware, incluindo ao menos o risco explícito da
+  cobertura física disponível.
+
 ## Lyra OS 1.1 (rebase para openSUSE Leap 16.1)
 
 Início em março/2027, ~1 mês após a final do 1.0. A base muda de Leap 16.0

@@ -4,7 +4,8 @@ Este documento é o rascunho de arquitetura da variante de ISO com o driver
 proprietário NVIDIA pré-instalado e pré-configurado. Ele existe para orientar
 a implementação quando o ciclo começar — **não autoriza começar a
 implementação agora**. Conforme `PROMPT-LYRA-OS.md`, a variante NVIDIA fica
-para o ciclo pós-release (depois de 20/09/2026), e `docs/image-builds.md`
+para depois da publicação da Lyra OS 1.0 (alvo interno em janeiro de 2027,
+com buffer até aproximadamente 16/02/2027), e `docs/image-builds.md`
 já a trata como "a separate optional deliverable" que não pode introduzir um
 flavor de imagem na OBS nem bloquear a ISO padrão. Este rascunho não muda
 nenhuma dessas decisões.
