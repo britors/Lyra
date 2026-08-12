@@ -58,8 +58,9 @@ explicitamente em vez de assumir.
   polkit. Não executar toda a interface como root
 - Não usar instaladores de terceiros. A Beta 2 contém exclusivamente o Lyra
   Installer e só pode ser publicada depois da validação do candidato final
-- Idioma/região: **pt-BR pré-selecionado** como sugestão inicial, mas
-  livremente trocável pelo usuário
+- Idioma/região: **en-US pré-selecionado**, com `pt-BR`, `es-ES` e `zh-CN`
+  no Lyra Installer; os demais pacotes próprios têm gate integral em
+  `en-US`/`pt-BR`, e novos idiomas além desses quatro entram na versão 1.1
 - Hostname padrão sugerido: `lyra-os`
 - Conta de usuário: **root desabilitado**; usuário criado durante a
   instalação recebe privilégios administrativos via sudo (padrão
@@ -179,10 +180,17 @@ antiga vibrante azul-safira→violeta):
 
 - Pipeline de CI para refresh mensal da ISO
 - GRUB panic button (reversão via boot menu, ver Snapshots acima)
-- Alpha 4 e Alpha 5 são obrigatórias: toda feature da 1.0 e a
-  internacionalização `pt-BR`/`en-US` dos pacotes próprios e do instalador
-  devem terminar até 13 de outubro de 2026.
-- Beta 1 inicia o congelamento funcional em 13/10/2026. Betas e RCs
+- Alpha 4 e Alpha 5 são obrigatórias; uma Alpha 6 pode ser aberta se os gates
+  ainda não estiverem verdes. Toda feature da 1.0 e a
+  internacionalização `pt-BR`/`en-US` dos pacotes próprios e os quatro
+  catálogos (`en-US`, `pt-BR`, `es-ES`, `zh-CN`) do instalador
+  usam 13 de outubro de 2026 como meta, nunca como autorização para promover
+  uma imagem com P0/P1 ou trabalho obrigatório pendente.
+- O instalador da versão 1.0 oferece `en-US`, `pt-BR`, `es-ES` e `zh-CN`;
+  os demais pacotes próprios permanecem em `en-US`/`pt-BR`. Novos idiomas
+  além desses quatro são escopo da versão 1.1, com fallback `en-US`.
+- Beta 1 inicia o congelamento funcional somente após a última Alpha fechar
+  todos os gates; 13/10/2026 é a meta atual. Betas e RCs
   recebem somente correções de bugs, regressões, segurança, desempenho e
   traduções já existentes; não recebem novas features, idiomas ou
   infraestrutura de i18n.
@@ -208,8 +216,8 @@ antiga vibrante azul-safira→violeta):
 ## Checklist de validação
 
 - [ ] ISO builda via KIWI, base Leap 16, kernel-default, Btrfs+Snapper, zram
-- [ ] Lyra Installer em Rust/Tauri instala com pt-BR pré-selecionado e
-      hostname sugerido `lyra-os`
+- [ ] Lyra Installer em Rust/Tauri instala com en-US pré-selecionado, oferece
+      en-US/pt-BR/es-ES/zh-CN na 1.0 e sugere o hostname `lyra-os`
 - [ ] Root desabilitado; usuário criado tem sudo
 - [ ] Repos habilitados por padrão: apenas OSS/Non-OSS/Updates do Leap 16
 - [ ] Repos OBS do Lyra (lyra/vega/fina) configurados e

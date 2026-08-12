@@ -17,10 +17,10 @@ a imagem ainda é uma pré-release:
 | RC | `stage = "rc"`, `iteration = N` | `2026.08-rcN`, `v2026.08-rcN`, `lyra-os.x86_64-2026.08-rcN.iso` |
 | Final | `stage = "release"`, `iteration = 0` | `2026.08`, `v2026.08`, `lyra-os.x86_64-2026.08.iso` |
 
-O build atual é `alpha3`: evolução da Alpha 2 com as correções encontradas na
-validação do instalador, mantendo a classificação Alpha porque ainda há
-correções de funcionalidade central do instalador em andamento
-(partição, sudo, permissões pkexec), não apenas estabilização. A tag já
+O build atual é `alpha4`: ciclo de internacionalização do instalador,
+primeira onda de pacotes próprios e fluxo opcional NVIDIA pelo Vega,
+mantendo a classificação Alpha porque ainda há funcionalidades planejadas
+em implementação, não apenas estabilização. A tag já
 publicada `v2026.08-beta2-stable-20260809` permanece como registro histórico
 e não é reescrita; o próximo ciclo de beta deste produto recomeça em `beta1`.
 
@@ -81,8 +81,9 @@ um estágio fechar mais cedo, a promoção acontece mais cedo.
 |---|---|---|---|
 | alpha3 | 3 semanas | 11/ago/2026 → 01/set/2026 | Fechar o instalador suportado e sua publicação. |
 | alpha4 | 3 semanas | 01/set/2026 → 22/set/2026 | Implementar i18n base, instalador bilíngue, primeira onda de pacotes e instalação NVIDIA via Vega. |
-| alpha5 | 3 semanas | 22/set/2026 → 13/out/2026 | Concluir i18n de todos os pacotes, integração e qualquer feature restante; última Alpha. |
-| beta1 | 4 semanas | 13/out/2026 → 10/nov/2026 | **Feature freeze:** somente bugs, regressões, segurança, desempenho e correções de traduções existentes. |
+| alpha5 | 3 semanas | 22/set/2026 → 13/out/2026 | Concluir i18n de todos os pacotes, integração e qualquer feature restante. |
+| alpha6, se necessária | até 3 semanas | após alpha5 | Fechar gates ainda vermelhos sem reduzir escopo ou promover P0/P1 para Beta. |
+| beta1 | 4 semanas | após a última Alpha | **Feature freeze:** somente bugs, regressões, segurança, desempenho e correções de traduções existentes. |
 | beta2 | 4 semanas | 10/nov/2026 → 08/dez/2026 | Estabilidade e atualização; nenhuma feature nova. |
 | beta3 | 4 semanas | 08/dez/2026 → 05/jan/2027 | QA linguístico e correções finais; nenhuma infraestrutura ou novo componente traduzido. |
 | rc1 | 2 semanas | 05/jan/2027 → 19/jan/2027 | Somente bloqueadores P0/P1 e repetição do gate. |
@@ -91,9 +92,11 @@ um estágio fechar mais cedo, a promoção acontece mais cedo.
 
 ### Desktop Alpha 4 — 01/09 a 22/09
 
-Idiomas obrigatórios da Lyra OS 1.0: **português do Brasil (`pt-BR`) e inglês
-dos Estados Unidos (`en-US`)**. Idiomas adicionais são pós-1.0 e não podem
-reduzir a cobertura desses dois.
+O Lyra Installer da 1.0 oferece **inglês dos Estados Unidos (`en-US`)**,
+**português do Brasil (`pt-BR`)**, **espanhol da Espanha (`es-ES`)** e
+**chinês simplificado (`zh-CN`)**, com `en-US` como padrão e fallback. O gate
+integral dos demais pacotes próprios permanece em `en-US`/`pt-BR`; idiomas
+adicionais ficam para a versão 1.1.
 
 - **01–07/set:** inventariar strings de todos os pacotes próprios; definir o
   contrato de catálogos, pluralização, seleção de locale e fallback; adicionar
@@ -108,7 +111,8 @@ reduzir a cobertura desses dois.
 O driver não entra no Lyra Installer nem na ISO padrão. O fluxo do Vega exige
 detecção conservadora, confirmação explícita, Secure Boot verificado, snapshot
 Snapper, pacotes meta em lockstep, `dracut`, reinício e rollback. Alpha 4 só
-fecha com o instalador e a primeira onda funcionando em `pt-BR` e `en-US` e o
+fecha com o instalador funcionando nos quatro idiomas, a primeira onda de
+pacotes funcionando em `pt-BR` e `en-US`, e o
 fluxo NVIDIA validado no hardware G06 disponível.
 
 ### Desktop Alpha 5 — 22/09 a 13/10
@@ -125,16 +129,17 @@ fluxo NVIDIA validado no hardware G06 disponível.
   auditar que todas as features planejadas para 1.0 estão implementadas ou
   formalmente removidas do escopo.
 
-Às 00:00 de **13/10/2026**, a Beta 1 inicia o congelamento funcional. Uma
+**13/10/2026 é meta, não promoção automática.** A Beta 1 inicia o congelamento
+funcional somente após a última Alpha fechar os gates. Uma
 mudança depois desse ponto só pode corrigir bug, regressão, vulnerabilidade,
 desempenho ou tradução já existente. Novo componente, novo fluxo, novo idioma
 ou nova infraestrutura de i18n volta para o próximo ciclo, salvo P0/P1 com
 decisão formal registrada.
 
-Como a Alpha 5 passa a ser obrigatória para fechar internacionalização e
-features, o cenário antecipado que encerrava a fase Alpha na Alpha 4 deixa de
-se aplicar. Fevereiro continua sendo a folga máxima do cronograma, não motivo
-para reduzir os gates. A final deste ciclo é publicada como **Lyra OS 1.0**.
+Alpha 5 é obrigatória para fechar internacionalização e features. Se ela não
+for suficiente, a Alpha 6 é preferível a uma Beta incompleta. Fevereiro
+continua sendo a folga máxima do cronograma, não motivo para reduzir os gates.
+A final deste ciclo é publicada como **Lyra OS 1.0**.
 
 ## Lyra OS Server 1.0
 
@@ -186,6 +191,11 @@ pacotes, ABI, shim de Secure Boot e matriz de hardware contra o novo
 repositório — não é um bump cosmético de número. O funil é mais enxuto que o
 do 1.0 porque o tooling de release e o gate já existem; só a base precisa de
 requalificação:
+
+Este ciclo também abre a expansão para idiomas além de `en-US` e `pt-BR`.
+Cada idioma novo precisa de catálogo completo dos componentes em escopo,
+revisão humana, fallback para `en-US` e gate linguístico antes de aparecer no
+seletor do Lyra Installer.
 
 | Estágio | Cadência | Datas |
 |---|---|---|

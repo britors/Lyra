@@ -22,7 +22,7 @@
   <description type="system">
     <author>Rodrigo Brito</author>
     <contact>rodrigo@w3ti.com.br</contact>
-    <specification>Lyra OS "Odisseia" Alpha 3 - live/installer ISO, openSUSE Leap 16 base, GNOME desktop, x86_64</specification>
+    <specification>Lyra OS "Odisseia" Alpha 4 - live/installer ISO, openSUSE Leap 16 base, GNOME desktop, x86_64</specification>
   </description>
 
   <profiles>
@@ -38,14 +38,14 @@
     <packagemanager>zypper</packagemanager>
     <rpm-excludedocs>true</rpm-excludedocs>
     <rpm-check-signatures>true</rpm-check-signatures>
-    <locale>pt_BR,en_US</locale>
+    <locale>pt_BR,en_US,es_ES,zh_CN</locale>
     <keytable>us</keytable>
     <timezone>UTC</timezone>
   </preferences>
 
   <preferences profiles="desktop">
     <!-- Generated from release.toml; user-facing strings say "Alpha 3". -->
-    <version>2026.08-alpha3</version>
+    <version>2026.08-alpha4</version>
     <!--
       Selects lyra-os-theme's "Lyra-OS" assets. The
       bootloader theme is active in the live GRUB menu. The bootsplash
@@ -64,7 +64,7 @@
       filesystem="squashfs"
       firmware="uefi"
       editbootconfig="edit_boot_config.sh"
-      volid="LYRA_OS_2026_08_ALPHA3"
+      volid="LYRA_OS_2026_08_ALPHA4"
       application_id="LyraOS"
       publisher="Lyra OS Project">
       <bootloader name="grub2" timeout="10"/>
@@ -340,6 +340,22 @@
     -->
     <namedCollection name="gnome_basic"/>
     <namedCollection name="gnome"/>
+    <!-- WebKitGTK does not synthesize flag glyphs from the base DejaVu fonts.
+         Keep Noto Color Emoji explicit because the installer language picker
+         uses regional-indicator emoji for its language flags. -->
+    <package name="google-noto-coloremoji-fonts"/>
+    <!-- Leap 16 does not provide fetchmsttfonts or redistributable Microsoft
+         Core Fonts RPMs. Ship the repository-native TrueType metric
+         substitutes instead: Liberation covers Arial/Times New Roman/Courier
+         New documents and Carlito covers Calibri-compatible documents. -->
+    <package name="liberation-fonts"/>
+    <package name="google-carlito-fonts"/>
+    <package name="google-noto-sans-cjk-fonts"/>
+    <!-- GNOME Shell obtains battery presence, charge and AC state through
+         UPower. It is only a recommendation in the minimal Leap dependency
+         graph, so onlyRequired omitted the daemon while retaining its client
+         library; the result was a working BAT1 in sysfs but no battery icon. -->
+    <package name="upower"/>
     <package name="nautilus"/>
     <!-- Nautilus only Recommends gvfs. Without these explicit packages,
          trash, removable media, phones and network locations are missing. -->
@@ -407,8 +423,13 @@
     <package name="gnome-software-plugin-packagekit"/>
 
     <!-- Firefox: default browser. Confirmed as `MozillaFirefox` in the
-         real Leap 16.0 OSS repodata (there is no plain "firefox" RPM). -->
+         real Leap 16.0 OSS repodata (there is no plain "firefox" RPM).
+         The translations subpackage carries the common language packs and
+         is version-locked to MozillaFirefox. Do not force
+         intl.locale.requested in policies.json: Firefox must follow LANG,
+         which the installer writes from the selected system locale. -->
     <package name="MozillaFirefox"/>
+    <package name="MozillaFirefox-translations-common"/>
 
     <!-- CUPS + common drivers, printing and scanning. -->
     <package name="cups"/>
@@ -509,7 +530,7 @@
       Translations: Leap packages ship UI strings in a separate
       "<name>-lang" subpackage, pulled in only as a Recommends - which
       onlyRequired (see above) drops just like everything else, so the
-      built image ends up with the pt_BR/en_US locale set (<locale> above)
+      built image ends up with the configured locale set (<locale> above)
       but almost every GNOME app and gnome-shell itself still in English.
       This list was cross-checked against a running reference image
       (`rpm -qa`/`zypper se '*-lang'`) for the desktop-facing packages

@@ -29,7 +29,7 @@ em dry-run — só leitura, sem executar nada destrutivo. `cargo test` cobre
 esse módulo com fixtures (disco vazio, ocupado, ESP existente, espaço
 insuficiente, RAID saudável/degradado, RAID+LVM combinados). O comando
 Tauri `discover_storage` e `plan_install` alimentam a tela de armazenamento
-do assistente (`ui/index.html`/`ui/app.js`). Na Alpha 3, a interface oferece
+do assistente (`ui/index.html`/`ui/app.js`). Na Alpha 4, a interface oferece
 somente `RawTarget::Disk` + `VolumeLayer::Direct`, o único caminho que o
 serviço privilegiado executa de ponta a ponta. RAID, LVM, RAID+LVM e o modo
 customizado continuam modelados e testados no núcleo, mas não aparecem na

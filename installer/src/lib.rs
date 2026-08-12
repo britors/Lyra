@@ -98,7 +98,7 @@ pub const KEYBOARD_LAYOUTS: &[(&str, &str, Option<&str>)] = &[
 impl Default for InstallConfig {
     fn default() -> Self {
         Self {
-            locale: "pt_BR.UTF-8".into(),
+            locale: "en_US.UTF-8".into(),
             timezone: "America/Sao_Paulo".into(),
             keyboard_layout: "br-abnt2".into(),
             hostname: "lyra-os".into(),
@@ -114,13 +114,21 @@ impl InstallConfig {
     pub fn validate(&self) -> Result<(), Vec<&'static str>> {
         let mut errors = Vec::new();
 
-        if !matches!(self.locale.as_str(), "pt_BR.UTF-8" | "en_US.UTF-8") {
+        if !matches!(self.locale.as_str(), "pt_BR.UTF-8" | "en_US.UTF-8" | "es_ES.UTF-8" | "zh_CN.UTF-8") {
             errors.push("idioma não suportado");
         }
-        if !matches!(
-            self.timezone.as_str(),
-            "America/Sao_Paulo" | "America/Manaus" | "America/Belem" | "UTC"
-        ) {
+        let timezone_path = std::path::Path::new("/usr/share/zoneinfo").join(&self.timezone);
+        let valid_timezone_name = self.timezone == "UTC"
+            || (self.timezone.contains('/')
+                && self.timezone.split('/').all(|part| {
+                    !part.is_empty()
+                        && part != "."
+                        && part != ".."
+                        && part
+                            .bytes()
+                            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-' | b'+'))
+                }));
+        if !valid_timezone_name || !timezone_path.is_file() {
             errors.push("fuso horário não suportado");
         }
         if !KEYBOARD_LAYOUTS
@@ -190,16 +198,23 @@ mod tests {
     #[test]
     fn defaults_follow_product_specification() {
         let config = InstallConfig::default();
-        assert_eq!(config.locale, "pt_BR.UTF-8");
+        assert_eq!(config.locale, "en_US.UTF-8");
         assert_eq!(config.timezone, "America/Sao_Paulo");
         assert_eq!(config.keyboard_layout, "br-abnt2");
         assert_eq!(config.hostname, "lyra-os");
     }
 
     #[test]
-    fn rejects_a_timezone_outside_the_wizards_option_list() {
+    fn accepts_an_iana_timezone_from_the_system_database() {
         let mut config = valid_config();
         config.timezone = "Europe/Lisbon".into();
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn rejects_a_timezone_path_traversal() {
+        let mut config = valid_config();
+        config.timezone = "America/../../etc/passwd".into();
         let errors = config.validate().unwrap_err();
         assert!(errors.contains(&"fuso horário não suportado"));
     }

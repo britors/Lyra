@@ -17,6 +17,48 @@ use lyra_installer_core::storage::{
 };
 use tauri::Emitter;
 
+#[derive(serde::Serialize)]
+struct TimezoneEntry {
+    name: String,
+    latitude: f64,
+    longitude: f64,
+}
+
+fn parse_zone_coordinate(value: &str, degree_digits: usize) -> Option<f64> {
+    let sign = if value.starts_with('-') { -1.0 } else { 1.0 };
+    let digits = value.get(1..)?;
+    let degrees: f64 = digits.get(..degree_digits)?.parse().ok()?;
+    let minutes: f64 = digits.get(degree_digits..degree_digits + 2)?.parse().ok()?;
+    let seconds: f64 = if digits.len() >= degree_digits + 4 {
+        digits.get(degree_digits + 2..degree_digits + 4)?.parse().ok()?
+    } else { 0.0 };
+    Some(sign * (degrees + minutes / 60.0 + seconds / 3600.0))
+}
+
+#[tauri::command]
+fn list_timezones() -> Result<Vec<TimezoneEntry>, String> {
+    let source = fs::read_to_string("/usr/share/zoneinfo/zone1970.tab")
+        .or_else(|_| fs::read_to_string("/usr/share/zoneinfo/zone.tab"))
+        .map_err(|error| format!("não foi possível ler a base de fusos horários: {error}"))?;
+    let mut zones = Vec::new();
+    for line in source.lines().filter(|line| !line.starts_with('#')) {
+        let fields: Vec<_> = line.split('\t').collect();
+        if fields.len() < 3 { continue; }
+        let coordinates = fields[1];
+        let split = coordinates.get(1..).and_then(|rest| rest.find(['+', '-']).map(|index| index + 1));
+        let Some(split) = split else { continue };
+        let (latitude, longitude) = coordinates.split_at(split);
+        let (Some(latitude), Some(longitude)) = (
+            parse_zone_coordinate(latitude, 2),
+            parse_zone_coordinate(longitude, 3),
+        ) else { continue };
+        zones.push(TimezoneEntry { name: fields[2].to_string(), latitude, longitude });
+    }
+    zones.push(TimezoneEntry { name: "UTC".into(), latitude: 51.48, longitude: 0.0 });
+    zones.sort_by(|left, right| left.name.cmp(&right.name));
+    Ok(zones)
+}
+
 /// Read-only: lists disks, RAID arrays and LVM volumes currently visible to
 /// the live session. Never touches the disk — planning and execution are
 /// separate steps until the user confirms the summary screen.
@@ -475,6 +517,7 @@ fn execute_plan_blocking(
 fn main() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
+            list_timezones,
             discover_storage,
             plan_install,
             validate_install_config,

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="pt-BR">
+<html lang="en-US">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -28,7 +28,7 @@
       <section class="content">
         <header class="topbar">
           <div class="eyebrow" id="step-label">ETAPA 01 / 05</div>
-          <div class="topbar-note">Odisseia <span>Alpha 3</span></div>
+          <div class="topbar-note">Odisseia <span>Alpha 4</span></div>
         </header>
 
         <div class="pages">
@@ -60,8 +60,21 @@
           </section>
 
           <section class="page" data-page="2" aria-labelledby="region-title">
-            <div class="page-heading"><div class="kicker">LOCALIZAÇÃO</div><h1 id="region-title">Seu lugar<br /><em>no mundo.</em></h1><p class="lead">A região define formatos de data, moeda, números e o fuso horário sugerido para o sistema.</p></div>
-            <div class="region-form"><label>País ou região<select id="region"><option value="BR" selected>🇧🇷  Brasil</option><option value="US">🇺🇸  Estados Unidos</option><option value="PT">🇵🇹  Portugal</option></select></label><label>Fuso horário<select id="timezone"><option value="America/Sao_Paulo" selected>America/Sao_Paulo (UTC−03:00)</option><option value="America/Manaus">America/Manaus (UTC−04:00)</option><option value="America/Belem">America/Belem (UTC−03:00)</option><option value="UTC">UTC (UTC±00:00)</option></select></label></div>
+            <div class="region-heading"><div class="page-heading"><div class="kicker">LOCALIZAÇÃO</div><h1 id="region-title">Seu lugar<br /><em>no mundo.</em></h1><p class="lead">A região define formatos de data, moeda, números e o fuso horário sugerido para o sistema.</p></div><label class="timezone-picker">Fuso horário<select id="timezone"><option value="America/Sao_Paulo">America/Sao_Paulo</option></select></label></div>
+            <div class="timezone-map" id="timezone-map" role="group" aria-label="Selecione um fuso horário no mapa">
+              <svg class="map-canvas" id="map-canvas" viewBox="0 0 2754 1398" aria-hidden="true">
+                <image class="world-map" href="assets/world-map-noborders.svg" width="2754" height="1398" />
+                <g id="timezone-marker"><circle class="marker-halo" r="34"/><circle class="marker-dot" r="17"/><g class="marker-label"><rect x="28" y="-31" width="330" height="62" rx="10"/><text id="timezone-marker-label" x="48" y="8">America/Sao_Paulo</text></g></g>
+              </svg>
+              <div class="map-zoom" aria-label="Controles de zoom">
+                <button id="map-zoom-out" type="button" aria-label="Reduzir mapa">−</button>
+                <output id="map-zoom-level" aria-live="polite">100%</output>
+                <button id="map-zoom-in" type="button" aria-label="Ampliar mapa">+</button>
+                <button id="map-zoom-reset" type="button" aria-label="Restaurar zoom">↺</button>
+              </div>
+              <div class="map-caption"><span class="map-caption-dot"></span><p class="map-hint">Selecione um pin para definir o fuso horário</p></div>
+            </div>
+            <div class="timezone-selection" aria-live="polite"><span>Fuso horário selecionado</span><strong id="timezone-selection-value">São Paulo · America/Sao_Paulo · UTC−03:00</strong></div>
             <div class="region-preview"><span>Prévia regional</span><strong>07/08/2026&nbsp;&nbsp; · &nbsp;&nbsp;R$ 1.234,56</strong></div>
           </section>
 
@@ -140,6 +153,7 @@
         </footer>
       </section>
     </main>
+    <script src="i18n.js"></script>
     <script src="app.js"></script>
   </body>
 </html>

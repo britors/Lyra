@@ -1673,6 +1673,7 @@ name = "lyra-installer"
 version = "0.1.0"
 dependencies = [
  "lyra-installer-core",
+ "serde",
  "serde_json",
  "tauri",
  "tauri-build",

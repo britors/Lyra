@@ -15,6 +15,9 @@ const reboot=document.querySelector('#reboot');
 const rebootError=document.querySelector('#reboot-error');
 const {invoke}=window.__TAURI__.core;
 const {listen}=window.__TAURI__.event;
+const i18n=window.LyraI18n;
+const DEFAULT_LOCALE='en_US.UTF-8';
+let selectedLocale=DEFAULT_LOCALE;
 let current=0;
 let storageSnapshot=null;
 let selectedDiskPath=null;
@@ -80,8 +83,13 @@ const keyboardLayouts=[
 ];
 
 const languages=[
-  ['pt_BR.UTF-8','Português (Brasil)','🇧🇷','pt_BR · Recomendado'],['pt_PT.UTF-8','Português (Portugal)','🇵🇹','pt_PT'],['en_US.UTF-8','English (United States)','🇺🇸','en_US'],['en_GB.UTF-8','English (United Kingdom)','🇬🇧','en_GB'],['es_ES.UTF-8','Español (España)','🇪🇸','es_ES'],['es_MX.UTF-8','Español (México)','🇲🇽','es_MX'],['fr_FR.UTF-8','Français','🇫🇷','fr_FR'],['de_DE.UTF-8','Deutsch','🇩🇪','de_DE'],['it_IT.UTF-8','Italiano','🇮🇹','it_IT'],['nl_NL.UTF-8','Nederlands','🇳🇱','nl_NL'],['ca_ES.UTF-8','Català','🏴','ca_ES'],['gl_ES.UTF-8','Galego','🇪🇸','gl_ES'],['eu_ES.UTF-8','Euskara','🇪🇸','eu_ES'],['sv_SE.UTF-8','Svenska','🇸🇪','sv_SE'],['da_DK.UTF-8','Dansk','🇩🇰','da_DK'],['nb_NO.UTF-8','Norsk bokmål','🇳🇴','nb_NO'],['fi_FI.UTF-8','Suomi','🇫🇮','fi_FI'],['is_IS.UTF-8','Íslenska','🇮🇸','is_IS'],['pl_PL.UTF-8','Polski','🇵🇱','pl_PL'],['cs_CZ.UTF-8','Čeština','🇨🇿','cs_CZ'],['sk_SK.UTF-8','Slovenčina','🇸🇰','sk_SK'],['hu_HU.UTF-8','Magyar','🇭🇺','hu_HU'],['ro_RO.UTF-8','Română','🇷🇴','ro_RO'],['tr_TR.UTF-8','Türkçe','🇹🇷','tr_TR'],['ru_RU.UTF-8','Русский','🇷🇺','ru_RU'],['uk_UA.UTF-8','Українська','🇺🇦','uk_UA'],['bg_BG.UTF-8','Български','🇧🇬','bg_BG'],['el_GR.UTF-8','Ελληνικά','🇬🇷','el_GR'],['he_IL.UTF-8','עברית','🇮🇱','he_IL'],['ar_SA.UTF-8','العربية','🇸🇦','ar_SA'],['fa_IR.UTF-8','فارسی','🇮🇷','fa_IR'],['hi_IN.UTF-8','हिन्दी','🇮🇳','hi_IN'],['bn_IN.UTF-8','বাংলা','🇮🇳','bn_IN'],['ja_JP.UTF-8','日本語','🇯🇵','ja_JP'],['ko_KR.UTF-8','한국어','🇰🇷','ko_KR'],['zh_CN.UTF-8','简体中文','🇨🇳','zh_CN'],['zh_TW.UTF-8','繁體中文','🇹🇼','zh_TW'],['th_TH.UTF-8','ไทย','🇹🇭','th_TH'],['vi_VN.UTF-8','Tiếng Việt','🇻🇳','vi_VN'],['id_ID.UTF-8','Bahasa Indonesia','🇮🇩','id_ID'],['ms_MY.UTF-8','Bahasa Melayu','🇲🇾','ms_MY'],['sw_KE.UTF-8','Kiswahili','🇰🇪','sw_KE'],['af_ZA.UTF-8','Afrikaans','🇿🇦','af_ZA'],['la_LA.UTF-8','Latina','🏛️','la_LA']
+  ['en_US.UTF-8','English (United States)','🇺🇸','en_US · Recommended'],
+  ['pt_BR.UTF-8','Português (Brasil)','🇧🇷','pt_BR'],
+  ['es_ES.UTF-8','Español (España)','🇪🇸','es_ES'],
+  ['zh_CN.UTF-8','Chinese (Mandarin) / 简体中文','🇨🇳','zh_CN'],
 ];
+
+function uiLocale(locale){return {'pt_BR.UTF-8':'pt-BR','es_ES.UTF-8':'es-ES','zh_CN.UTF-8':'zh-CN'}[locale]||'en-US'}
 
 async function loadInstallerLogo(){
   const image=document.querySelector('#brand-logo');
@@ -101,19 +109,19 @@ async function loadInstallerLogo(){
 function renderLanguageCards(query=''){
   const normalized=query.trim().toLocaleLowerCase();
   const matches=languages.filter(([,name,,code])=>`${name} ${code}`.toLocaleLowerCase().includes(normalized));
-  document.querySelector('#language-cards').innerHTML=matches.map(([value,name,flag,code])=>`<label class="choice${value==='pt_BR.UTF-8'?' selected':''}"><input type="radio" name="locale" value="${value}" ${value==='pt_BR.UTF-8'?'checked':''}/><span class="choice-flag">${flag}</span><span><strong>${name}</strong><small>${code}</small></span><b>✓</b></label>`).join('')||'<p class="keyboard-empty">Nenhum idioma encontrado. Tente outro termo.</p>';
-  document.querySelector('#language-count').textContent=`${matches.length} idiomas disponíveis`;
+  document.querySelector('#language-cards').innerHTML=matches.map(([value,name,flag,code])=>`<label class="choice${value===selectedLocale?' selected':''}"><input type="radio" name="locale" value="${value}" ${value===selectedLocale?'checked':''}/><span><strong><span class="language-flag" aria-hidden="true">${flag}</span>${name}</strong><small>${code}</small></span><b>✓</b></label>`).join('')||`<p class="keyboard-empty">${i18n.t('noLanguages')}</p>`;
+  document.querySelector('#language-count').textContent=i18n.t('languageCount',{count:matches.length});
 }
 
 function renderKeyboardCards(query=''){
   const normalized=query.trim().toLocaleLowerCase();
   const matches=keyboardLayouts.filter(([,name,variant,group])=>`${name} ${variant} ${group}`.toLocaleLowerCase().includes(normalized));
   const cards=matches.map(([id,name,variant,group,keys])=>`<label class="keyboard-card${id==='br-abnt2'?' selected':''}"><input type="radio" name="keyboard" value="${id}" ${id==='br-abnt2'?'checked':''}/><span class="keyboard-top"><strong>${name}</strong><b>✓</b></span><small>${variant} · ${group}</small><div class="keyboard-layout">${keys.split(' ').map(key=>`<i>${key}</i>`).join('')}</div></label>`).join('');
-  document.querySelector('#keyboard-cards').innerHTML=cards||'<p class="keyboard-empty">Nenhum layout encontrado. Tente outro termo.</p>';
-  document.querySelector('#keyboard-count').textContent=`${matches.length} layouts disponíveis`;
+  document.querySelector('#keyboard-cards').innerHTML=cards||`<p class="keyboard-empty">${i18n.t('noKeyboards')}</p>`;
+  document.querySelector('#keyboard-count').textContent=i18n.t('keyboardCount',{count:matches.length});
 }
 
-const transportLabels={Nvme:'NVMe',Sata:'SATA',Virtio:'VirtIO',Usb:'USB',Unknown:'Transporte desconhecido'};
+const transportLabels={Nvme:'NVMe',Sata:'SATA',Virtio:'VirtIO',Usb:'USB',Unknown:i18n.t('unknownTransport')};
 
 function diskTitle(disk){
   const meaningfulLabel=value=>value&&!/^0x[0-9a-f]+$/i.test(value.trim());
@@ -153,7 +161,7 @@ function renderDiskCards(){
   const list=document.querySelector('#disk-list');
   const disks=storageSnapshot?.disks||[];
   if(!disks.length){
-    list.innerHTML='<p class="keyboard-empty">Nenhum disco foi encontrado nesta sessão.</p>';
+    list.innerHTML=`<p class="keyboard-empty">${i18n.t('noDisks')}</p>`;
     document.querySelector('#disk-count').textContent='';
     return;
   }
@@ -168,7 +176,7 @@ function renderDiskCards(){
         <span class="disk-status${reason?' disk-status-blocked':''}">${diskStatus(disk)}</span>
       </label>`;
   }).join('');
-  document.querySelector('#disk-count').textContent=`${disks.length} disco${disks.length===1?'':'s'} detectado${disks.length===1?'':'s'}`;
+  document.querySelector('#disk-count').textContent=i18n.t('diskCount',{count:disks.length,s:disks.length===1?'':'s'});
 }
 
 async function discoverStorage(){
@@ -251,9 +259,9 @@ function show(index){
   back.hidden=index===6&&(installing||installationTerminal);
   next.hidden=index===6;
   actionProgress.hidden=index===6;
-  next.innerHTML='Continuar <span>→</span>';
+  next.innerHTML=i18n.t('next');
   progress.style.width=`${(index+1)*14.2857}%`;
-  label.textContent=`ETAPA 0${index+1} / 07`;
+  label.textContent=i18n.t('step',{current:`0${index+1}`});
   updateNextButtonState();
   updateInstallButtonState();
 }
@@ -302,9 +310,9 @@ async function updateSummary(){
   const language=languages.find(([value])=>value===locale);
   document.querySelector('#summary-locale').textContent=language?.[1]||locale;
   document.querySelector('#summary-hostname').textContent=document.querySelector('#hostname').value||'lyra-os';
-  document.querySelector('#summary-user').textContent=document.querySelector('#username').value||'Aguardando preenchimento';
+  document.querySelector('#summary-user').textContent=document.querySelector('#username').value||i18n.t('waitingInput');
   const choice=buildGuidedChoice();
-  const target=choice?.raw_target?.Disk||'Aguardando seleção';
+  const target=choice?.raw_target?.Disk||i18n.t('waitingSelection');
   document.querySelector('#summary-disk').textContent=target;
   document.querySelector('#summary-swap').textContent=swapChoice==='None'?'Sem swap nem ZRAM':swapChoice==='Disk'?'Swap em disco (8 GiB)':'ZRAM';
   document.querySelector('#install-confirm-text').textContent=`Entendo que os dados de ${target} serão apagados permanentemente.`;
@@ -326,6 +334,95 @@ async function updateSummary(){
   }
   updateInstallButtonState();
 }
+
+let timezones=[];
+const robinsonX=[1,.9986,.9954,.99,.9822,.973,.96,.9427,.9216,.8962,.8679,.835,.7986,.7597,.7186,.6732,.6213,.5722,.5322];
+const robinsonY=[0,.062,.124,.186,.248,.31,.372,.434,.4958,.5571,.6176,.6769,.7346,.7903,.8435,.8936,.9394,.9761,1];
+const mapCentralMeridian=11.25;
+const mapLatitudeCompression=.95623;
+function projectTimezone(latitude,longitude){
+  const absoluteLatitude=Math.min(90,Math.abs(latitude));
+  const lower=Math.min(17,Math.floor(absoluteLatitude/5));
+  const fraction=(absoluteLatitude-lower*5)/5;
+  const xCoefficient=robinsonX[lower]+(robinsonX[lower+1]-robinsonX[lower])*fraction;
+  const yCoefficient=robinsonY[lower]+(robinsonY[lower+1]-robinsonY[lower])*fraction;
+  let relativeLongitude=longitude-mapCentralMeridian;
+  if(relativeLongitude>180) relativeLongitude-=360;
+  if(relativeLongitude< -180) relativeLongitude+=360;
+  return {
+    x:1377+(relativeLongitude/180)*xCoefficient*1377,
+    y:699-Math.sign(latitude)*yCoefficient*699*mapLatitudeCompression,
+  };
+}
+function selectTimezone(timezone){
+  const selector=document.querySelector('#timezone');
+  const entry=timezones.find(candidate=>candidate.name===timezone);
+  if(!entry) return;
+  selector.value=timezone;
+  const {x,y}=projectTimezone(entry.latitude,entry.longitude);
+  document.querySelector('#timezone-marker').setAttribute('transform',`translate(${x} ${y})`);
+  document.querySelector('#timezone-marker-label').textContent=timezone;
+  document.querySelector('#timezone-selection-value').textContent=timezone;
+  mapCamera.x=Math.max(0,Math.min(2754-mapCamera.width,x-mapCamera.width/2));
+  mapCamera.y=Math.max(0,Math.min(1398-mapCamera.height,y-mapCamera.height/2));
+  renderMapCamera();
+}
+
+async function loadTimezones(){
+  try{
+    timezones=await invoke('list_timezones');
+  }catch(error){
+    timezones=[{name:'America/Sao_Paulo',latitude:-23.55,longitude:-46.63}];
+    console.error(error);
+  }
+  const selector=document.querySelector('#timezone');
+  selector.innerHTML=timezones.map(zone=>`<option value="${zone.name}">${zone.name.replaceAll('_',' ')}</option>`).join('');
+  selectTimezone(timezones.some(zone=>zone.name==='America/Sao_Paulo')?'America/Sao_Paulo':timezones[0].name);
+}
+
+const mapZoomLevels=[100,125,150,200];
+let mapZoomIndex=0;
+const mapCamera={x:0,y:0,width:2754,height:1398,dragging:false,pointerX:0,pointerY:0};
+function renderMapCamera(){
+  document.querySelector('#map-canvas').setAttribute('viewBox',`${mapCamera.x} ${mapCamera.y} ${mapCamera.width} ${mapCamera.height}`);
+}
+function setMapZoom(index){
+  const oldWidth=mapCamera.width;
+  const oldHeight=mapCamera.height;
+  mapZoomIndex=Math.max(0,Math.min(mapZoomLevels.length-1,index));
+  const scale=mapZoomLevels[mapZoomIndex]/100;
+  mapCamera.width=2754/scale;
+  mapCamera.height=1398/scale;
+  mapCamera.x=Math.max(0,Math.min(2754-mapCamera.width,mapCamera.x+(oldWidth-mapCamera.width)/2));
+  mapCamera.y=Math.max(0,Math.min(1398-mapCamera.height,mapCamera.y+(oldHeight-mapCamera.height)/2));
+  renderMapCamera();
+  document.querySelector('#map-zoom-level').textContent=`${mapZoomLevels[mapZoomIndex]}%`;
+  document.querySelector('#map-zoom-out').disabled=mapZoomIndex===0;
+  document.querySelector('#map-zoom-in').disabled=mapZoomIndex===mapZoomLevels.length-1;
+}
+
+const mapCanvas=document.querySelector('#map-canvas');
+mapCanvas.addEventListener('pointerdown',event=>{
+  mapCamera.dragging=true;
+  mapCamera.pointerX=event.clientX;
+  mapCamera.pointerY=event.clientY;
+  mapCanvas.setPointerCapture(event.pointerId);
+  mapCanvas.classList.add('dragging');
+});
+mapCanvas.addEventListener('pointermove',event=>{
+  if(!mapCamera.dragging) return;
+  const bounds=mapCanvas.getBoundingClientRect();
+  const dx=(event.clientX-mapCamera.pointerX)*mapCamera.width/bounds.width;
+  const dy=(event.clientY-mapCamera.pointerY)*mapCamera.height/bounds.height;
+  mapCamera.x=Math.max(0,Math.min(2754-mapCamera.width,mapCamera.x-dx));
+  mapCamera.y=Math.max(0,Math.min(1398-mapCamera.height,mapCamera.y-dy));
+  mapCamera.pointerX=event.clientX;
+  mapCamera.pointerY=event.clientY;
+  renderMapCamera();
+});
+function stopMapDrag(){mapCamera.dragging=false;mapCanvas.classList.remove('dragging')}
+mapCanvas.addEventListener('pointerup',stopMapDrag);
+mapCanvas.addEventListener('pointercancel',stopMapDrag);
 
 function eventParts(event){
   if(typeof event==='string') return [event,null];
@@ -443,8 +540,21 @@ window.addEventListener('resize',()=>{
 document.querySelectorAll('.choice input').forEach(input=>input.addEventListener('change',()=>{document.querySelectorAll('.choice').forEach(choice=>choice.classList.toggle('selected',choice.querySelector('input').checked))}));
 document.querySelector('#keyboard-cards').addEventListener('change',event=>{if(event.target.matches('input'))document.querySelectorAll('.keyboard-card').forEach(card=>card.classList.toggle('selected',card.querySelector('input').checked))});
 document.querySelector('#keyboard-search').addEventListener('input',event=>renderKeyboardCards(event.target.value));
-document.querySelector('#language-cards').addEventListener('change',event=>{if(event.target.matches('input'))document.querySelectorAll('#language-cards .choice').forEach(card=>card.classList.toggle('selected',card.querySelector('input').checked))});
+document.querySelector('#language-cards').addEventListener('change',event=>{
+  if(!event.target.matches('input')) return;
+  selectedLocale=event.target.value;
+  document.querySelectorAll('#language-cards .choice').forEach(card=>card.classList.toggle('selected',card.querySelector('input').checked));
+  i18n.apply(uiLocale(event.target.value));
+  renderLanguageCards(document.querySelector('#language-search').value);
+  renderKeyboardCards(document.querySelector('#keyboard-search').value);
+  renderDiskCards();
+  show(current);
+});
 document.querySelector('#language-search').addEventListener('input',event=>renderLanguageCards(event.target.value));
+document.querySelector('#timezone').addEventListener('change',event=>selectTimezone(event.target.value));
+document.querySelector('#map-zoom-out').addEventListener('click',()=>setMapZoom(mapZoomIndex-1));
+document.querySelector('#map-zoom-in').addEventListener('click',()=>setMapZoom(mapZoomIndex+1));
+document.querySelector('#map-zoom-reset').addEventListener('click',()=>setMapZoom(0));
 document.querySelector('#disk-list').addEventListener('change',event=>{
   if(!event.target.matches('input')) return;
   selectedDiskPath=event.target.value;
@@ -463,6 +573,9 @@ document.querySelector('#full-name').addEventListener('input',event=>{
   if(!usernameManuallyEdited) username.value=suggestedUsername(event.target.value);
 });
 document.querySelector('#username').addEventListener('input',()=>{usernameManuallyEdited=true;});
+i18n.apply('en-US');
+setMapZoom(0);
+void loadTimezones();
 renderLanguageCards();
 renderKeyboardCards();
 loadInstallerLogo();

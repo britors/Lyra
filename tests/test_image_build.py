@@ -82,6 +82,14 @@ class ImagePolicyTests(unittest.TestCase):
         self.assertIsNotNone(image_packages.find("package[@name='dracut-kiwi-live']"))
         self.assertIsNone(root.find("packages[@type='iso']/package[@name='dracut-kiwi-live']"))
 
+    def test_desktop_image_has_emoji_and_microsoft_compatible_fonts(self) -> None:
+        root = ET.parse(ROOT / "kiwi/config.xml").getroot()
+        packages = {node.attrib["name"] for node in root.findall("packages/package")}
+        self.assertIn("google-noto-coloremoji-fonts", packages)
+        self.assertIn("liberation-fonts", packages)
+        self.assertIn("google-carlito-fonts", packages)
+        self.assertIn("google-noto-sans-cjk-fonts", packages)
+
     def test_beta_two_uses_only_the_rust_installer(self) -> None:
         root = ET.parse(ROOT / "kiwi/config.xml").getroot()
         packages = {node.attrib["name"] for node in root.findall("packages/package")}
@@ -187,6 +195,53 @@ class ImagePolicyTests(unittest.TestCase):
             config_sh.index("# Display manager") : config_sh.index("# zram-generator")
         ]
         self.assertIn("suseInsertService bluetooth", desktop_branch)
+
+    def test_desktop_installs_upower_for_battery_status(self) -> None:
+        # onlyRequired kept libupower but omitted the daemon on Alpha 3. The
+        # kernel exposed BAT1 normally, yet GNOME had no service from which to
+        # obtain battery state and therefore displayed no battery icon.
+        root = ET.parse(ROOT / "kiwi/config.xml").getroot()
+        desktop_packages = {
+            node.attrib["name"]
+            for packages in root.findall('packages[@profiles="desktop"]')
+            for node in packages.findall("package")
+        }
+        server_packages = {
+            node.attrib["name"]
+            for packages in root.findall('packages[@profiles="server"]')
+            for node in packages.findall("package")
+        }
+        self.assertIn("upower", desktop_packages)
+        self.assertNotIn("upower", server_packages)
+
+    def test_firefox_translations_follow_installed_system_locale(self) -> None:
+        root = ET.parse(ROOT / "kiwi/config.xml").getroot()
+        desktop_packages = {
+            node.attrib["name"]
+            for packages in root.findall('packages[@profiles="desktop"]')
+            for node in packages.findall("package")
+        }
+        self.assertIn("MozillaFirefox", desktop_packages)
+        self.assertIn("MozillaFirefox-translations-common", desktop_packages)
+
+        locales = root.findtext("preferences/locale")
+        self.assertEqual(locales, "pt_BR,en_US,es_ES,zh_CN")
+
+        installer_core = (ROOT / "installer/src/lib.rs").read_text(encoding="utf-8")
+        self.assertIn('"es_ES.UTF-8" | "zh_CN.UTF-8"', installer_core)
+        deploy = (
+            ROOT / "installer/src/service/operations/deploy.rs"
+        ).read_text(encoding="utf-8")
+        self.assertIn('etc.join("locale.conf")', deploy)
+
+        policies = json.loads(
+            (
+                ROOT
+                / "kiwi/root/usr/lib64/firefox/distribution/policies.json"
+            ).read_text(encoding="utf-8")
+        )
+        preferences = policies["policies"].get("Preferences", {})
+        self.assertNotIn("intl.locale.requested", preferences)
 
     def test_unstable_office_apps_are_excluded_from_beta2(self) -> None:
         root = ET.parse(ROOT / "kiwi/config.xml").getroot()

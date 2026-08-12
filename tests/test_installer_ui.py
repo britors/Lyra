@@ -26,6 +26,7 @@ class InstallerUiTests(unittest.TestCase):
         self.html = (UI / "index.html").read_text(encoding="utf-8")
         self.css = (UI / "styles.css").read_text(encoding="utf-8")
         self.javascript = (UI / "app.js").read_text(encoding="utf-8")
+        self.i18n = (UI / "i18n.js").read_text(encoding="utf-8")
 
     def test_element_ids_are_unique(self) -> None:
         parser = IdCollector()
@@ -69,7 +70,6 @@ class InstallerUiTests(unittest.TestCase):
         selectors = (
             ".form-grid input",
             ".keyboard-search input",
-            ".region-form select",
             ".manual-entry-row input",
             ".lvm-preset-row select",
             ".lv-row input",
@@ -84,6 +84,53 @@ class InstallerUiTests(unittest.TestCase):
         self.assertNotIn("NewRaid", self.javascript)
         self.assertNotIn("NewVolumeGroup", self.javascript)
         self.assertIn("volume_layer:'Direct'", self.javascript)
+
+    def test_language_picker_only_offers_backend_supported_locales(self) -> None:
+        language_block = self.javascript.split("const languages=[", 1)[1].split("];", 1)[0]
+        locales = re.findall(r"\['([a-z]{2}_[A-Z]{2}\.UTF-8)'", language_block)
+        self.assertEqual(locales, ["en_US.UTF-8", "pt_BR.UTF-8", "es_ES.UTF-8", "zh_CN.UTF-8"])
+
+        core = (ROOT / "installer/src/lib.rs").read_text(encoding="utf-8")
+        self.assertIn('"es_ES.UTF-8" | "zh_CN.UTF-8"', core)
+
+    def test_installer_language_has_english_default_and_catalog_fallback(self) -> None:
+        self.assertIn("const DEFAULT_LOCALE='en_US.UTF-8'", self.javascript)
+        self.assertIn("i18n.apply(uiLocale(event.target.value))", self.javascript)
+        self.assertIn("'en-US':{", self.i18n)
+        self.assertIn("'pt-BR':{", self.i18n)
+        self.assertIn("'es-ES':{", self.i18n)
+        self.assertIn("'zh-CN':{", self.i18n)
+        self.assertIn("catalogs['en-US'][key]", self.i18n)
+        self.assertIn("function register(locale,catalog)", self.i18n)
+        self.assertIn('<script src="i18n.js"></script>', self.html)
+
+    def test_language_flag_is_inline_with_language_name(self) -> None:
+        self.assertIn(
+            '<strong><span class="language-flag" aria-hidden="true">${flag}</span>${name}</strong>',
+            self.javascript,
+        )
+        self.assertNotIn('class="choice-flag"', self.javascript)
+
+    def test_timezone_map_pins_track_supported_backend_zones(self) -> None:
+        self.assertIn('class="timezone-map"', self.html)
+        self.assertIn('href="assets/world-map-noborders.svg"', self.html)
+        self.assertIn("timezones=await invoke('list_timezones')", self.javascript)
+        self.assertIn("#timezone-marker", self.javascript)
+        self.assertIn("function projectTimezone(latitude,longitude)", self.javascript)
+        self.assertIn("const robinsonX=", self.javascript)
+        self.assertIn("const mapCentralMeridian=11.25", self.javascript)
+        self.assertIn("const mapLatitudeCompression=.95623", self.javascript)
+        self.assertNotIn('<select id="region">', self.html)
+        self.assertIn('<select id="timezone">', self.html)
+        self.assertIn('id="map-zoom-in"', self.html)
+        self.assertIn('id="map-zoom-out"', self.html)
+        self.assertIn("const mapZoomLevels=[100,125,150,200]", self.javascript)
+        self.assertIn("setMapZoom(mapZoomIndex+1)", self.javascript)
+        self.assertIn("setMapZoom(mapZoomIndex-1)", self.javascript)
+        self.assertIn("mapCanvas.addEventListener('pointermove'", self.javascript)
+        self.assertIn("mapCanvas.setPointerCapture(event.pointerId)", self.javascript)
+        self.assertRegex(self.css, r"\.marker-label\{[^}]*opacity:0")
+        self.assertIn('#timezone-marker:hover .marker-label', self.css)
 
 
 if __name__ == "__main__":
