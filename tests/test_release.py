@@ -133,6 +133,21 @@ class RepositoryMetadataTests(unittest.TestCase):
         self.assertNotIn("A meta principal da Beta 3", roadmap)
         self.assertIn("não recebem novas features", prompt)
 
+    def test_release_artifact_signing_starts_at_beta1(self) -> None:
+        adr = (ROOT / "docs/adr/0005-release-signing-starts-at-beta1.md").read_text(
+            encoding="utf-8"
+        )
+        alpha3 = (
+            ROOT / "docs/releases/lyra-os-desktop-2026.08-alpha3.md"
+        ).read_text(encoding="utf-8")
+        uploader = (
+            ROOT / "scripts/upload-desktop-alpha3-sourceforge.sh"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("sem `*.iso.sha256.asc`", adr)
+        self.assertIn("começam na Beta 1", alpha3)
+        self.assertNotIn('"$PREFIX.iso.sha256.asc"', uploader)
+
     def test_build_manifest_is_traceable(self) -> None:
         release = Release.from_file()
         with tempfile.TemporaryDirectory() as directory:

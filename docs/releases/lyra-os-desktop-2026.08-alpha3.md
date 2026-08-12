@@ -81,9 +81,10 @@ Verifique o arquivo usando o checksum distribuído junto da ISO:
 sha256sum -c lyra-os.x86_64-2026.08-alpha3.iso.sha256
 ```
 
-Para uma publicação oficial, verifique também `*.iso.sha256.asc` com a chave
-documentada em `docs/release-signing-key.asc`. Uma imagem sem assinatura deve
-ser tratada como build de teste.
+Por decisão registrada na ADR 0005, a Alpha 3 é publicada com SHA-256, mas sem
+assinatura GPG da ISO. A criação e o uso obrigatório da chave de release
+começam na Beta 1. Essa exceção não se aplica aos RPMs: assinaturas de pacotes e
+repositórios continuam obrigatórias e verificadas durante o build.
 
 ## Relato de problemas
 

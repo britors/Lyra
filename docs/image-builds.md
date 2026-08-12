@@ -120,14 +120,16 @@ an OBS image flavor and cannot block the standard ISO.
 ## Release evidence
 
 Keep the ISO together with its package inventory, verification report, KIWI
-report, checksum, checksum signature, and both SBOM formats:
+report, checksum and both SBOM formats. A detached checksum signature becomes
+mandatory starting with Beta 1 (ADR 0005); Alpha 3 is the explicit unsigned
+exception:
 
 - `*.iso`
 - `*.packages`
 - `*.verified`
 - `*.report`
 - `*.iso.sha256`
-- `*.iso.sha256.asc`
+- `*.iso.sha256.asc` (Beta 1 and later)
 - `*.cdx.json`
 - `*.spdx.json`
 

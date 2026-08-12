@@ -51,30 +51,42 @@ content and hardware coverage; a bare green status is rejected:
 
 ## Release signing key
 
-The ISO checksum is signed with the release coordinator's own GPG key, not a
-key this repository generates or holds. The current canonical key is:
+Per [ADR 0005](adr/0005-release-signing-starts-at-beta1.md), Desktop Alpha 3
+is published with SHA-256 but without a detached GPG signature. The release
+key is created and made mandatory starting with Beta 1. RPM repository and
+package signatures remain mandatory in every stage and are not affected by
+this temporary artifact-signing exception.
+
+From Beta 1 onward, the ISO checksum is signed with the release coordinator's
+own GPG key, not a key this repository generates or holds. The key fingerprint
+and public key must be added here before the first Beta 1 candidate; no
+placeholder or disposable Alpha key is trusted.
+
+<!-- Historical draft identity retained until Beta 1 key ceremony decides
+whether it is still usable; it does not authorize Alpha 3 signatures.
 
 - **Fingerprint:** `E765 8249 6F86 597D A854  7BA4 FE28 7BB5 4891 BA80`
 - **UID:** `Lyra OS Release <britors@live.com>`
 - **Public key:** [`docs/release-signing-key.asc`](release-signing-key.asc)
+-->
 
-Anyone verifying a published ISO should import that file and confirm the
-fingerprint matches before trusting `*.iso.sha256.asc`. If the key is ever
-rotated, replace both this fingerprint and `release-signing-key.asc` in the
-same commit that publishes the first candidate signed with the new key.
+Starting with Beta 1, verification instructions must name the canonical
+fingerprint and public-key file. Any later rotation replaces both in the same
+commit that publishes the first candidate signed by the new key.
 
 ## Artifact and publication checks
 
 - [ ] ISO, package inventory, KIWI verification/report and both SBOM formats
   are present;
-- [ ] SHA-256 is generated, signed with the key above and independently
-  verified;
+- [ ] SHA-256 is generated and independently verified; starting with Beta 1,
+  it is also signed with the canonical release key and the signature verified;
 - [ ] release notes list requirements, limitations, P2/P3 issues and tested
   workarounds;
 - [ ] the evidence manifest is generated from a clean commit and contains all
   required green results;
 - [ ] ISO and evidence are uploaded to SourceForge and downloaded again for
-  checksum/signature verification;
+  checksum verification; signature verification is additionally mandatory
+  from Beta 1 onward;
 - [ ] #51 records coordinator, decision time, evidence URLs, accepted P2/P3
   risks and the exact source commit.
 
