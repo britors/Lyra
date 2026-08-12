@@ -1,11 +1,12 @@
 # Roadmap do Lyra OS
 
-## Lyra OS Desktop Alpha 4
+## Lyra OS Desktop Alpha 4 e Alpha 5
 
-A Alpha 4, prevista para 01/09/2026–22/09/2026, adiciona ao Vega um fluxo
-opcional pós-instalação para drivers NVIDIA proprietários. O instalador da ISO
-não detecta nem instala o driver e a ISO padrão continua universal, sem blobs
-ou módulos proprietários pré-instalados.
+A Alpha 4 (01/09/2026–22/09/2026) cria a infraestrutura de i18n, entrega o
+Lyra Installer e a primeira onda de pacotes em `pt-BR`/`en-US`, e adiciona ao
+Vega o fluxo opcional pós-instalação para drivers NVIDIA proprietários. A Alpha
+5 (22/09/2026–13/10/2026) conclui a internacionalização de todos os pacotes
+próprios, integra os RPMs e encerra o desenvolvimento de features da 1.0.
 
 O gate da funcionalidade exige detecção conservadora de hardware compatível,
 confirmação explícita, Secure Boot verificado, snapshot Snapper antes da
@@ -34,17 +35,15 @@ questões em aberto que bloqueiam o início da implementação (rota de Secure
 Boot, proveniência do pacote do driver, escopo de laptops híbridos e política
 de lockstep kernel+kmp), está em [`nvidia-iso.md`](nvidia-iso.md).
 
-## Beta 3
+## Congelamento funcional a partir da Beta 1
 
-A meta principal da Beta 3 é a **internacionalização (i18n) dos pacotes
-próprios do ecossistema Lyra**.
+A Beta 1 começa em 13/10/2026 com todas as features e a infraestrutura de i18n
+fechadas. Beta 1, Beta 2, Beta 3 e RCs não recebem novas features.
 
-No cronograma atual, a Beta 3 ocorre de 08/12/2026 a 05/01/2027. A promoção
-continua condicionada ao fechamento dos bloqueadores das fases anteriores; a
-data não reduz os gates de qualidade.
+São permitidas somente correções de bugs, regressões, segurança, desempenho e
+traduções já existentes. A Beta 3 faz QA linguístico e corrige catálogos, mas
+não cria infraestrutura, não incorpora um novo pacote ao esforço e não adiciona
+idioma. Exceções exigem um P0/P1 e decisão formal registrada.
 
-O ciclo deve preparar os pacotes mantidos pelo projeto para separar textos do
-código, manter catálogos de tradução e oferecer fallback previsível quando uma
-tradução não estiver disponível. O inventário dos pacotes, os idiomas
-prioritários e os critérios de conclusão serão definidos no planejamento da
-Beta 3.
+O cronograma semanal, o inventário nominal de pacotes e os critérios de saída
+estão em [`release-versioning.md`](release-versioning.md#desktop-alpha-4--0109-a-2209).

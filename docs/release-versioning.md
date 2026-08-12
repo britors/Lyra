@@ -77,35 +77,64 @@ de estágio é liberada por critério de saída (nenhum item P0/P1 aberto no
 pela data. As datas abaixo assumem o cenário em que todo o teto é usado; se
 um estágio fechar mais cedo, a promoção acontece mais cedo.
 
-| Estágio | Cadência | Datas |
-|---|---|---|
-| alpha3 | 3 semanas | 11/ago/2026 → 01/set/2026 |
-| alpha4 | 3 semanas | 01/set/2026 → 22/set/2026 |
-| alpha5 | 3 semanas | 22/set/2026 → 13/out/2026 |
-| beta1 | 4 semanas | 13/out/2026 → 10/nov/2026 |
-| beta2 | 4 semanas | 10/nov/2026 → 08/dez/2026 |
-| beta3 | 4 semanas | 08/dez/2026 → 05/jan/2027 |
-| rc1 | 2 semanas | 05/jan/2027 → 19/jan/2027 |
-| rc2 | 2 semanas | 19/jan/2027 → 02/fev/2027 |
-| final (buffer) | 2 semanas | 02/fev/2027 → **~16/fev/2027** |
+| Estágio | Cadência | Datas | Política |
+|---|---|---|---|
+| alpha3 | 3 semanas | 11/ago/2026 → 01/set/2026 | Fechar o instalador suportado e sua publicação. |
+| alpha4 | 3 semanas | 01/set/2026 → 22/set/2026 | Implementar i18n base, instalador bilíngue, primeira onda de pacotes e instalação NVIDIA via Vega. |
+| alpha5 | 3 semanas | 22/set/2026 → 13/out/2026 | Concluir i18n de todos os pacotes, integração e qualquer feature restante; última Alpha. |
+| beta1 | 4 semanas | 13/out/2026 → 10/nov/2026 | **Feature freeze:** somente bugs, regressões, segurança, desempenho e correções de traduções existentes. |
+| beta2 | 4 semanas | 10/nov/2026 → 08/dez/2026 | Estabilidade e atualização; nenhuma feature nova. |
+| beta3 | 4 semanas | 08/dez/2026 → 05/jan/2027 | QA linguístico e correções finais; nenhuma infraestrutura ou novo componente traduzido. |
+| rc1 | 2 semanas | 05/jan/2027 → 19/jan/2027 | Somente bloqueadores P0/P1 e repetição do gate. |
+| rc2 | 2 semanas | 19/jan/2027 → 02/fev/2027 | Somente bloqueadores P0/P1 e preparação da publicação. |
+| final (buffer) | 2 semanas | 02/fev/2027 → **~16/fev/2027** | Publicação e verificação dos artefatos; nenhuma mudança funcional. |
 
-### Escopo da Desktop Alpha 4
+### Desktop Alpha 4 — 01/09 a 22/09
 
-Além de resolver os P1 remanescentes da Alpha 3, a Alpha 4 entrega no Vega a
-instalação **opcional e pós-instalação** do driver proprietário NVIDIA. Isso
-não adiciona detecção ou instalação de driver ao Lyra Installer e não inclui o
-driver na ISO padrão.
+Idiomas obrigatórios da Lyra OS 1.0: **português do Brasil (`pt-BR`) e inglês
+dos Estados Unidos (`en-US`)**. Idiomas adicionais são pós-1.0 e não podem
+reduzir a cobertura desses dois.
 
-O critério de saída cobre hardware compatível detectado de forma conservadora,
-confirmação do usuário, Secure Boot, snapshot Snapper anterior à alteração,
-instalação em lockstep de KMP/userspace/firmware por pacotes meta, regeneração
-do initramfs, reinício e rollback. Sem evidência em GPU NVIDIA real, o item
-permanece P1 e bloqueia a promoção da Alpha 4.
+- **01–07/set:** inventariar strings de todos os pacotes próprios; definir o
+  contrato de catálogos, pluralização, seleção de locale e fallback; adicionar
+  extração/lint no CI e marcar explicitamente pacotes sem interface como N/A.
+- **08–14/set:** internacionalizar integralmente o Lyra Installer, incluindo
+  HTML/JavaScript, validações, erros Tauri, eventos do serviço privilegiado e
+  evidências; a escolha de idioma deve atualizar a interface sem reiniciar.
+- **15–22/set:** internacionalizar a primeira onda instalada por padrão
+  (`Vega`, `Fina` e `Sheliak`) e entregar no Vega a instalação opcional
+  pós-instalação do driver NVIDIA para o cenário suportado.
 
-Se o estágio alpha fechar em `alpha4` (sem pendência P1), o ciclo inteiro
-antecipa e a final sai em torno de **~26/jan/2027**. O alvo interno é
-janeiro; fevereiro é a folga não comprometida, não parte do prazo prometido.
-A final deste ciclo é publicada como **Lyra OS 1.0**.
+O driver não entra no Lyra Installer nem na ISO padrão. O fluxo do Vega exige
+detecção conservadora, confirmação explícita, Secure Boot verificado, snapshot
+Snapper, pacotes meta em lockstep, `dracut`, reinício e rollback. Alpha 4 só
+fecha com o instalador e a primeira onda funcionando em `pt-BR` e `en-US` e o
+fluxo NVIDIA validado no hardware G06 disponível.
+
+### Desktop Alpha 5 — 22/09 a 13/10
+
+- **22–28/set:** internacionalizar `Beam`, `Chord`, `Sulafat`, `Aladfar`,
+  `Prosa`, `Calco`, `postgres-draco`, `vega-cli`, `vega-web` e `vegad`; cada
+  pacote sem texto voltado ao usuário deve registrar N/A em vez de desaparecer
+  do inventário.
+- **29/set–05/out:** integrar os RPMs traduzidos na imagem, validar troca de
+  idioma e fallback, concluir compatibilidade/recuperação do fluxo NVIDIA e
+  eliminar strings literais fora dos catálogos permitidos.
+- **06–13/out:** nenhuma feature nova. Corrigir somente defeitos encontrados
+  na instalação, atualização, tradução e hardware; executar o gate completo e
+  auditar que todas as features planejadas para 1.0 estão implementadas ou
+  formalmente removidas do escopo.
+
+Às 00:00 de **13/10/2026**, a Beta 1 inicia o congelamento funcional. Uma
+mudança depois desse ponto só pode corrigir bug, regressão, vulnerabilidade,
+desempenho ou tradução já existente. Novo componente, novo fluxo, novo idioma
+ou nova infraestrutura de i18n volta para o próximo ciclo, salvo P0/P1 com
+decisão formal registrada.
+
+Como a Alpha 5 passa a ser obrigatória para fechar internacionalização e
+features, o cenário antecipado que encerrava a fase Alpha na Alpha 4 deixa de
+se aplicar. Fevereiro continua sendo a folga máxima do cronograma, não motivo
+para reduzir os gates. A final deste ciclo é publicada como **Lyra OS 1.0**.
 
 ## Lyra OS Server 1.0
 

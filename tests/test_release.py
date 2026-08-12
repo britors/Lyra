@@ -119,6 +119,20 @@ class RepositoryMetadataTests(unittest.TestCase):
         self.assertIn("sem driver proprietário embutido na ISO padrão", prompt)
         self.assertIn("depois da publicação da Lyra OS 1.0", nvidia_iso)
 
+    def test_desktop_features_and_i18n_freeze_before_beta1(self) -> None:
+        versioning = (ROOT / "docs/release-versioning.md").read_text(encoding="utf-8")
+        roadmap = (ROOT / "docs/roadmap.md").read_text(encoding="utf-8")
+        prompt = (ROOT / "PROMPT-LYRA-OS.md").read_text(encoding="utf-8")
+
+        for text in (versioning, roadmap, prompt):
+            self.assertIn("13/10/2026", text)
+            self.assertIn("congelamento funcional", text.lower())
+        for locale in ("pt-BR", "en-US"):
+            self.assertIn(locale, versioning)
+            self.assertIn(locale, prompt)
+        self.assertNotIn("A meta principal da Beta 3", roadmap)
+        self.assertIn("não recebem novas features", prompt)
+
     def test_build_manifest_is_traceable(self) -> None:
         release = Release.from_file()
         with tempfile.TemporaryDirectory() as directory:

@@ -179,11 +179,16 @@ antiga vibrante azul-safira→violeta):
 
 - Pipeline de CI para refresh mensal da ISO
 - GRUB panic button (reversão via boot menu, ver Snapshots acima)
-- Alvo interno da versão final: aproximadamente 26 de janeiro de 2027 se a
-  fase Alpha encerrar na Alpha 4, sempre priorizando qualidade sobre prazo
-- Buffer do ciclo: até aproximadamente 16 de fevereiro de 2027 caso a Alpha 5
-  seja necessária; o cronograma canônico e os critérios de promoção ficam em
-  `docs/release-versioning.md`
+- Alpha 4 e Alpha 5 são obrigatórias: toda feature da 1.0 e a
+  internacionalização `pt-BR`/`en-US` dos pacotes próprios e do instalador
+  devem terminar até 13 de outubro de 2026.
+- Beta 1 inicia o congelamento funcional em 13/10/2026. Betas e RCs
+  recebem somente correções de bugs, regressões, segurança, desempenho e
+  traduções já existentes; não recebem novas features, idiomas ou
+  infraestrutura de i18n.
+- O cronograma canônico e os critérios de promoção ficam em
+  `docs/release-versioning.md`; o buffer final vai até aproximadamente 16 de
+  fevereiro de 2027, sempre priorizando qualidade sobre prazo.
 - O instalador opcional pós-instalação de driver NVIDIA via Vega entra na
   Desktop Alpha 4; a variante de ISO NVIDIA pré-configurada continua começando
   somente depois da publicação da Lyra OS 1.0.
