@@ -17,8 +17,9 @@ a imagem ainda é uma pré-release:
 | RC | `stage = "rc"`, `iteration = N` | `2026.08-rcN`, `v2026.08-rcN`, `lyra-os.x86_64-2026.08-rcN.iso` |
 | Final | `stage = "release"`, `iteration = 0` | `2026.08`, `v2026.08`, `lyra-os.x86_64-2026.08.iso` |
 
-O build atual é `alpha2`: rebaixado a partir do rótulo `beta2` anterior porque
-ainda havia correções de funcionalidade core do instalador em andamento
+O build atual é `alpha3`: evolução da Alpha 2 com as correções encontradas na
+validação do instalador, mantendo a classificação Alpha porque ainda há
+correções de funcionalidade central do instalador em andamento
 (partição, sudo, permissões pkexec), não apenas estabilização. A tag já
 publicada `v2026.08-beta2-stable-20260809` permanece como registro histórico
 e não é reescrita; o próximo ciclo de beta deste produto recomeça em `beta1`.

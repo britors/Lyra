@@ -78,6 +78,13 @@ class InstallerUiTests(unittest.TestCase):
         rule = ",".join(selectors) + "{font-size:var(--form-control-font-size)}"
         self.assertIn(rule, self.css)
 
+    def test_storage_only_offers_the_supported_direct_disk_layout(self) -> None:
+        for unsupported in ("layout-choice", "raid-level-row", "lvm-editor", "manual-entry-row"):
+            self.assertNotIn(f'id="{unsupported}"', self.html)
+        self.assertNotIn("NewRaid", self.javascript)
+        self.assertNotIn("NewVolumeGroup", self.javascript)
+        self.assertIn("volume_layer:'Direct'", self.javascript)
+
 
 if __name__ == "__main__":
     unittest.main()

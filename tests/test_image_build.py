@@ -98,6 +98,7 @@ class ImagePolicyTests(unittest.TestCase):
         self.assertIn("TryExec=/usr/bin/lyra-installer", autostart)
         self.assertIn("Exec=/usr/bin/lyra-install-lock /usr/bin/lyra-installer", autostart)
         self.assertIn("StartupWMClass=lyra-installer", autostart)
+
         self.assertNotIn("pkexec", autostart)
 
         packaged_wrapper = ROOT / "installer/packaging/lyra-install-lock"
@@ -134,6 +135,17 @@ class ImagePolicyTests(unittest.TestCase):
         update_smoke = ROOT / "kiwi/root/usr/bin/lyra-update-smoke"
         self.assertTrue(update_smoke.is_file())
         self.assertNotEqual(update_smoke.stat().st_mode & 0o111, 0)
+
+    def test_installed_desktop_sudo_uses_the_user_password(self) -> None:
+        deploy = (ROOT / "installer/src/service/operations/deploy.rs").read_text(
+            encoding="utf-8"
+        )
+        changes = (ROOT / "installer/packaging/lyra-installer.changes").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn('"Defaults !targetpw\\n%wheel ALL=(ALL) ALL\\n"', deploy)
+        self.assertIn("Defaults targetpw", changes.split("-------------------------------------------------------------------", 2)[1])
 
     def test_chord_is_installed_and_pinned_by_its_packaged_desktop_id(self) -> None:
         root = ET.parse(ROOT / "kiwi/config.xml").getroot()

@@ -28,21 +28,17 @@ e LVM (`pvs`/`vgs`/`lvs`) e a montagem de um plano de instalação declarativo
 em dry-run — só leitura, sem executar nada destrutivo. `cargo test` cobre
 esse módulo com fixtures (disco vazio, ocupado, ESP existente, espaço
 insuficiente, RAID saudável/degradado, RAID+LVM combinados). O comando
-Tauri `discover_storage` e o novo `plan_install` (recebe o `GuidedChoice`
-inteiro vindo da UI — não mais só um `disk_path` — e chama
-`PlanBuilder::build`; continua dry-run, sem I/O) alimentam a tela de
-armazenamento do assistente (`ui/index.html`/`ui/app.js`): um alternador
-"Disco único"/"Array RAID novo" no topo troca o modo da lista de discos
-entre seleção única (radio) e múltipla (checkbox); no modo RAID, um
-seletor de nível (0/1/5/6/10, com o mínimo de discos de cada um) decide
-o `RaidLevel` enviado. Os dois modos mostram os discos elegíveis com o
-motivo quando um está bloqueado (mídia live, membro de RAID/LVM, já
-particionado), o resumo destrutivo e os avisos do plano, e só liberam
-"Continuar" quando o plano é válido — inclusive o erro real do
-`PlanBuilder` quando menos discos que o mínimo do nível são marcados,
-sem duplicar essa regra em JS.
+Tauri `discover_storage` e `plan_install` alimentam a tela de armazenamento
+do assistente (`ui/index.html`/`ui/app.js`). Na Alpha 3, a interface oferece
+somente `RawTarget::Disk` + `VolumeLayer::Direct`, o único caminho que o
+serviço privilegiado executa de ponta a ponta. RAID, LVM, RAID+LVM e o modo
+customizado continuam modelados e testados no núcleo, mas não aparecem na
+interface enquanto a execução correspondente não existir no backend. A lista
+mostra os discos elegíveis, o motivo quando um está bloqueado, o resumo
+destrutivo e os avisos do plano, e só libera “Continuar” quando o plano é
+válido.
 
-Todo `InstallPlan` carrega `schema_version`. A versão atual é `2`; o serviço
+Todo `InstallPlan` carrega `schema_version`. A versão atual é `3`; o serviço
 rejeita versões desconhecidas antes de executar qualquer operação e reconstrói
 o plano contra um snapshot novo para detectar estado obsoleto. Os contratos e
 as regras de evolução estão em `docs/adr/0002-json-lines-privileged-protocol.md`
@@ -53,51 +49,6 @@ grava uma configuração zstd no sistema instalado; `Disk` reserva uma partiçã
 swap de 8 GiB, executa `mkswap` e inclui seu UUID no `fstab`; `None` não cria
 swap e remove a configuração do `zram-generator`. A escolha faz parte de
 `GuidedChoice` e do plano revalidado, não é apenas estado visual do frontend.
-
-A etapa abre com 5 cards de layout (`#layout-choice`), cada um
-pré-configurando `storageMode`/`lvmEnabled` e escondendo o que não é
-relevante, em vez de expor os alternadores brutos direto:
-
-- **Simples**: `RawTarget::Disk` + `VolumeLayer::Direct` — um disco, layout fixo.
-- **RAID**: `RawTarget::NewRaid` + `Direct` — mostra o seletor de nível (0/1/5/6/10, com mínimo de discos de cada um) e a lista de discos vira multi-seleção.
-- **LVM**: `RawTarget::Disk` + `NewVolumeGroup{name: "vg-lyra", logical_volumes}` — mostra o editor de logical volumes.
-- **RAID + LVM**: `NewRaid` + `NewVolumeGroup` — os dois juntos.
-- **Customizado**: `RawTarget::Disk` + `NewVolumeGroup` por baixo, mas a UI não expõe RAID nem o rótulo "LVM" — só disco único e a lista de volumes (nome, ponto de montagem, tamanho), estilo particionamento manual do Debian installer. O usuário só vê "crie seus volumes", nunca "volume group"; por decisão explícita, é uma escolha de rótulo/UI, não de mecanismo (`NewVolumeGroup` continua sendo o único jeito de expressar "monte em pontos diferentes com tamanhos diferentes" no `storage::plan` atual).
-
-O editor de logical volumes (usado por LVM/RAID+LVM/Customizado) começa
-com uma linha fixa (`root` em `/`, `FillRemaining`, não removível —
-`PlanBuilder` exige uma LV montada em `/`) e permite adicionar/remover
-outras, cada uma com nome, ponto de montagem e tamanho fixo (GiB) ou
-"preencher o restante". Um seletor de sugestões ("Somente raiz" /
-"Raiz + /home" / "Raiz + /home + /var") com botão "Aplicar sugestão"
-popula a lista automaticamente (raiz fixa em 40 GiB, `/var` fixo em 20
-GiB quando presente, `/home` sempre preenchendo o restante) — o
-usuário só valida/ajusta o que a sugestão já monta, em vez de montar
-do zero; a validação real continua vindo do `PlanBuilder` (ex.: espaço
-insuficiente se o disco for pequeno demais pra 40 GiB de raiz).
-`ExistingRaid` (reaproveitar array já existente) continua sem tela e
-sem card.
-
-Um card "Customizado" também revela um campo de texto ("Avançado:
-digite o caminho manualmente") deixando o usuário avançado digitar um
-caminho de disco (`/dev/sdX`) direto — sem nenhuma validação nova em
-JS: se o caminho digitado não estiver no snapshot descoberto, o
-próprio `PlanBuilder` real devolve "disco não encontrado" no resumo do
-plano, igual a qualquer outro erro de validação já mostrado.
-
-**Bug real encontrado e corrigido nesta sessão, vale registrar**: alternar
-a visibilidade de `#raid-level-row`/`#storage-mode`/`#manual-entry-row`
-via `elemento.hidden = true/false` não funcionava sozinho, porque essas
-classes também têm sua própria regra `display: flex` no CSS de autor —
-que tem prioridade sobre o `[hidden]{display:none}` do stylesheet padrão
-do navegador (origem "autor" sempre vence "user-agent", independente de
-especificidade ou ordem). O elemento ficava com o atributo `hidden`
-presente no DOM mas continuava visualmente `display:flex`. Corrigido
-com uma regra `.classe[hidden]{display:none}` (maior especificidade,
-ainda origem autor) pra cada contêiner que alterna visibilidade e tem
-`display` próprio — vale lembrar disso antes de adicionar qualquer novo
-elemento escondido via `hidden` que também tenha `display` explícito no
-CSS.
 
 `window.__TAURI__` precisou ser
 habilitado (`withGlobalTauri: true` em `tauri.conf.json`) porque este

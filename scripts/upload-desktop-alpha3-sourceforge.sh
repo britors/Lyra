@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# Upload the Lyra OS Desktop Alpha 2 test artifacts to SourceForge FRS.
+# Upload the Lyra OS Desktop Alpha 3 test artifacts to SourceForge FRS.
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 ARTIFACT_DIR="$REPO_ROOT/kiwi/.kiwi/test-$(id -u)/iso"
-REMOTE="rodrigobritosoa@frs.sourceforge.net:/home/frs/project/lyra/releases/1.0/desktop/alpha2/"
+REMOTE="rodrigobritosoa@frs.sourceforge.net:/home/frs/project/lyra/releases/1.0/desktop/alpha3/"
 KNOWN_HOSTS="$REPO_ROOT/kiwi/.kiwi/sourceforge-known-hosts"
-PREFIX="lyra-os.x86_64-2026.08-alpha2"
+PREFIX="lyra-os.x86_64-2026.08-alpha3"
 
 FILES=(
   README.md
@@ -32,7 +32,7 @@ cd "$ARTIFACT_DIR"
 for file in "${FILES[@]}"; do
   if [ ! -f "$file" ]; then
     echo "ERRO: artefato ausente: $ARTIFACT_DIR/$file" >&2
-    echo "Gere e valide todos os arquivos da Alpha 2 antes do upload." >&2
+    echo "Gere e valide todos os arquivos da Alpha 3 antes do upload." >&2
     exit 1
   fi
 done
@@ -48,4 +48,4 @@ rsync -avP \
   "$REMOTE"
 
 echo "Upload concluído. Confira em:"
-echo "https://sourceforge.net/projects/lyra/files/releases/1.0/desktop/alpha2/"
+echo "https://sourceforge.net/projects/lyra/files/releases/1.0/desktop/alpha3/"

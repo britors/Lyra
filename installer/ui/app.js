@@ -17,13 +17,7 @@ const {invoke}=window.__TAURI__.core;
 const {listen}=window.__TAURI__.event;
 let current=0;
 let storageSnapshot=null;
-let layoutChoice='simple';
-let storageMode='disk';
 let selectedDiskPath=null;
-let raidLevel='Raid1';
-let selectedRaidMembers=new Set();
-let lvmEnabled=false;
-let logicalVolumes=[{name:'root',mount_point:'/',size:'FillRemaining'}];
 let swapChoice='Zram';
 let selectedPlan=null;
 let summaryConfigValid=false;
@@ -141,18 +135,6 @@ function formatBytes(bytes){
   return `${value.toFixed(i>0&&value<10?1:0)} ${units[i]}`;
 }
 
-const raidLevels=[
-  ['Raid0','RAID 0','Distribuído · sem redundância',2],
-  ['Raid1','RAID 1','Espelhado',2],
-  ['Raid5','RAID 5','Paridade distribuída',3],
-  ['Raid6','RAID 6','Paridade dupla',4],
-  ['Raid10','RAID 10','Espelhado + distribuído',4],
-];
-
-function raidLevelInfo(level){
-  return raidLevels.find(([id])=>id===level);
-}
-
 function diskIneligibleReason(disk){
   if(disk.is_live_media) return 'É a mídia de instalação (live) — não pode ser destino';
   if(disk.role==='RaidMember') return 'Já é membro de um array RAID';
@@ -167,50 +149,6 @@ function diskStatus(disk){
   return 'Disponível para instalação';
 }
 
-function renderRaidLevelOptions(){
-  document.querySelector('#raid-level-options').innerHTML=raidLevels.map(([id,label,desc,min])=>
-    `<button type="button" class="raid-level-btn${id===raidLevel?' selected':''}" data-level="${id}">${label}<small>${desc} · mín. ${min} discos</small></button>`
-  ).join('');
-}
-
-const GIB=1024*1024*1024;
-const lvmPresets={
-  'root-only':()=>[{name:'root',mount_point:'/',size:'FillRemaining'}],
-  'root-home':()=>[
-    {name:'root',mount_point:'/',size:{Fixed:40*GIB}},
-    {name:'home',mount_point:'/home',size:'FillRemaining'},
-  ],
-  'root-home-var':()=>[
-    {name:'root',mount_point:'/',size:{Fixed:40*GIB}},
-    {name:'var',mount_point:'/var',size:{Fixed:20*GIB}},
-    {name:'home',mount_point:'/home',size:'FillRemaining'},
-  ],
-};
-
-function renderLvList(){
-  document.querySelector('#lv-list').innerHTML=logicalVolumes.map((lv,i)=>{
-    const fixed=lv.size!=='FillRemaining';
-    return `<div class="lv-row">
-      <input type="text" class="lv-name" data-index="${i}" value="${lv.name}" placeholder="nome" ${i===0?'readonly':''}/>
-      <input type="text" class="lv-mount" data-index="${i}" value="${lv.mount_point}" placeholder="/ponto/de/montagem" ${i===0?'readonly':''}/>
-      <select class="lv-size-mode" data-index="${i}">
-        <option value="fill" ${!fixed?'selected':''}>Preencher restante</option>
-        <option value="fixed" ${fixed?'selected':''}>Tamanho fixo (GiB)</option>
-      </select>
-      <input type="number" class="lv-size-value" data-index="${i}" min="1" value="${fixed?Math.round(lv.size.Fixed/(1024**3)):''}" ${fixed?'':'hidden'}/>
-      ${i>0?`<button type="button" class="lv-remove" data-index="${i}">✕</button>`:'<span></span>'}
-    </div>`;
-  }).join('');
-}
-
-function buildLogicalVolumePlans(){
-  return logicalVolumes.map(lv=>({
-    name:lv.name,
-    mount_point:lv.mount_point,
-    size:lv.size==='FillRemaining'?'FillRemaining':{Fixed:lv.size.Fixed},
-  }));
-}
-
 function renderDiskCards(){
   const list=document.querySelector('#disk-list');
   const disks=storageSnapshot?.disks||[];
@@ -219,8 +157,7 @@ function renderDiskCards(){
     document.querySelector('#disk-count').textContent='';
     return;
   }
-  if(storageMode==='disk'){
-    list.innerHTML=disks.map(disk=>{
+  list.innerHTML=disks.map(disk=>{
       const reason=diskIneligibleReason(disk);
       const title=diskTitle(disk);
       const selected=disk.path===selectedDiskPath;
@@ -230,26 +167,8 @@ function renderDiskCards(){
         <small>${disk.path} · ${formatBytes(disk.size_bytes)} · ${transportLabels[disk.transport]||disk.transport}</small>
         <span class="disk-status${reason?' disk-status-blocked':''}">${diskStatus(disk)}</span>
       </label>`;
-    }).join('');
-    const manualNote=selectedDiskPath&&!disks.some(d=>d.path===selectedDiskPath)?` · caminho manual selecionado: ${selectedDiskPath}`:'';
-    document.querySelector('#disk-count').textContent=`${disks.length} disco${disks.length===1?'':'s'} detectado${disks.length===1?'':'s'}${manualNote}`;
-  }else{
-    list.innerHTML=disks.map(disk=>{
-      const reason=diskIneligibleReason(disk);
-      const title=diskTitle(disk);
-      const selected=selectedRaidMembers.has(disk.path);
-      return `<label class="disk-card${selected?' selected':''}${reason?' disk-card-disabled':''}">
-        <input type="checkbox" name="raid-member" value="${disk.path}" ${selected?'checked':''} ${reason?'disabled':''}/>
-        <span class="disk-top"><strong>${title}</strong><b>✓</b></span>
-        <small>${disk.path} · ${formatBytes(disk.size_bytes)} · ${transportLabels[disk.transport]||disk.transport}</small>
-        <span class="disk-status${reason?' disk-status-blocked':''}">${reason||'Disponível para instalação'}</span>
-      </label>`;
-    }).join('');
-    const [,,,minMembers]=raidLevelInfo(raidLevel);
-    const manualMembers=[...selectedRaidMembers].filter(p=>!disks.some(d=>d.path===p));
-    const manualNote=manualMembers.length?` · caminhos manuais: ${manualMembers.join(', ')}`:'';
-    document.querySelector('#disk-count').textContent=`${selectedRaidMembers.size} de ${disks.length} selecionados · mínimo ${minMembers} para ${raidLevel.replace('Raid','RAID ')}${manualNote}`;
-  }
+  }).join('');
+  document.querySelector('#disk-count').textContent=`${disks.length} disco${disks.length===1?'':'s'} detectado${disks.length===1?'':'s'}`;
 }
 
 async function discoverStorage(){
@@ -284,18 +203,8 @@ function renderPlan(plan){
 }
 
 function buildGuidedChoice(){
-  let raw_target;
-  if(storageMode==='disk'){
-    if(!selectedDiskPath) return null;
-    raw_target={Disk:selectedDiskPath};
-  }else{
-    if(selectedRaidMembers.size===0) return null;
-    raw_target={NewRaid:{level:raidLevel,members:[...selectedRaidMembers],name:'md0'}};
-  }
-  const volume_layer=lvmEnabled
-    ?{NewVolumeGroup:{name:'vg-lyra',logical_volumes:buildLogicalVolumePlans()}}
-    :'Direct';
-  return {raw_target,volume_layer,swap:swapChoice};
+  if(!selectedDiskPath) return null;
+  return {raw_target:{Disk:selectedDiskPath},volume_layer:'Direct',swap:swapChoice};
 }
 
 async function refreshPlan(){
@@ -395,9 +304,7 @@ async function updateSummary(){
   document.querySelector('#summary-hostname').textContent=document.querySelector('#hostname').value||'lyra-os';
   document.querySelector('#summary-user').textContent=document.querySelector('#username').value||'Aguardando preenchimento';
   const choice=buildGuidedChoice();
-  const target=choice?.raw_target?.Disk
-    ||(choice?.raw_target?.NewRaid?`${raidLevel.replace('Raid','RAID ')} · ${choice.raw_target.NewRaid.members.join(', ')}`:null)
-    ||'Aguardando seleção';
+  const target=choice?.raw_target?.Disk||'Aguardando seleção';
   document.querySelector('#summary-disk').textContent=target;
   document.querySelector('#summary-swap').textContent=swapChoice==='None'?'Sem swap nem ZRAM':swapChoice==='Disk'?'Swap em disco (8 GiB)':'ZRAM';
   document.querySelector('#install-confirm-text').textContent=`Entendo que os dados de ${target} serão apagados permanentemente.`;
@@ -540,13 +447,7 @@ document.querySelector('#language-cards').addEventListener('change',event=>{if(e
 document.querySelector('#language-search').addEventListener('input',event=>renderLanguageCards(event.target.value));
 document.querySelector('#disk-list').addEventListener('change',event=>{
   if(!event.target.matches('input')) return;
-  if(storageMode==='disk'){
-    selectedDiskPath=event.target.value;
-  }else if(event.target.checked){
-    selectedRaidMembers.add(event.target.value);
-  }else{
-    selectedRaidMembers.delete(event.target.value);
-  }
+  selectedDiskPath=event.target.value;
   renderDiskCards();
   refreshPlan();
 });
@@ -562,102 +463,8 @@ document.querySelector('#full-name').addEventListener('input',event=>{
   if(!usernameManuallyEdited) username.value=suggestedUsername(event.target.value);
 });
 document.querySelector('#username').addEventListener('input',()=>{usernameManuallyEdited=true;});
-function updateLayoutVisibility(){
-  document.querySelector('#manual-entry-row').hidden=layoutChoice!=='custom';
-  document.querySelector('#raid-level-row').hidden=storageMode!=='raid';
-  document.querySelector('#lvm-editor').hidden=!lvmEnabled;
-}
-
-function applyLayoutChoice(choice){
-  layoutChoice=choice;
-  if(choice==='simple'){storageMode='disk';lvmEnabled=false;}
-  else if(choice==='raid'){storageMode='raid';lvmEnabled=false;}
-  else if(choice==='lvm'){storageMode='disk';lvmEnabled=true;}
-  else if(choice==='raid-lvm'){storageMode='raid';lvmEnabled=true;}
-  // 'custom': single disk, always shows the volume editor (mount point +
-  // size per volume, Debian-installer style) - no RAID, no "LVM" framing,
-  // even though it's the same NewVolumeGroup plan underneath.
-  else if(choice==='custom'){storageMode='disk';lvmEnabled=true;}
-  selectedDiskPath=null;
-  selectedRaidMembers.clear();
-  updateLayoutVisibility();
-  renderDiskCards();
-  refreshPlan();
-}
-
-document.querySelector('#layout-choice').addEventListener('change',event=>{
-  if(!event.target.matches('input')) return;
-  document.querySelectorAll('.layout-card').forEach(card=>card.classList.toggle('selected',card.querySelector('input').checked));
-  applyLayoutChoice(event.target.value);
-});
-document.querySelector('#raid-level-options').addEventListener('click',event=>{
-  const btn=event.target.closest('.raid-level-btn');
-  if(!btn) return;
-  raidLevel=btn.dataset.level;
-  renderRaidLevelOptions();
-  renderDiskCards();
-  refreshPlan();
-});
-function addManualPath(){
-  const input=document.querySelector('#manual-disk-path');
-  const path=input.value.trim();
-  if(!path) return;
-  if(storageMode==='disk'){
-    selectedDiskPath=path;
-  }else{
-    selectedRaidMembers.add(path);
-  }
-  input.value='';
-  renderDiskCards();
-  refreshPlan();
-}
-document.querySelector('#manual-disk-add').addEventListener('click',addManualPath);
-document.querySelector('#manual-disk-path').addEventListener('keydown',event=>{
-  if(event.key==='Enter'){event.preventDefault();addManualPath();}
-});
-document.querySelector('#lvm-preset-apply').addEventListener('click',()=>{
-  const preset=document.querySelector('#lvm-preset').value;
-  logicalVolumes=lvmPresets[preset]();
-  renderLvList();
-  refreshPlan();
-});
-document.querySelector('#lv-add-btn').addEventListener('click',()=>{
-  logicalVolumes.push({name:'',mount_point:'',size:'FillRemaining'});
-  renderLvList();
-  refreshPlan();
-});
-document.querySelector('#lv-list').addEventListener('click',event=>{
-  const btn=event.target.closest('.lv-remove');
-  if(!btn) return;
-  logicalVolumes.splice(Number(btn.dataset.index),1);
-  renderLvList();
-  refreshPlan();
-});
-document.querySelector('#lv-list').addEventListener('input',event=>{
-  const index=Number(event.target.dataset.index);
-  if(Number.isNaN(index)) return;
-  const lv=logicalVolumes[index];
-  if(event.target.matches('.lv-name')) lv.name=event.target.value;
-  else if(event.target.matches('.lv-mount')) lv.mount_point=event.target.value;
-  else if(event.target.matches('.lv-size-value')){
-    const gib=Number(event.target.value)||0;
-    lv.size={Fixed:gib*1024*1024*1024};
-  }
-  refreshPlan();
-});
-document.querySelector('#lv-list').addEventListener('change',event=>{
-  if(!event.target.matches('.lv-size-mode')) return;
-  const index=Number(event.target.dataset.index);
-  const lv=logicalVolumes[index];
-  lv.size=event.target.value==='fixed'?{Fixed:20*1024*1024*1024}:'FillRemaining';
-  renderLvList();
-  refreshPlan();
-});
-renderLvList();
 renderLanguageCards();
 renderKeyboardCards();
-renderRaidLevelOptions();
-updateLayoutVisibility();
 loadInstallerLogo();
 discoverStorage();
 show(0);

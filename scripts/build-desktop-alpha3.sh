@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build and validate the Lyra OS Desktop Alpha 2 ISO from a real terminal.
+# Build and validate the Lyra OS Desktop Alpha 3 ISO from a real terminal.
 
 set -euo pipefail
 
@@ -8,12 +8,12 @@ REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 
 cd "$REPO_ROOT"
 
-echo "Validando metadados do Lyra OS Desktop Alpha 2..."
+echo "Validando metadados do Lyra OS Desktop Alpha 3..."
 ./scripts/release.py check
 ./scripts/image-build.py validate
 
-if [ "$(./scripts/release.py field version_id)" != "2026.08-alpha2" ]; then
-  echo "ERRO: release.toml não aponta para 2026.08-alpha2." >&2
+if [ "$(./scripts/release.py field version_id)" != "2026.08-alpha3" ]; then
+  echo "ERRO: release.toml não aponta para 2026.08-alpha3." >&2
   exit 1
 fi
 

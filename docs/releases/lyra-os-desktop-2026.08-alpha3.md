@@ -1,6 +1,6 @@
-# Lyra OS 2026.08 Alpha 2 “Odisseia” — notas de lançamento
+# Lyra OS 2026.08 Alpha 3 “Odisseia” — notas de lançamento
 
-O Lyra OS Alpha 2 é uma imagem desktop de avaliação baseada no openSUSE Leap
+O Lyra OS Alpha 3 é uma imagem desktop de avaliação baseada no openSUSE Leap
 16.0, com GNOME 48+, identidade visual Odisseia e integração com os aplicativos
 do ecossistema Lyra.
 
@@ -15,6 +15,8 @@ para produção nem para computadores que contenham dados sem backup.
 - recuperação por snapshots no menu do GRUB;
 - inicialização UEFI e suporte ao Secure Boot pelo `shim` do openSUSE;
 - escolha entre ZRAM com Zstandard, swap em disco ou nenhuma memória virtual;
+- `sudo` autentica com a senha do usuário administrador, sem solicitar a senha
+  da conta root bloqueada;
 - Firefox, GNOME Software, Flatpak e Flathub configurados;
 - Vega, Sheliak, Fina, Chord, Beam e Sulafat integrados ao desktop;
 - tema, ícones, GRUB e wallpapers Nebula da identidade Lyra;
@@ -50,9 +52,8 @@ removidas. Não há retomada automática depois da primeira operação destrutiv
 
 ## Limitações conhecidas
 
-- criação ou reaproveitamento de RAID e LVM pode aparecer na camada de
-  descoberta, mas a execução desses planos ainda não está implementada; use
-  disco inteiro com layout direto;
+- criação ou reaproveitamento de RAID e LVM ainda não está disponível no
+  instalador; a interface oferece somente disco inteiro com layout direto;
 - particionamento manual e instalação lado a lado ainda não possuem cobertura
   de release;
 - codecs multimídia adicionais ainda precisam ser publicados nos repositórios
@@ -71,13 +72,13 @@ administrativo pelo grupo `wheel`.
 Arquivo esperado:
 
 ```text
-lyra-os.x86_64-2026.08-alpha2.iso
+lyra-os.x86_64-2026.08-alpha3.iso
 ```
 
 Verifique o arquivo usando o checksum distribuído junto da ISO:
 
 ```sh
-sha256sum -c lyra-os.x86_64-2026.08-alpha2.iso.sha256
+sha256sum -c lyra-os.x86_64-2026.08-alpha3.iso.sha256
 ```
 
 Para uma publicação oficial, verifique também `*.iso.sha256.asc` com a chave
