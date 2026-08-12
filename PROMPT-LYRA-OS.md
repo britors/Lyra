@@ -92,8 +92,11 @@ build.opensuse.org, sob a conta `rodrigosbrito`):
 distribuídos pelo próprio OBS do Lyra — **não depender do Packman**.
 
 **Drivers de GPU (NVIDIA)**: sem detecção/instalação automática no
-instalador. Fica a cargo do usuário após a instalação, configurável
-através do Vega.
+instalador e sem driver proprietário embutido na ISO padrão. A Desktop
+Alpha 4 deve oferecer no Vega uma instalação opcional pós-instalação, com
+detecção de hardware compatível, confirmação explícita, verificação de Secure
+Boot, snapshot Snapper anterior à mudança e instalação transacional dos
+pacotes meta que mantêm kernel module, userspace e firmware sincronizados.
 
 ## Apps pré-instalados (v1)
 
@@ -181,7 +184,9 @@ antiga vibrante azul-safira→violeta):
 - Buffer do ciclo: até aproximadamente 16 de fevereiro de 2027 caso a Alpha 5
   seja necessária; o cronograma canônico e os critérios de promoção ficam em
   `docs/release-versioning.md`
-- A variante NVIDIA começa somente depois da publicação da Lyra OS 1.0.
+- O instalador opcional pós-instalação de driver NVIDIA via Vega entra na
+  Desktop Alpha 4; a variante de ISO NVIDIA pré-configurada continua começando
+  somente depois da publicação da Lyra OS 1.0.
 
 ## Fora de escopo nesta fase (não implementar)
 

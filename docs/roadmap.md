@@ -1,5 +1,18 @@
 # Roadmap do Lyra OS
 
+## Lyra OS Desktop Alpha 4
+
+A Alpha 4, prevista para 01/09/2026–22/09/2026, adiciona ao Vega um fluxo
+opcional pós-instalação para drivers NVIDIA proprietários. O instalador da ISO
+não detecta nem instala o driver e a ISO padrão continua universal, sem blobs
+ou módulos proprietários pré-instalados.
+
+O gate da funcionalidade exige detecção conservadora de hardware compatível,
+confirmação explícita, Secure Boot verificado, snapshot Snapper antes da
+mudança, pacotes meta que mantenham KMP, userspace e firmware em lockstep,
+`dracut`, reinício orientado e rollback documentado. A Alpha 4 não pode ser
+promovida com um P1 aberto nesse fluxo.
+
 ## Lyra OS Server 1.0
 
 O Server segue um ciclo independente com a mesma cadência e os mesmos gates
@@ -11,7 +24,8 @@ cronograma detalhado e os critérios de saída estão em
 
 ## Ciclo pós-release
 
-A ISO com o driver proprietário NVIDIA pré-instalado e configurado é um
+A instalação opcional via Vega pertence à Desktop Alpha 4, mas a ISO com o
+driver proprietário NVIDIA pré-instalado e configurado continua sendo um
 deliverable planejado para depois da publicação da Lyra OS 1.0. O alvo interno
 da versão final é aproximadamente 26/01/2027, com buffer até aproximadamente
 16/02/2027, conforme o cronograma canônico em

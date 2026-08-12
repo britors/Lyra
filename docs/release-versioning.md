@@ -89,6 +89,19 @@ um estágio fechar mais cedo, a promoção acontece mais cedo.
 | rc2 | 2 semanas | 19/jan/2027 → 02/fev/2027 |
 | final (buffer) | 2 semanas | 02/fev/2027 → **~16/fev/2027** |
 
+### Escopo da Desktop Alpha 4
+
+Além de resolver os P1 remanescentes da Alpha 3, a Alpha 4 entrega no Vega a
+instalação **opcional e pós-instalação** do driver proprietário NVIDIA. Isso
+não adiciona detecção ou instalação de driver ao Lyra Installer e não inclui o
+driver na ISO padrão.
+
+O critério de saída cobre hardware compatível detectado de forma conservadora,
+confirmação do usuário, Secure Boot, snapshot Snapper anterior à alteração,
+instalação em lockstep de KMP/userspace/firmware por pacotes meta, regeneração
+do initramfs, reinício e rollback. Sem evidência em GPU NVIDIA real, o item
+permanece P1 e bloqueia a promoção da Alpha 4.
+
 Se o estágio alpha fechar em `alpha4` (sem pendência P1), o ciclo inteiro
 antecipa e a final sai em torno de **~26/jan/2027**. O alvo interno é
 janeiro; fevereiro é a folga não comprometida, não parte do prazo prometido.

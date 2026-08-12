@@ -107,6 +107,18 @@ class RepositoryMetadataTests(unittest.TestCase):
         self.assertIn("~26/jan/2027", server)
         self.assertIn("~16/fev/2027", server)
 
+    def test_nvidia_post_install_is_alpha4_but_nvidia_iso_remains_post_release(self) -> None:
+        prompt = (ROOT / "PROMPT-LYRA-OS.md").read_text(encoding="utf-8")
+        roadmap = (ROOT / "docs/roadmap.md").read_text(encoding="utf-8")
+        versioning = (ROOT / "docs/release-versioning.md").read_text(encoding="utf-8")
+        nvidia_iso = (ROOT / "docs/nvidia-iso.md").read_text(encoding="utf-8")
+
+        for text in (prompt, roadmap, versioning, nvidia_iso):
+            self.assertIn("Alpha 4", text)
+        self.assertIn("pós-instalação", prompt)
+        self.assertIn("sem driver proprietário embutido na ISO padrão", prompt)
+        self.assertIn("depois da publicação da Lyra OS 1.0", nvidia_iso)
+
     def test_build_manifest_is_traceable(self) -> None:
         release = Release.from_file()
         with tempfile.TemporaryDirectory() as directory:

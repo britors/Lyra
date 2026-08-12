@@ -1,7 +1,9 @@
 # ISO NVIDIA (deliverable pós-release)
 
 Este documento é o rascunho de arquitetura da variante de ISO com o driver
-proprietário NVIDIA pré-instalado e pré-configurado. Ele existe para orientar
+proprietário NVIDIA pré-instalado e pré-configurado. Ele não descreve o fluxo
+opcional pós-instalação via Vega, que agora pertence à Desktop Alpha 4 e está
+registrado no roadmap e no cronograma de release. Ele existe para orientar
 a implementação quando o ciclo começar — **não autoriza começar a
 implementação agora**. Conforme `PROMPT-LYRA-OS.md`, a variante NVIDIA fica
 para depois da publicação da Lyra OS 1.0 (alvo interno em janeiro de 2027,
