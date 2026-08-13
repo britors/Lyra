@@ -118,7 +118,7 @@ fluxo NVIDIA validado no hardware G06 disponível.
 ### Desktop Alpha 5 — 22/09 a 13/10
 
 - **22–28/set:** internacionalizar `Beam`, `Chord`, `Sulafat`, `Aladfar`,
-  `Prosa`, `Calco`, `postgres-draco`, `vega-cli`, `vega-web` e `vegad`; cada
+  `postgres-draco`, `vega-cli`, `vega-web` e `vegad`; cada
   pacote sem texto voltado ao usuário deve registrar N/A em vez de desaparecer
   do inventário.
 - **29/set–05/out:** integrar os RPMs traduzidos na imagem, validar troca de

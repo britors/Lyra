@@ -37,8 +37,7 @@ instalado. Também inclui:
 - boot, Secure Boot, EFI, initramfs, serviços com falha e journal recente;
 - estado dos dispositivos de rede sem perfis, senhas ou nomes de conexão;
 - repositórios, inventário RPM e estado explícito de todos os pacotes próprios
-  do ecossistema Lyra, incluindo Prosa e Calco publicados no OBS mesmo quando
-  não estão instalados na imagem;
+  do ecossistema Lyra;
 - mounts, `fstab`, Btrfs, Snapper e GRUB;
 - disponibilidade e logs legíveis do Lyra Installer.
 

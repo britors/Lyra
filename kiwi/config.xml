@@ -504,9 +504,6 @@
     <package name="beam"/>
     <package name="sulafat"/>
 
-    <!-- Prosa and Calco remain available from Lyra's OBS repositories, but
-         are intentionally excluded from Beta 2 while they stabilize. -->
-
     <!--
       Sheliak, Lyra's GNOME 48 dock. Installing a system extension alone
       does not enable it for users, so the image also ships a GNOME Shell

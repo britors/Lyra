@@ -107,9 +107,8 @@ pacotes meta que mantêm kernel module, userspace e firmware sincronizados.
 - **GNOME Terminal** (`gnome-terminal`) como terminal padrão, com o
   **GNOME Console** (`gnome-console`) também pré-instalado como alternativa
 - **Firefox** como navegador padrão
-- **Prosa** e **Calco** disponíveis nos repositórios Lyra, mas excluídos da
-  imagem Beta 2 enquanto passam por estabilização; **LibreOffice** entra na
-  imagem padrão com traduções para en-US, pt-BR, es-ES e zh-CN
+- **LibreOffice** na imagem padrão com traduções para en-US, pt-BR, es-ES e
+  zh-CN
 - **CUPS** + drivers comuns, pré-instalado e habilitado (impressão/scanner)
 - **GNOME Software** removido da imagem padrão; o gerenciamento gráfico de
   pacotes fica centralizado no Vega
@@ -224,7 +223,6 @@ antiga vibrante azul-safira→violeta):
 - [ ] Flatpak/Flathub configurado como canal de apps de terceiros
 - [ ] VLC e codecs FFmpeg/GStreamer completos pré-instalados no desktop
 - [ ] Vega (GTK4), Sheliak e Fina pré-instalados e funcionais
-- [ ] Prosa e Calco ausentes da imagem padrão Beta 2
 - [ ] GNOME Terminal, GNOME Console, Firefox e CUPS pré-instalados
 - [ ] LibreOffice pré-instalado e acompanhando o idioma selecionado
 - [ ] GNOME Software e seus plugins ausentes da imagem padrão

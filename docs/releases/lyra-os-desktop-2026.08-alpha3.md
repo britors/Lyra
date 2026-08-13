@@ -24,8 +24,7 @@ para produção nem para computadores que contenham dados sem backup.
 - `lyra-report` para diagnóstico local, voluntário e sem telemetria automática;
 - inventário RPM e SBOMs CycloneDX/SPDX disponíveis junto da ISO.
 
-Prosa e Calco não estão instalados nesta Alpha enquanto passam por
-estabilização. O repositório Packman não é habilitado.
+O repositório Packman não é habilitado.
 
 ## Requisitos
 

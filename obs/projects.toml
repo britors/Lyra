@@ -45,12 +45,10 @@ iso_consumer = true
 packages = [
   "aladfar",
   "beam",
-  "calco",
   "chord",
   "lyra-installer",
   "lyra-theme",
   "postgres-draco",
-  "prosa",
   "sheliak",
   "sulafat",
 ]

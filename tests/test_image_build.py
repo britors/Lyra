@@ -268,8 +268,6 @@ class ImagePolicyTests(unittest.TestCase):
     def test_office_apps_and_locales_match_image_policy(self) -> None:
         root = ET.parse(ROOT / "kiwi/config.xml").getroot()
         packages = {node.attrib["name"] for node in root.findall("packages/package")}
-        self.assertNotIn("prosa", packages)
-        self.assertNotIn("calco", packages)
         libreoffice = {
             "libreoffice",
             "libreoffice-base",
@@ -291,8 +289,7 @@ class ImagePolicyTests(unittest.TestCase):
             ROOT
             / "kiwi/root/usr/share/glib-2.0/schemas/99-lyra-desktop-defaults.gschema.override"
         ).read_text(encoding="utf-8")
-        self.assertNotIn("br.com.rodrigobrito.Prosa.Native.desktop", defaults)
-        self.assertNotIn("br.com.w3ti.Calco.desktop", defaults)
+        self.assertIn("libreoffice-writer.desktop", defaults)
 
     def test_desktop_app_curation_uses_vlc_without_gnome_software_or_monitor(self) -> None:
         root = ET.parse(ROOT / "kiwi/config.xml").getroot()

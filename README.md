@@ -29,8 +29,6 @@ o instalador da edição **Odisseia Alpha 4** para computadores x86_64.
 O desktop habilita somente o Packman Essentials para fornecer codecs
 multimídia completos; o Packman completo não é usado. Os repositórios oficiais
 do Leap têm prioridade sobre os repositórios OBS do ecossistema Lyra no sistema instalado.
-Prosa e Calco continuam publicados nesses repositórios, mas não são instalados
-na Alpha 3 enquanto passam por estabilização.
 
 ## Estado atual
 
