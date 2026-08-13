@@ -73,8 +73,8 @@ explicitamente em vez de assumir.
 ## Repositórios e canais de pacotes
 
 **Repositórios de sistema habilitados por padrão:**
-- Apenas os oficiais do Leap 16: OSS, Non-OSS, Updates
-- **Sem Packman** e sem outros repositórios de terceiros por padrão
+- Oficiais do Leap 16: OSS, Non-OSS e Updates
+- Packman **Essentials** somente no desktop, limitado aos codecs multimídia
 
 **Repositórios OBS do ecossistema Lyra** (hospedados em
 build.opensuse.org, sob a conta `rodrigosbrito`):
@@ -89,8 +89,8 @@ build.opensuse.org, sob a conta `rodrigosbrito`):
 - Flatpak (Flathub) como canal primário
 - Sem equivalente ao AUR — não existe no openSUSE, não tentar recriar
 
-**Codecs multimídia proprietários** (H.264, MP3 etc.): empacotados e
-distribuídos pelo próprio OBS do Lyra — **não depender do Packman**.
+**Codecs multimídia proprietários** (H.264, AAC etc.): fornecidos pelo Packman
+Essentials no desktop; não habilitar o repositório Packman completo.
 
 **Drivers de GPU (NVIDIA)**: sem detecção/instalação automática no
 instalador e sem driver proprietário embutido na ISO padrão. A Desktop
@@ -218,11 +218,11 @@ antiga vibrante azul-safira→violeta):
 - [ ] Lyra Installer em Rust/Tauri instala com en-US pré-selecionado, oferece
       en-US/pt-BR/es-ES/zh-CN na 1.0 e sugere o hostname `lyra-os`
 - [ ] Root desabilitado; usuário criado tem sudo
-- [ ] Repos habilitados por padrão: apenas OSS/Non-OSS/Updates do Leap 16
+- [ ] Repos habilitados por padrão: OSS/Non-OSS/Updates e Packman Essentials
 - [ ] Repos OBS do Lyra (lyra/vega/fina) configurados e
       acessíveis, com os pacotes corretos instaláveis de cada um
 - [ ] Flatpak/Flathub configurado como canal de apps de terceiros
-- [ ] Codecs multimídia instaláveis via OBS do Lyra, sem depender do Packman
+- [ ] VLC e codecs FFmpeg/GStreamer completos pré-instalados no desktop
 - [ ] Vega (GTK4), Sheliak e Fina pré-instalados e funcionais
 - [ ] Prosa e Calco ausentes da imagem padrão Beta 2
 - [ ] GNOME Terminal, GNOME Console, Firefox e CUPS pré-instalados

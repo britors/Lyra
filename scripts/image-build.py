@@ -352,8 +352,8 @@ def validate_sources(
     if not os.access(KIWI / "edit_boot_config.sh", os.X_OK):
         raise PolicyError("KIWI final boot configuration hook must be executable")
     repositories = root.findall("repository")
-    if len(repositories) != 5:
-        raise PolicyError("canonical KIWI description must contain exactly five repositories")
+    if len(repositories) != 6:
+        raise PolicyError("canonical KIWI description must contain exactly six repositories")
     aliases: set[str] = set()
     for repository in repositories:
         alias = repository.attrib.get("alias", "")
@@ -480,8 +480,8 @@ def verify_export(manifest: Manifest, directory: Path) -> None:
         raise PolicyError("export has invalid source identity")
     root = ET.parse(directory / manifest.description).getroot()
     repositories = root.findall("repository")
-    if len(repositories) != 5:
-        raise PolicyError("export must preserve the five canonical repositories")
+    if len(repositories) != 6:
+        raise PolicyError("export must preserve the six canonical repositories")
     for repository in repositories:
         source = repository.find("source")
         url = "" if source is None else source.attrib.get("path", "")

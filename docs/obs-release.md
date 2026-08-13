@@ -33,9 +33,10 @@ failed flavor, an unpublished repository, or a target mismatch fails the gate.
 ## Repository priorities
 
 During image construction, KIWI uses priorities 1, 2, and 3 for Lyra, Vega,
-and Fina so the image consumes the reviewed Lyra packages. Official Leap OSS
-and non-OSS use 20 and 21. This build-only exception is allowlisted by the OBS
-package inventory.
+and Fina so the image consumes the reviewed Lyra packages. The desktop-only
+Packman Essentials repository uses priority 15 so its complete codec builds
+win over restricted official variants; official Leap OSS and non-OSS use 20
+and 21. These exceptions are allowlisted by the repository policy.
 
 Before the installed system is finalized, the Rust installer changes all three
 personal OBS repositories to priority 90. Official Leap therefore wins every

@@ -31,6 +31,7 @@ fina = "98285bd5aa903f7c31d85f6f90a782f7"
 [priorities]
 official_oss = 20
 official_non_oss = 21
+packman_image = 15
 lyra_image = 1
 vega_image = 2
 fina_image = 3

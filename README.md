@@ -26,8 +26,9 @@ o instalador da edição **Odisseia Alpha 4** para computadores x86_64.
 - `lyra-report` para diagnóstico local e sob demanda, sem telemetria ou envio
   automático de dados.
 
-O sistema não habilita o Packman. Os repositórios oficiais do Leap têm
-prioridade sobre os repositórios OBS do ecossistema Lyra no sistema instalado.
+O desktop habilita somente o Packman Essentials para fornecer codecs
+multimídia completos; o Packman completo não é usado. Os repositórios oficiais
+do Leap têm prioridade sobre os repositórios OBS do ecossistema Lyra no sistema instalado.
 Prosa e Calco continuam publicados nesses repositórios, mas não são instalados
 na Alpha 3 enquanto passam por estabilização.
 
@@ -44,7 +45,6 @@ Ainda estão pendentes:
 
 - repetir o teste completo no candidato final, incluindo Secure Boot e
   rollback;
-- publicar codecs multimídia no OBS do Lyra, sem recorrer ao Packman;
 - automatizar o ciclo de CI e publicação da ISO.
 
 Consulte a [documentação técnica do KIWI](kiwi/README.md) para conhecer as

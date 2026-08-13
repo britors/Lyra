@@ -116,8 +116,8 @@
   </users>
 
   <!--
-    Official Leap 16 base repos - no Packman or unrelated third-party
-    source (the explicitly required Lyra OBS ecosystem follows below).
+    Official Leap 16 base repos. The narrowly scoped, desktop-only Packman
+    Essentials source and the required Lyra OBS ecosystem follow below.
     Leap 16 deliberately has no separate update repository: official
     maintenance updates are published through repo-oss itself.
   -->
@@ -128,6 +128,16 @@
   <repository alias="repo-non-oss" priority="21" type="rpm-md" imageinclude="true"
               repository_gpgcheck="true" package_gpgcheck="true">
     <source path="https://download.opensuse.org/distribution/leap/16.0/repo/non-oss/"/>
+  </repository>
+
+  <!-- Desktop-only proprietary multimedia codecs. Limit the third-party
+       surface to Packman Essentials instead of enabling the full repository;
+       priority 15 lets its full codec builds win over the restricted official
+       variants while Lyra's own build repositories (1-3) remain authoritative. -->
+  <repository alias="repo-packman-essentials" priority="15" type="rpm-md"
+              imageinclude="true" repository_gpgcheck="true"
+              package_gpgcheck="true" profiles="desktop">
+    <source path="https://ftp.gwdg.de/pub/linux/misc/packman/suse/openSUSE_Leap_16.0/Essentials/"/>
   </repository>
 
   <!--
@@ -439,11 +449,19 @@
     <package name="libreoffice-l10n-es"/>
     <package name="libreoffice-l10n-zh_CN"/>
 
-    <!-- VLC is the default general-purpose media player. It comes from the
-         official Leap 16 OSS repository; Lyra deliberately does not enable
-         Packman, so codec availability remains limited to the official
-         repository policy documented in README.md. -->
+    <!-- VLC and the complete FFmpeg/GStreamer codec stack. The codec packages
+         come from the desktop-only Packman Essentials repository above. -->
     <package name="vlc"/>
+    <package name="vlc-codecs"/>
+    <package name="ffmpeg-7"/>
+    <package name="gstreamer-plugins-bad-codecs"/>
+    <package name="gstreamer-plugins-ugly-codecs"/>
+
+    <!-- Redistributable firmware from the official Non-OSS channel. Generic
+         kernel firmware remains covered by kernel-firmware-all above. -->
+    <package name="ivtv-firmware"/>
+    <package name="bladeRF-fpga-firmware"/>
+    <package name="bladeRF-fx3-firmware"/>
 
     <!-- CUPS + common drivers, printing and scanning. -->
     <package name="cups"/>
@@ -634,6 +652,7 @@
     <package name="dialog"/>
     <package name="kbd"/>
     <package name="parted"/>
+
   </packages>
 
 </image>

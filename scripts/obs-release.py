@@ -152,6 +152,7 @@ class Manifest:
         required = {
             "official_oss": 20,
             "official_non_oss": 21,
+            "packman_image": 15,
             "lyra_image": 1,
             "vega_image": 2,
             "fina_image": 3,
@@ -374,6 +375,7 @@ def check_local_priorities(manifest: Manifest) -> None:
     expected = {
         "repo-oss": manifest.priorities["official_oss"],
         "repo-non-oss": manifest.priorities["official_non_oss"],
+        "repo-packman-essentials": manifest.priorities["packman_image"],
         "repo-lyra": manifest.priorities["lyra_image"],
         "repo-vega": manifest.priorities["vega_image"],
         "repo-fina": manifest.priorities["fina_image"],

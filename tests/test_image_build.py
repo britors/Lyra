@@ -288,6 +288,16 @@ class ImagePolicyTests(unittest.TestCase):
         self.assertIn("vlc", desktop_packages)
         self.assertIn("vlc-lang", desktop_packages)
         for name in (
+            "vlc-codecs",
+            "ffmpeg-7",
+            "gstreamer-plugins-bad-codecs",
+            "gstreamer-plugins-ugly-codecs",
+            "ivtv-firmware",
+            "bladeRF-fpga-firmware",
+            "bladeRF-fx3-firmware",
+        ):
+            self.assertIn(name, desktop_packages, name)
+        for name in (
             "gnome-software",
             "gnome-software-lang",
             "gnome-software-plugin-packagekit",
