@@ -7,7 +7,7 @@
 
   - "desktop" (default, matches pre-profile behavior): GNOME live session,
     Btrfs/Snapper, the native Lyra Installer (Rust/Tauri GUI),
-    Vega(GTK4)/Sheliak/Fina/Chord/Beam/Sulafat + a curated GNOME app set +
+    Vega(GTK4)/Sheliak/Fina/Beam/Sulafat + a curated GNOME app set +
     Firefox/CUPS/Flatpak.
   - "server": headless, no GNOME/theme/icons, ext4 (no Btrfs/Snapper/
     RAID/LVM in v1), vega-cli + vegad + vega-web instead of vega-gtk, no
@@ -498,10 +498,6 @@
       below.
     -->
     <package name="vega-gtk"/>
-
-    <!-- Chord, Lyra's GTK4 terminal emulator. The RPM provides the
-         org.lyraos.Chord.desktop launcher used by the GNOME favorite. -->
-    <package name="chord"/>
 
     <!-- Lyra's native remote-access clients, pinned in the default GNOME
          favorites together with Vega and Firefox. -->

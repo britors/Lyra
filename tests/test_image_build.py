@@ -167,16 +167,21 @@ class ImagePolicyTests(unittest.TestCase):
         self.assertIn('"Defaults !targetpw\\n%wheel ALL=(ALL) ALL\\n"', deploy)
         self.assertIn("Defaults targetpw", changes.split("-------------------------------------------------------------------", 2)[1])
 
-    def test_chord_is_installed_and_pinned_by_its_packaged_desktop_id(self) -> None:
+    def test_chord_is_not_installed_or_pinned_on_the_desktop(self) -> None:
         root = ET.parse(ROOT / "kiwi/config.xml").getroot()
-        packages = {node.attrib["name"] for node in root.findall("packages/package")}
-        self.assertIn("chord", packages)
+        desktop_packages = {
+            node.attrib["name"]
+            for packages in root.findall("packages")
+            if packages.attrib.get("profiles") in (None, "desktop")
+            for node in packages.findall("package")
+        }
+        self.assertNotIn("chord", desktop_packages)
 
         defaults = (
             ROOT
             / "kiwi/root/usr/share/glib-2.0/schemas/99-lyra-desktop-defaults.gschema.override"
         ).read_text(encoding="utf-8")
-        self.assertIn("'org.lyraos.Chord.desktop'", defaults)
+        self.assertNotIn("'org.lyraos.Chord.desktop'", defaults)
 
     def test_bluetooth_and_screen_recording_are_installed_and_enabled(self) -> None:
         # Real gap found on an installed image: onlyRequired dropped both
