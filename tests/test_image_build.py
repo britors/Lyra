@@ -258,6 +258,25 @@ class ImagePolicyTests(unittest.TestCase):
         self.assertNotIn("br.com.w3ti.Calco.desktop", defaults)
         self.assertNotIn("libreoffice", defaults.lower())
 
+    def test_desktop_app_curation_uses_vlc_without_gnome_software_or_monitor(self) -> None:
+        root = ET.parse(ROOT / "kiwi/config.xml").getroot()
+        desktop_packages = {
+            node.attrib["name"]
+            for packages in root.findall('packages[@profiles="desktop"]')
+            for node in packages.findall("package")
+        }
+
+        self.assertIn("vlc", desktop_packages)
+        self.assertIn("vlc-lang", desktop_packages)
+        for name in (
+            "gnome-software",
+            "gnome-software-lang",
+            "gnome-software-plugin-packagekit",
+            "gnome-system-monitor",
+            "gnome-system-monitor-lang",
+        ):
+            self.assertNotIn(name, desktop_packages, name)
+
     def test_installed_grub_theme_contract_is_validated_by_build_and_installer(self) -> None:
         deploy = (ROOT / "installer/src/service/operations/deploy.rs").read_text(
             encoding="utf-8"

@@ -397,7 +397,6 @@
     <package name="gnome-console"/>
     <package name="gnome-calculator"/>
     <package name="gnome-characters"/>
-    <package name="gnome-system-monitor"/>
     <package name="gnome-disk-utility"/>
     <!-- gnome-papers isn't packaged for Leap 16 yet - evince is what's
          actually in the repo, also verified. -->
@@ -409,19 +408,6 @@
     <!-- Accessibility - kept deliberately; curation is about redundant
          apps, not accessibility tooling. -->
     <package name="orca"/>
-    <!--
-      GNOME Software: coexists with Vega per the spec (Vega handles
-      other system areas, not app/package management). Not pulled by
-      gnome_basic/gnome's Requires chain at all - it only shows up as a
-      Recommends under the separate sw_management_gnome pattern, which
-      isn't referenced here, so it needs to be explicit.
-    -->
-    <package name="gnome-software"/>
-    <!-- gnome-software only Recommends its PackageKit backend. Keep it
-         explicit because patternType=onlyRequired intentionally omits
-         Recommends, and without this GNOME Software cannot manage RPMs. -->
-    <package name="gnome-software-plugin-packagekit"/>
-
     <!-- Firefox: default browser. Confirmed as `MozillaFirefox` in the
          real Leap 16.0 OSS repodata (there is no plain "firefox" RPM).
          The translations subpackage carries the common language packs and
@@ -430,6 +416,12 @@
          which the installer writes from the selected system locale. -->
     <package name="MozillaFirefox"/>
     <package name="MozillaFirefox-translations-common"/>
+
+    <!-- VLC is the default general-purpose media player. It comes from the
+         official Leap 16 OSS repository; Lyra deliberately does not enable
+         Packman, so codec availability remains limited to the official
+         repository policy documented in README.md. -->
+    <package name="vlc"/>
 
     <!-- CUPS + common drivers, printing and scanning. -->
     <package name="cups"/>
@@ -560,8 +552,6 @@
     <package name="gnome-session-lang"/>
     <package name="gnome-settings-daemon-lang"/>
     <package name="gnome-shell-lang"/>
-    <package name="gnome-software-lang"/>
-    <package name="gnome-system-monitor-lang"/>
     <package name="gnome-terminal-lang"/>
     <package name="gnome-text-editor-lang"/>
     <package name="gnome-tweaks-lang"/>
@@ -570,6 +560,7 @@
     <package name="gvfs-lang"/>
     <package name="loupe-lang"/>
     <package name="malcontent-lang"/>
+    <package name="vlc-lang"/>
     <package name="mutter-lang"/>
     <package name="nautilus-lang"/>
     <package name="NetworkManager-lang"/>
