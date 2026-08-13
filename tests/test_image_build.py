@@ -497,6 +497,7 @@ class ServerImagePolicyTests(unittest.TestCase):
         self.assertNotIn("home:rodrigosbrito:fina", projects)
         self.assertNotIn("Virtualization:Appliances:Builder", projects)
         self.assertNotIn("rollback", self.manifest.required_test_results)
+        self.assertNotIn("checksum_signature", self.manifest.required_artifacts)
 
     def test_desktop_manifest_still_defaults_to_the_desktop_profile(self) -> None:
         desktop_manifest = image_build.Manifest.load()

@@ -167,11 +167,14 @@ class Manifest:
             "verified",
             "report",
             "checksum",
-            "checksum_signature",
             "cyclonedx_sbom",
             "spdx_sbom",
         }
-        if set(self.required_artifacts) != expected_artifacts:
+        configured_artifacts = set(self.required_artifacts)
+        if configured_artifacts not in (
+            expected_artifacts,
+            expected_artifacts | {"checksum_signature"},
+        ):
             raise PolicyError("artifact policy is incomplete")
         if set(self.required_test_results) != expected_results:
             raise PolicyError("release evidence policy is incomplete")
@@ -289,6 +292,11 @@ def validate_sources(
     profile, release_file = build_identity(
         manifest, profile=profile, release_file=release_file
     )
+    release = release_values(release_file)
+    signature_required = release["stage"] != "alpha"
+    has_signature = "checksum_signature" in manifest.required_artifacts
+    if signature_required and not has_signature:
+        raise PolicyError("Beta, RC and final releases require a checksum signature")
     validate_installer_identity()
     if not PACKAGE_SIGNING_KEYRING.is_file():
         raise PolicyError("versioned RPM package signing keyring is missing")
@@ -623,15 +631,19 @@ def artifact_manifest(
     release_file: Path | None = None,
 ) -> None:
     _, release_file = build_identity(manifest, release_file=release_file)
+    artifact_patterns = {
+        "iso": ("*.iso", "ISO"),
+        "packages": ("*.packages", "package revision list"),
+        "verified": ("*.verified", "verification report"),
+        "report": ("*.report", "KIWI report"),
+        "checksum": ("*.iso.sha256", "ISO checksum"),
+        "checksum_signature": ("*.iso.sha256.asc", "checksum signature"),
+        "cyclonedx_sbom": ("*.cdx.json", "CycloneDX SBOM"),
+        "spdx_sbom": ("*.spdx.json", "SPDX SBOM"),
+    }
     roles = {
-        "iso": one(directory, "*.iso", "ISO"),
-        "packages": one(directory, "*.packages", "package revision list"),
-        "verified": one(directory, "*.verified", "verification report"),
-        "report": one(directory, "*.report", "KIWI report"),
-        "checksum": one(directory, "*.iso.sha256", "ISO checksum"),
-        "checksum_signature": one(directory, "*.iso.sha256.asc", "checksum signature"),
-        "cyclonedx_sbom": one(directory, "*.cdx.json", "CycloneDX SBOM"),
-        "spdx_sbom": one(directory, "*.spdx.json", "SPDX SBOM"),
+        role: one(directory, *artifact_patterns[role])
+        for role in manifest.required_artifacts
     }
     package_rows = [line.split("|") for line in roles["packages"].read_text(encoding="utf-8").splitlines() if line]
     if any(len(row) != 7 for row in package_rows):
