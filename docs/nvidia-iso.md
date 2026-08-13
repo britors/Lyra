@@ -2,7 +2,7 @@
 
 Este documento é o rascunho de arquitetura da variante de ISO com o driver
 proprietário NVIDIA pré-instalado e pré-configurado. Ele não descreve o fluxo
-opcional pós-instalação via Vega, que agora pertence à Desktop Alpha 4 e está
+opcional pós-instalação via Vega, que agora pertence à Desktop Alpha 5 e está
 registrado no roadmap e no cronograma de release. Ele existe para orientar
 a implementação quando o ciclo começar — **não autoriza começar a
 implementação agora**. Conforme `PROMPT-LYRA-OS.md`, a variante NVIDIA fica

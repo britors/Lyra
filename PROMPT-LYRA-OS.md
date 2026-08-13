@@ -94,7 +94,7 @@ Essentials no desktop; não habilitar o repositório Packman completo.
 
 **Drivers de GPU (NVIDIA)**: sem detecção/instalação automática no
 instalador e sem driver proprietário embutido na ISO padrão. A Desktop
-Alpha 4 deve oferecer no Vega uma instalação opcional pós-instalação, com
+Alpha 5 deve oferecer no Vega uma instalação opcional pós-instalação, com
 detecção de hardware compatível, confirmação explícita, verificação de Secure
 Boot, snapshot Snapper anterior à mudança e instalação transacional dos
 pacotes meta que mantêm kernel module, userspace e firmware sincronizados.
@@ -178,8 +178,9 @@ antiga vibrante azul-safira→violeta):
 
 - Pipeline de CI para refresh mensal da ISO
 - GRUB panic button (reversão via boot menu, ver Snapshots acima)
-- Alpha 4 e Alpha 5 são obrigatórias; uma Alpha 6 pode ser aberta se os gates
-  ainda não estiverem verdes. Toda feature da 1.0 e a
+- Alpha 4 é publicada em 14 de agosto de 2026; Alpha 5 (14–28/08), Alpha 6
+  (28/08–11/09), Alpha 7 (11–25/09) e Alpha 8 (25/09–13/10) são obrigatórias.
+  Toda feature da 1.0 e a
   internacionalização `pt-BR`/`en-US` dos pacotes próprios e os quatro
   catálogos (`en-US`, `pt-BR`, `es-ES`, `zh-CN`) do instalador
   usam 13 de outubro de 2026 como meta, nunca como autorização para promover
@@ -195,8 +196,8 @@ antiga vibrante azul-safira→violeta):
 - O cronograma canônico e os critérios de promoção ficam em
   `docs/release-versioning.md`; o buffer final vai até aproximadamente 16 de
   fevereiro de 2027, sempre priorizando qualidade sobre prazo.
-- O instalador opcional pós-instalação de driver NVIDIA via Vega entra na
-  Desktop Alpha 4; a variante de ISO NVIDIA pré-configurada continua começando
+- O instalador opcional pós-instalação de driver NVIDIA via Vega deve fechar
+  na Desktop Alpha 5; a variante de ISO NVIDIA pré-configurada continua começando
   somente depois da publicação da Lyra OS 1.0.
 
 ## Fora de escopo nesta fase (não implementar)
