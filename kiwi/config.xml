@@ -610,12 +610,16 @@
          sshd in Leap is "openssh". -->
     <package name="openssh"/>
 
-    <!-- scripts/server-install.sh's TUI. onlyRequired under gptfdisk
+    <!-- scripts/server-install.sh's TUI. kbd is explicit because the
+         installer enumerates every console keymap shipped by that package;
+         this must not depend on an indirect base-pattern dependency.
+         onlyRequired under gptfdisk
          (common block) does not pull in partprobe either - that binary is
          provided by parted, not gptfdisk or util-linux, confirmed against
          this repo's own dev machine (`rpm -ql parted | grep partprobe`)
          after a real VM install run hit "partprobe: command not found". -->
     <package name="dialog"/>
+    <package name="kbd"/>
     <package name="parted"/>
   </packages>
 
