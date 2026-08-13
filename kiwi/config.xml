@@ -76,7 +76,7 @@
     <!-- Generated from release-server.toml by scripts/server-release.py;
          own alpha/beta/rc/final cycle, does not share release.toml's
          calendar_version with the desktop profile. -->
-    <version>2026.08-alpha1</version>
+    <version>2026.08-alpha2</version>
     <type
       image="iso"
       primary="true"
@@ -84,7 +84,7 @@
       filesystem="squashfs"
       firmware="uefi"
       editbootconfig="edit_boot_config.sh"
-      volid="LYRA_OS_SERVER_2026_08_ALPHA1"
+      volid="LYRA_OS_SERVER_2026_08_ALPHA2"
       application_id="LyraOSServer"
       publisher="Lyra OS Project">
       <bootloader name="grub2" timeout="10"/>
