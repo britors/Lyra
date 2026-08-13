@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "locales": ["en-US", "pt-BR", "es-ES", "zh-CN"],
+  "default_locale": "en-US",
+  "fallback_locale": "en-US",
+  "packages": [
+    {"id":"lyra-installer","project":"lyra","wave":"alpha4","status":"complete","format":"javascript","domain":"lyra-installer","selection":"installer choice","lint":"python3 -m unittest tests.test_installer_ui","rationale":"Four embedded catalogs with live switching and English fallback."},
+    {"id":"lyra-theme","project":"lyra","wave":"alpha4","status":"not-applicable","format":"none","domain":"none","selection":"none","lint":"inventory rationale","rationale":"Theme and artwork package has no interactive Lyra-owned text."},
+    {"id":"vega-gtk","project":"vega","display_name":"Vega","wave":"alpha4","status":"complete","format":"gettext","domain":"vega-gtk","selection":"LC_ALL/LC_MESSAGES/LANG and AccountsService","lint":"python3 tests/test_vega_gtk_i18n.py","rationale":"GTK catalog implementation exists for all four locales."},
+    {"id":"fina","project":"fina","wave":"alpha4","status":"scheduled","format":"gettext","domain":"fina","selection":"LC_ALL/LC_MESSAGES/LANG","lint":"package i18n test","rationale":"First-wave application; implementation is tracked by issue 76."},
+    {"id":"sheliak","project":"lyra","wave":"alpha4","status":"complete","format":"gettext-json-source","domain":"sheliak","selection":"GNOME session locale","lint":"npm test","rationale":"JSON sources compile to standard locale/<lang>/LC_MESSAGES catalogs."},
+    {"id":"aladfar","project":"lyra","wave":"alpha5","status":"scheduled","format":"gettext","domain":"aladfar","selection":"LC_ALL/LC_MESSAGES/LANG","lint":"package i18n test","rationale":"Second-wave user interface scheduled by the release plan."},
+    {"id":"beam","project":"lyra","wave":"alpha5","status":"scheduled","format":"gettext","domain":"beam","selection":"LC_ALL/LC_MESSAGES/LANG","lint":"package i18n test","rationale":"Second-wave user interface scheduled by the release plan."},
+    {"id":"calco","project":"lyra","wave":"alpha5","status":"scheduled","format":"gettext","domain":"calco","selection":"LC_ALL/LC_MESSAGES/LANG","lint":"package i18n test","rationale":"Second-wave application scheduled by the release plan."},
+    {"id":"chord","project":"lyra","wave":"alpha5","status":"scheduled","format":"gettext","domain":"chord","selection":"LC_ALL/LC_MESSAGES/LANG","lint":"package i18n test","rationale":"Second-wave terminal integration scheduled by the release plan."},
+    {"id":"postgres-draco","project":"lyra","wave":"alpha5","status":"not-applicable","format":"none","domain":"none","selection":"none","lint":"inventory rationale","rationale":"Database service package has no Lyra-owned interactive interface; PostgreSQL diagnostics remain upstream-owned."},
+    {"id":"prosa","project":"lyra","wave":"alpha5","status":"scheduled","format":"gettext","domain":"prosa","selection":"LC_ALL/LC_MESSAGES/LANG","lint":"package i18n test","rationale":"Second-wave application scheduled by the release plan."},
+    {"id":"sulafat","project":"lyra","wave":"alpha5","status":"scheduled","format":"gettext","domain":"sulafat","selection":"LC_ALL/LC_MESSAGES/LANG","lint":"package i18n test","rationale":"Second-wave user interface scheduled by the release plan."},
+    {"id":"vega-cli","project":"vega","wave":"alpha5","status":"complete","format":"json","domain":"vega-cli","selection":"LC_ALL/LC_MESSAGES/LANG and AccountsService","lint":"go test ./...","rationale":"Locale support is shared by the Vega stack and already implemented."},
+    {"id":"vega-web","project":"vega","wave":"alpha5","status":"complete","format":"json","domain":"vega-web","selection":"authenticated user's locale","lint":"cargo test --workspace","rationale":"Locale support is shared by the Vega stack and already implemented."},
+    {"id":"vegad","project":"vega","wave":"alpha5","status":"complete","format":"json","domain":"vegad","selection":"request locale with English fallback","lint":"go test ./...","rationale":"Daemon catalogs exist for all four locales."}
+  ]
+}
