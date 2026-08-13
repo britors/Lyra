@@ -360,8 +360,19 @@ def validate_sources(
     if not os.access(KIWI / "edit_boot_config.sh", os.X_OK):
         raise PolicyError("KIWI final boot configuration hook must be executable")
     repositories = root.findall("repository")
-    if len(repositories) != 6:
-        raise PolicyError("canonical KIWI description must contain exactly six repositories")
+    expected_repositories = {
+        "repo-oss",
+        "repo-non-oss",
+        "repo-packman-essentials",
+        "repo-lyra",
+        "repo-vega",
+        "repo-fina",
+        "repo-rodrigosbrito",
+    }
+    if len(repositories) != len(expected_repositories):
+        raise PolicyError(
+            "canonical KIWI description must contain exactly seven repositories"
+        )
     aliases: set[str] = set()
     for repository in repositories:
         alias = repository.attrib.get("alias", "")
@@ -375,6 +386,13 @@ def validate_sources(
         for option in ("repository_gpgcheck", "package_gpgcheck"):
             if repository.attrib.get(option) != "true":
                 raise PolicyError(f"{alias}: {option} must be true")
+    if aliases != expected_repositories:
+        raise PolicyError("canonical KIWI repository aliases differ from policy")
+    personal = root.find("repository[@alias='repo-rodrigosbrito']")
+    if personal is None or personal.attrib.get("profiles") != "desktop":
+        raise PolicyError("repo-rodrigosbrito must be restricted to the desktop profile")
+    if personal.attrib.get("priority") != "90":
+        raise PolicyError("repo-rodrigosbrito must use normal installed-system priority 90")
     config = (KIWI / "config.sh").read_text(encoding="utf-8")
     forbidden = ("curl ", "wget ", "flatpak remote-add", "obsrepositories:/")
     for token in forbidden:
@@ -488,8 +506,8 @@ def verify_export(manifest: Manifest, directory: Path) -> None:
         raise PolicyError("export has invalid source identity")
     root = ET.parse(directory / manifest.description).getroot()
     repositories = root.findall("repository")
-    if len(repositories) != 6:
-        raise PolicyError("export must preserve the six canonical repositories")
+    if len(repositories) != 7:
+        raise PolicyError("export must preserve the seven canonical repositories")
     for repository in repositories:
         source = repository.find("source")
         url = "" if source is None else source.attrib.get("path", "")

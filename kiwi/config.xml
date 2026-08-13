@@ -172,6 +172,16 @@
     <source path="https://download.opensuse.org/repositories/home:/rodrigosbrito:/fina/openSUSE_Leap_16.0/"/>
   </repository>
 
+  <!-- Pacotes gerais publicados no projeto OBS pessoal do mantenedor que
+       complementam o desktop, sem substituir os projetos dedicados acima.
+       A prioridade 90 preserva a preferência pelos repositórios oficiais do
+       Leap durante atualizações normais. O Server não consome esta origem. -->
+  <repository alias="repo-rodrigosbrito" priority="90" type="rpm-md"
+              imageinclude="true" repository_gpgcheck="true"
+              package_gpgcheck="true" profiles="desktop">
+    <source path="https://download.opensuse.org/repositories/home:/rodrigosbrito/openSUSE_Leap_16.0/"/>
+  </repository>
+
   <packages type="bootstrap">
     <package name="ca-certificates"/>
     <package name="ca-certificates-mozilla"/>

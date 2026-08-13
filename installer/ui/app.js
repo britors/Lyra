@@ -83,7 +83,7 @@ const keyboardLayouts=[
 ];
 
 const languages=[
-  ['en_US.UTF-8','English (United States)','🇺🇸','en_US · Recommended'],
+  ['en_US.UTF-8','English (United States)','🇺🇸','en_US'],
   ['pt_BR.UTF-8','Português (Brasil)','🇧🇷','pt_BR'],
   ['es_ES.UTF-8','Español (España)','🇪🇸','es_ES'],
   ['zh_CN.UTF-8','Chinese (Mandarin) / 简体中文','🇨🇳','zh_CN'],
@@ -116,12 +116,13 @@ function renderLanguageCards(query=''){
 function renderKeyboardCards(query=''){
   const normalized=query.trim().toLocaleLowerCase();
   const matches=keyboardLayouts.filter(([,name,variant,group])=>`${name} ${variant} ${group}`.toLocaleLowerCase().includes(normalized));
-  const cards=matches.map(([id,name,variant,group,keys])=>`<label class="keyboard-card${id==='br-abnt2'?' selected':''}"><input type="radio" name="keyboard" value="${id}" ${id==='br-abnt2'?'checked':''}/><span class="keyboard-top"><strong>${name}</strong><b>✓</b></span><small>${variant} · ${group}</small><div class="keyboard-layout">${keys.split(' ').map(key=>`<i>${key}</i>`).join('')}</div></label>`).join('');
+  const groupKeys={'Português':'language','English':'language','Europa':'europe','América Latina':'latinAmerica','Nórdicos':'nordic','Cirílico':'cyrillic','Oriente Médio':'middleEast','Ásia':'asia','Especial':'special','Alternativos':'alternative'};
+  const cards=matches.map(([id,name,,group,keys])=>`<label class="keyboard-card${id==='br-abnt2'?' selected':''}"><input type="radio" name="keyboard" value="${id}" ${id==='br-abnt2'?'checked':''}/><span class="keyboard-top"><strong>${name}</strong><b>✓</b></span><small>${id} · ${i18n.t(`keyboardGroup.${groupKeys[group]||'language'}`)}</small><div class="keyboard-layout">${keys.split(' ').map(key=>`<i>${key}</i>`).join('')}</div></label>`).join('');
   document.querySelector('#keyboard-cards').innerHTML=cards||`<p class="keyboard-empty">${i18n.t('noKeyboards')}</p>`;
   document.querySelector('#keyboard-count').textContent=i18n.t('keyboardCount',{count:matches.length});
 }
 
-const transportLabels={Nvme:'NVMe',Sata:'SATA',Virtio:'VirtIO',Usb:'USB',Unknown:i18n.t('unknownTransport')};
+const transportLabel=transport=>({Nvme:'NVMe',Sata:'SATA',Virtio:'VirtIO',Usb:'USB'}[transport]||i18n.t('unknownTransport'));
 
 function diskTitle(disk){
   const meaningfulLabel=value=>value&&!/^0x[0-9a-f]+$/i.test(value.trim());
@@ -132,8 +133,9 @@ function diskTitle(disk){
   // 0x1af4) through lsblk. That identifier is useful to the kernel, not to
   // someone choosing an installation target.
   const transport=disk.transport==='Unknown'&&disk.kname.startsWith('vd')?'Virtio':disk.transport;
-  const transportLabel=transportLabels[transport];
-  return transportLabel&&transport!=='Unknown'?`Disco ${transportLabel}`:`Disco ${disk.kname}`;
+  return transport!=='Unknown'
+    ?i18n.t('diskNamed',{transport:transportLabel(transport)})
+    :i18n.t('diskGeneric',{name:disk.kname});
 }
 
 function formatBytes(bytes){
@@ -144,17 +146,27 @@ function formatBytes(bytes){
 }
 
 function diskIneligibleReason(disk){
-  if(disk.is_live_media) return 'É a mídia de instalação (live) — não pode ser destino';
-  if(disk.role==='RaidMember') return 'Já é membro de um array RAID';
-  if(disk.role==='LvmPhysicalVolume') return 'Já é um physical volume LVM em uso';
+  if(disk.is_live_media) return i18n.t('diskLiveMedia');
+  if(disk.role==='RaidMember') return i18n.t('diskRaidMember');
+  if(disk.role==='LvmPhysicalVolume') return i18n.t('diskLvmMember');
   return null;
 }
 
 function diskStatus(disk){
   const reason=diskIneligibleReason(disk);
   if(reason) return reason;
-  if(disk.role==='Unsupported') return 'Partições/dados existentes serão apagados';
-  return 'Disponível para instalação';
+  if(disk.role==='Unsupported') return i18n.t('diskWillErase');
+  return i18n.t('diskAvailable');
+}
+
+function localizedErasedItems(){
+  const disk=(storageSnapshot?.disks||[]).find(candidate=>candidate.path===selectedDiskPath);
+  return (disk?.partitions||[]).map(partition=>i18n.t('erasedPartition',{
+    path:partition.path,
+    filesystem:partition.filesystem||i18n.t('unknownFilesystem'),
+    mount:partition.mountpoints?.length?i18n.t('mountedAt',{path:partition.mountpoints[0]}):'',
+    size:formatBytes(partition.size_bytes),
+  }));
 }
 
 function renderDiskCards(){
@@ -172,7 +184,7 @@ function renderDiskCards(){
       return `<label class="disk-card${selected?' selected':''}${reason?' disk-card-disabled':''}">
         <input type="radio" name="disk" value="${disk.path}" ${selected?'checked':''} ${reason?'disabled':''}/>
         <span class="disk-top"><strong>${title}</strong><b>✓</b></span>
-        <small>${disk.path} · ${formatBytes(disk.size_bytes)} · ${transportLabels[disk.transport]||disk.transport}</small>
+        <small>${disk.path} · ${formatBytes(disk.size_bytes)} · ${transportLabel(disk.transport)}</small>
         <span class="disk-status${reason?' disk-status-blocked':''}">${diskStatus(disk)}</span>
       </label>`;
   }).join('');
@@ -184,7 +196,8 @@ async function discoverStorage(){
     storageSnapshot=await invoke('discover_storage');
   }catch(error){
     storageSnapshot=null;
-    document.querySelector('#disk-list').innerHTML=`<p class="disk-plan-error">${error}</p>`;
+    console.error('Could not discover storage',error);
+    document.querySelector('#disk-list').innerHTML=`<p class="disk-plan-error">${i18n.t('storageDiscoveryFailed')}</p>`;
     document.querySelector('#disk-count').textContent='';
     return;
   }
@@ -194,19 +207,18 @@ async function discoverStorage(){
 function renderPlan(plan){
   const box=document.querySelector('#disk-plan');
   const esp=plan.esp.Reuse
-    ?`ESP existente reaproveitada em ${plan.esp.Reuse.path}`
-    :`Nova ESP de ${formatBytes(plan.esp.Create.size_bytes)} será criada`;
-  const erased=plan.destructive_summary.erased;
+    ?i18n.t('espReuse',{path:plan.esp.Reuse.path})
+    :i18n.t('espCreate',{size:formatBytes(plan.esp.Create.size_bytes)});
+  const erased=localizedErasedItems();
   const swap=plan.swap==='None'
-    ?'Sem swap nem ZRAM'
-    :(plan.swap==='Zram'?'ZRAM (memória comprimida)':`Swap em disco · ${formatBytes(plan.swap.Partition.size_bytes)}`);
+    ?i18n.t('swapNone')
+    :(plan.swap==='Zram'?i18n.t('swapZram'):i18n.t('swapDisk',{size:formatBytes(plan.swap.Partition.size_bytes)}));
   box.hidden=false;
   box.innerHTML=`
-    <div class="plan-row"><span>Partição EFI</span><strong>${esp}</strong></div>
-    <div class="plan-row"><span>Sistema de arquivos</span><strong>Btrfs · ${plan.root_filesystem.Btrfs.subvolumes.length} subvolumes</strong></div>
-    <div class="plan-row"><span>Memória virtual</span><strong>${swap}</strong></div>
-    ${erased.length?`<div class="plan-warning"><strong>Dados que serão apagados nesta instalação:</strong><ul>${erased.map(item=>`<li>${item}</li>`).join('')}</ul></div>`:''}
-    ${plan.warnings.length?`<ul class="plan-notes">${plan.warnings.map(item=>`<li>${item}</li>`).join('')}</ul>`:''}
+    <div class="plan-row"><span>${i18n.t('planEfi')}</span><strong>${esp}</strong></div>
+    <div class="plan-row"><span>${i18n.t('planFilesystem')}</span><strong>${i18n.t('planBtrfs',{count:plan.root_filesystem.Btrfs.subvolumes.length})}</strong></div>
+    <div class="plan-row"><span>${i18n.t('planMemory')}</span><strong>${swap}</strong></div>
+    ${erased.length?`<div class="plan-warning"><strong>${i18n.t('planErased')}</strong><ul>${erased.map(item=>`<li>${item}</li>`).join('')}</ul></div>`:''}
   `;
 }
 
@@ -225,13 +237,14 @@ async function refreshPlan(){
     return;
   }
   box.hidden=false;
-  box.innerHTML='<p class="keyboard-empty">Calculando o plano de instalação…</p>';
+  box.innerHTML=`<p class="keyboard-empty">${i18n.t('calculatingPlan')}</p>`;
   try{
     selectedPlan=await invoke('plan_install',{snapshot:storageSnapshot,choice});
     renderPlan(selectedPlan);
   }catch(error){
     selectedPlan=null;
-    box.innerHTML=`<p class="disk-plan-error">${error}</p>`;
+    console.error('Could not plan installation',error);
+    box.innerHTML=`<p class="disk-plan-error">${i18n.t('planFailed')}</p>`;
   }
   updateNextButtonState();
 }
@@ -314,10 +327,10 @@ async function updateSummary(){
   const choice=buildGuidedChoice();
   const target=choice?.raw_target?.Disk||i18n.t('waitingSelection');
   document.querySelector('#summary-disk').textContent=target;
-  document.querySelector('#summary-swap').textContent=swapChoice==='None'?'Sem swap nem ZRAM':swapChoice==='Disk'?'Swap em disco (8 GiB)':'ZRAM';
-  document.querySelector('#install-confirm-text').textContent=`Entendo que os dados de ${target} serão apagados permanentemente.`;
+  document.querySelector('#summary-swap').textContent=swapChoice==='None'?i18n.t('swapNone'):swapChoice==='Disk'?i18n.t('summarySwapDisk'):'ZRAM';
+  document.querySelector('#install-confirm-text').textContent=i18n.t('confirmErase',{target});
   installConfirm.checked=false;
-  install.textContent='Instalar o Lyra OS';
+  install.textContent=i18n.t('title');
   installStatus.hidden=true;
   installStatus.className='install-status';
   reboot.hidden=true;
@@ -549,6 +562,7 @@ document.querySelector('#language-cards').addEventListener('change',event=>{
   renderLanguageCards(document.querySelector('#language-search').value);
   renderKeyboardCards(document.querySelector('#keyboard-search').value);
   renderDiskCards();
+  if(selectedPlan) renderPlan(selectedPlan);
   show(current);
 });
 document.querySelector('#language-search').addEventListener('input',event=>renderLanguageCards(event.target.value));

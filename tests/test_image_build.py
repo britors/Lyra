@@ -26,6 +26,18 @@ class ImagePolicyTests(unittest.TestCase):
     def test_canonical_sources_pass_repository_and_signature_policy(self) -> None:
         image_build.validate_sources(self.manifest)
 
+    def test_personal_obs_repository_is_desktop_only_and_low_precedence(self) -> None:
+        root = ET.parse(ROOT / "kiwi/config.xml").getroot()
+        repository = root.find("repository[@alias='repo-rodrigosbrito']")
+        self.assertIsNotNone(repository)
+        assert repository is not None
+        self.assertEqual(repository.attrib["profiles"], "desktop")
+        self.assertEqual(repository.attrib["priority"], "90")
+        self.assertEqual(
+            repository.find("source").attrib["path"],
+            "https://download.opensuse.org/repositories/home:/rodrigosbrito/openSUSE_Leap_16.0/",
+        )
+
     def test_release_evidence_tools_are_executable(self) -> None:
         for name in (
             "lyra-hardware-matrix",

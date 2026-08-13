@@ -143,6 +143,48 @@ class InstallerUiTests(unittest.TestCase):
         self.assertIn("i18n.t('rebootFailed')", restart)
         self.assertNotIn("Não foi possível", restart)
 
+    def test_dynamic_storage_and_plan_text_uses_catalogs(self) -> None:
+        for key in (
+            "diskLiveMedia",
+            "diskRaidMember",
+            "diskLvmMember",
+            "diskWillErase",
+            "diskAvailable",
+            "espReuse",
+            "espCreate",
+            "planErased",
+            "erasedPartition",
+            "unknownFilesystem",
+            "mountedAt",
+            "calculatingPlan",
+            "confirmErase",
+            "storageDiscoveryFailed",
+            "planFailed",
+        ):
+            self.assertGreaterEqual(self.i18n.count(f"{key}:"), 4)
+            self.assertIn(f"i18n.t('{key}'", self.javascript)
+
+        self.assertNotIn('class="disk-plan-error">${error}', self.javascript)
+        self.assertIn("if(selectedPlan) renderPlan(selectedPlan)", self.javascript)
+        self.assertIn("function localizedErasedItems()", self.javascript)
+        self.assertNotIn("plan.destructive_summary.erased", self.javascript)
+        self.assertNotIn("plan.warnings.map", self.javascript)
+
+    def test_keyboard_cards_do_not_expose_portuguese_variant_descriptions(self) -> None:
+        renderer = self.javascript.split("function renderKeyboardCards", 1)[1].split(
+            "const transportLabel", 1
+        )[0]
+        self.assertIn("i18n.t(`keyboardGroup.", renderer)
+        self.assertNotIn("<small>${variant}", renderer)
+        for key in ("language", "europe", "latinAmerica", "nordic", "cyrillic", "middleEast", "asia"):
+            self.assertGreaterEqual(self.i18n.count(f"{key}:'"), 4)
+
+    def test_accessible_names_follow_the_selected_locale(self) -> None:
+        self.assertIn("catalogs[current].attributes", self.i18n)
+        self.assertIn("element.setAttribute(name,value)", self.i18n)
+        for selector in (".rail|aria-label", ".brand-logo|alt", ".timezone-map|aria-label", ".final-art img|alt"):
+            self.assertEqual(self.i18n.count(f"'{selector}'"), 4)
+
     def test_language_flag_is_inline_with_language_name(self) -> None:
         self.assertIn(
             '<strong><span class="language-flag" aria-hidden="true">${flag}</span>${name}</strong>',
