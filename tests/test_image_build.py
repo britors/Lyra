@@ -250,7 +250,8 @@ class ImagePolicyTests(unittest.TestCase):
         self.assertEqual(locales, "en_US,pt_BR,es_ES,zh_CN")
 
         installer_core = (ROOT / "installer/src/lib.rs").read_text(encoding="utf-8")
-        self.assertIn('"es_ES.UTF-8" | "zh_CN.UTF-8"', installer_core)
+        self.assertIn('"pt_BR.UTF-8" | "en_US.UTF-8" | "es_ES.UTF-8"', installer_core)
+        self.assertIn('// | "zh_CN.UTF-8"', installer_core)
         deploy = (
             ROOT / "installer/src/service/operations/deploy.rs"
         ).read_text(encoding="utf-8")

@@ -87,11 +87,15 @@ class InstallerUiTests(unittest.TestCase):
 
     def test_language_picker_only_offers_backend_supported_locales(self) -> None:
         language_block = self.javascript.split("const languages=[", 1)[1].split("];", 1)[0]
-        locales = re.findall(r"\['([a-z]{2}_[A-Z]{2}\.UTF-8)'", language_block)
-        self.assertEqual(locales, ["en_US.UTF-8", "pt_BR.UTF-8", "es_ES.UTF-8", "zh_CN.UTF-8"])
+        locales = re.findall(
+            r"^\s{2}\['([a-z]{2}_[A-Z]{2}\.UTF-8)'", language_block, re.MULTILINE
+        )
+        self.assertEqual(locales, ["en_US.UTF-8", "pt_BR.UTF-8", "es_ES.UTF-8"])
+        self.assertIn("// ['zh_CN.UTF-8'", language_block)
 
         core = (ROOT / "installer/src/lib.rs").read_text(encoding="utf-8")
-        self.assertIn('"es_ES.UTF-8" | "zh_CN.UTF-8"', core)
+        self.assertNotIn('| "zh_CN.UTF-8"', core.replace('// | "zh_CN.UTF-8"', ''))
+        self.assertIn('// | "zh_CN.UTF-8"', core)
 
     def test_installer_language_has_english_default_and_catalog_fallback(self) -> None:
         self.assertIn("const DEFAULT_LOCALE='en_US.UTF-8'", self.javascript)
@@ -99,7 +103,7 @@ class InstallerUiTests(unittest.TestCase):
         self.assertIn("'en-US':{", self.i18n)
         self.assertIn("'pt-BR':{", self.i18n)
         self.assertIn("'es-ES':{", self.i18n)
-        self.assertIn("'zh-CN':{", self.i18n)
+        self.assertIn("/* 'zh-CN':{", self.i18n)
         self.assertIn("lookup(catalogs['en-US'],key)", self.i18n)
         self.assertIn("function register(locale,catalog)", self.i18n)
         self.assertIn('<script src="i18n.js"></script>', self.html)

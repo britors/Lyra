@@ -115,7 +115,9 @@ window.LyraI18n=(()=>{
       placeholders:{'#language-search':'Buscar idiomas…','#keyboard-search':'Buscar idioma, país o variante…','#full-name':'¿Cómo debemos llamarte?','#username':'Sugerido a partir del nombre completo','#password':'Mínimo 8 caracteres','#password-confirm':'Repite la contraseña'},
       attributes:{'.rail|aria-label':'Progreso de la instalación','.brand-logo|alt':'Logotipo de Lyra Installer','.steps|aria-label':'Pasos','.feature-strip|aria-label':'Tecnologías de Lyra OS','.welcome-art img|alt':'Logotipo de Lyra OS y el lema Armonía. Rendimiento. Libertad.','.timezone-map|aria-label':'Selecciona una zona horaria en el mapa','.map-zoom|aria-label':'Controles de zoom','#map-zoom-out|aria-label':'Reducir mapa','#map-zoom-in|aria-label':'Ampliar mapa','#map-zoom-reset|aria-label':'Restablecer zoom','.final-art img|alt':'Paisaje nocturno con la constelación de Lyra y la marca Lyra OS.'},
     },
-    'zh-CN':{
+    /* Chinese catalog retained for a future release; it is intentionally not
+       registered while the locale is absent from the installer. */
+    /* 'zh-CN':{
       title:'安装 Lyra OS',back:'← 返回',next:'继续 <span>→</span>',step:'第 {current} 步 / 共 07 步',
       languageCount:'共有 {count} 种语言',noLanguages:'未找到语言，请尝试其他关键词。',
       keyboardCount:'共有 {count} 种键盘布局',noKeyboards:'未找到键盘布局，请尝试其他关键词。',
@@ -150,7 +152,7 @@ window.LyraI18n=(()=>{
       labels:{'.timezone-picker':'时区','.account-field:nth-child(1)':'姓名','.account-field:nth-child(2)':'用户名','.account-field:nth-child(3)':'设备名称','.account-field:nth-child(4)':'密码','.account-field:nth-child(5)':'确认密码'},
       placeholders:{'#language-search':'搜索语言…','#keyboard-search':'搜索语言、国家或变体…','#full-name':'我们该如何称呼您？','#username':'根据姓名建议','#password':'至少 8 个字符','#password-confirm':'再次输入密码'},
       attributes:{'.rail|aria-label':'安装进度','.brand-logo|alt':'Lyra Installer 标志','.steps|aria-label':'安装步骤','.feature-strip|aria-label':'Lyra OS 技术','.welcome-art img|alt':'Lyra OS 标志与口号：和谐、性能、自由。','.timezone-map|aria-label':'在地图上选择时区','.map-zoom|aria-label':'缩放控件','#map-zoom-out|aria-label':'缩小地图','#map-zoom-in|aria-label':'放大地图','#map-zoom-reset|aria-label':'重置缩放','.final-art img|alt':'带有天琴座和 Lyra OS 品牌的夜景。'},
-    },
+    }, */
   };
   let current='en-US';
   const interpolate=(value,vars={})=>String(value).replace(/\{(\w+)\}/g,(_,key)=>vars[key]??`{${key}}`);
