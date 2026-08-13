@@ -49,6 +49,28 @@ class LiveSmokeTests(unittest.TestCase):
         )
         (root / "dev/input").mkdir(parents=True)
 
+    def create_server_root(self, root: Path) -> None:
+        for path in (
+            "run/overlay/live/LiveOS/squashfs.img",
+            "usr/lib/lyra-os/server-release",
+            "usr/lib/lyra-os/build-info",
+            "usr/sbin/lyra-server-install",
+        ):
+            target = root / path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text("fixture\n", encoding="utf-8")
+        os.chmod(root / "usr/sbin/lyra-server-install", 0o755)
+        getty = root / "etc/systemd/system/getty@tty1.service.d/override.conf"
+        getty.parent.mkdir(parents=True)
+        getty.write_text(
+            "[Service]\nExecStart=\n"
+            "ExecStart=-/sbin/agetty --autologin root --noclear %I $TERM\n",
+            encoding="utf-8",
+        )
+        profile = root / "root/.bash_profile"
+        profile.parent.mkdir(parents=True)
+        profile.write_text("/usr/sbin/lyra-server-install\n", encoding="utf-8")
+
     @staticmethod
     def runner(arguments: list[str]) -> tuple[int, str]:
         if arguments[:2] == ["systemctl", "is-active"]:
@@ -104,6 +126,37 @@ class LiveSmokeTests(unittest.TestCase):
                 if item["status"] == "failed"
             }
             self.assertEqual(failed, {"failed-units", "critical-journal"})
+
+    def test_green_server_console_produces_passed_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.create_server_root(root)
+            report = live_smoke.validate_live_session(
+                root=root,
+                username="root",
+                runner=self.runner,
+                profile="server",
+            )
+            self.assertEqual(report["status"], "passed")
+            self.assertEqual(report["observations"]["profile"], "server")
+            checked_ids = {item["id"] for item in report["checks"]}
+            self.assertIn("console-autologin", checked_ids)
+            self.assertIn("console-installer-launch", checked_ids)
+            self.assertNotIn("gdm-autologin", checked_ids)
+            self.assertNotIn("gnome-shell", checked_ids)
+
+    def test_server_rejects_missing_console_autologin(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.create_server_root(root)
+            (root / "etc/systemd/system/getty@tty1.service.d/override.conf").unlink()
+            report = live_smoke.validate_live_session(
+                root=root,
+                username="root",
+                runner=self.runner,
+                profile="server",
+            )
+            self.assertEqual(report["status"], "failed")
 
     def test_missing_command_is_reported_instead_of_crashing(self) -> None:
         with mock.patch.object(

@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Validate a Lyra live GNOME session and write release-gate evidence."""
+"""Validate a Lyra live session and write release-gate evidence."""
 
 from __future__ import annotations
 
@@ -15,6 +15,7 @@ from typing import Callable
 
 
 CommandRunner = Callable[[list[str]], tuple[int, str]]
+PROFILES = ("desktop", "server")
 
 
 def run_command(arguments: list[str]) -> tuple[int, str]:
@@ -47,7 +48,10 @@ def validate_live_session(
     runner: CommandRunner = run_command,
     expect_offline: bool = False,
     journal_acknowledgement: str = "",
+    profile: str = "desktop",
 ) -> dict[str, object]:
+    if profile not in PROFILES:
+        raise ValueError(f"profile must be one of {PROFILES}, got {profile!r}")
     username = username or getpass.getuser()
     environment = environment or dict(os.environ)
     checks: list[dict[str, object]] = []
@@ -62,50 +66,98 @@ def validate_live_session(
             }
         )
 
-    check("live-user", username == "liveuser", f"current user: {username}")
+    expected_user = "root" if profile == "server" else "liveuser"
+    check("live-user", username == expected_user, f"current user: {username}")
     check(
         "live-rootfs",
         rooted(root, "/run/overlay/live/LiveOS/squashfs.img").is_file(),
         "live squashfs is mounted",
     )
-    for path in ("/usr/lib/lyra-os/release", "/usr/lib/lyra-os/build-info"):
+    release_path = (
+        "/usr/lib/lyra-os/server-release"
+        if profile == "server"
+        else "/usr/lib/lyra-os/release"
+    )
+    for path in (release_path, "/usr/lib/lyra-os/build-info"):
         check(
             f"identity-{Path(path).name}",
             rooted(root, path).is_file(),
             f"{path} exists",
         )
 
-    gdm_path = rooted(root, "/etc/gdm/custom.conf")
-    gdm = gdm_path.read_text(encoding="utf-8") if gdm_path.is_file() else ""
-    check(
-        "gdm-autologin",
-        "AutomaticLoginEnable=true" in gdm and "AutomaticLogin=liveuser" in gdm,
-        "GDM autologin targets liveuser",
-    )
-
-    desktop_path = rooted(
-        root, "/usr/share/applications/org.lyraos.LyraInstaller.desktop"
-    )
-    desktop = desktop_path.read_text(encoding="utf-8") if desktop_path.is_file() else ""
-    desktop_fields = (
-        "TryExec=/usr/bin/lyra-installer",
-        "Exec=/usr/bin/lyra-install-lock /usr/bin/lyra-installer",
-        "Icon=org.lyraos.LyraInstaller",
-        "StartupWMClass=lyra-installer",
-    )
-    check(
-        "installer-launcher",
-        all(field in desktop for field in desktop_fields) and "pkexec" not in desktop,
-        "launcher identity and unprivileged Exec chain are valid",
-    )
-    for path in ("/usr/bin/lyra-installer", "/usr/bin/lyra-install-lock"):
+    if profile == "server":
+        getty_path = rooted(
+            root, "/etc/systemd/system/getty@tty1.service.d/override.conf"
+        )
+        getty = (
+            getty_path.read_text(encoding="utf-8") if getty_path.is_file() else ""
+        )
         check(
-            f"executable-{Path(path).name}",
-            os.access(rooted(root, path), os.X_OK),
-            f"{path} is executable",
+            "console-autologin",
+            "ExecStart=" in getty and "agetty --autologin root" in getty,
+            "tty1 agetty autologin targets root",
+        )
+        profile_path = rooted(root, "/root/.bash_profile")
+        profile_text = (
+            profile_path.read_text(encoding="utf-8")
+            if profile_path.is_file()
+            else ""
+        )
+        check(
+            "console-installer-launch",
+            "/usr/sbin/lyra-server-install" in profile_text,
+            "root login launches the server installer",
+        )
+        installer_path = "/usr/sbin/lyra-server-install"
+        check(
+            "executable-lyra-server-install",
+            os.access(rooted(root, installer_path), os.X_OK),
+            f"{installer_path} is executable",
+        )
+        expected_units = ("getty@tty1.service", "NetworkManager.service")
+    else:
+        gdm_path = rooted(root, "/etc/gdm/custom.conf")
+        gdm = gdm_path.read_text(encoding="utf-8") if gdm_path.is_file() else ""
+        check(
+            "gdm-autologin",
+            "AutomaticLoginEnable=true" in gdm
+            and "AutomaticLogin=liveuser" in gdm,
+            "GDM autologin targets liveuser",
         )
 
-    for unit in ("graphical.target", "gdm.service", "NetworkManager.service"):
+        desktop_path = rooted(
+            root, "/usr/share/applications/org.lyraos.LyraInstaller.desktop"
+        )
+        desktop = (
+            desktop_path.read_text(encoding="utf-8")
+            if desktop_path.is_file()
+            else ""
+        )
+        desktop_fields = (
+            "TryExec=/usr/bin/lyra-installer",
+            "Exec=/usr/bin/lyra-install-lock /usr/bin/lyra-installer",
+            "Icon=org.lyraos.LyraInstaller",
+            "StartupWMClass=lyra-installer",
+        )
+        check(
+            "installer-launcher",
+            all(field in desktop for field in desktop_fields)
+            and "pkexec" not in desktop,
+            "launcher identity and unprivileged Exec chain are valid",
+        )
+        for path in ("/usr/bin/lyra-installer", "/usr/bin/lyra-install-lock"):
+            check(
+                f"executable-{Path(path).name}",
+                os.access(rooted(root, path), os.X_OK),
+                f"{path} is executable",
+            )
+        expected_units = (
+            "graphical.target",
+            "gdm.service",
+            "NetworkManager.service",
+        )
+
+    for unit in expected_units:
         code, output = runner(["systemctl", "is-active", unit])
         check(
             f"unit-{unit}",
@@ -113,8 +165,13 @@ def validate_live_session(
             f"state: {output or 'unknown'}",
         )
 
-    code, output = runner(["pgrep", "-x", "gnome-shell"])
-    check("gnome-shell", code == 0 and bool(output), "GNOME Shell process is running")
+    if profile == "desktop":
+        code, output = runner(["pgrep", "-x", "gnome-shell"])
+        check(
+            "gnome-shell",
+            code == 0 and bool(output),
+            "GNOME Shell process is running",
+        )
 
     code, failed_units = runner(
         ["systemctl", "--failed", "--no-legend", "--plain"]
@@ -156,21 +213,23 @@ def validate_live_session(
             f"NetworkManager connectivity: {connectivity or 'unknown'}",
         )
 
-    for name, command in (
-        ("audio", ["wpctl", "status"]),
-        ("bluetooth", ["systemctl", "is-active", "bluetooth.service"]),
-        ("display", ["xrandr", "--current"]),
-    ):
-        command_code, command_output = runner(command)
-        observations[name] = {
-            "available": command_code == 0,
-            "summary": command_output.splitlines()[:20],
-        }
-    observations["input_device_count"] = len(
-        list(rooted(root, "/dev/input").glob("event*"))
-    )
-    observations["desktop"] = environment.get("XDG_CURRENT_DESKTOP", "")
-    observations["session_type"] = environment.get("XDG_SESSION_TYPE", "")
+    if profile == "desktop":
+        for name, command in (
+            ("audio", ["wpctl", "status"]),
+            ("bluetooth", ["systemctl", "is-active", "bluetooth.service"]),
+            ("display", ["xrandr", "--current"]),
+        ):
+            command_code, command_output = runner(command)
+            observations[name] = {
+                "available": command_code == 0,
+                "summary": command_output.splitlines()[:20],
+            }
+        observations["input_device_count"] = len(
+            list(rooted(root, "/dev/input").glob("event*"))
+        )
+        observations["desktop"] = environment.get("XDG_CURRENT_DESKTOP", "")
+        observations["session_type"] = environment.get("XDG_SESSION_TYPE", "")
+    observations["profile"] = profile
 
     passed = all(item["status"] == "passed" for item in checks)
     return {
@@ -205,6 +264,12 @@ def main() -> int:
     parser.add_argument("--output", type=Path, default=Path("live-session-result.json"))
     parser.add_argument("--expect-offline", action="store_true")
     parser.add_argument(
+        "--profile",
+        choices=PROFILES,
+        default="desktop",
+        help="which KIWI live profile is running (default: desktop)",
+    )
+    parser.add_argument(
         "--acknowledge-journal",
         default="",
         help="issue/workaround covering reviewed priority 0..3 journal entries",
@@ -213,6 +278,7 @@ def main() -> int:
     report = validate_live_session(
         expect_offline=args.expect_offline,
         journal_acknowledgement=args.acknowledge_journal,
+        profile=args.profile,
     )
     write_report(report, args.output)
     print(args.output)
