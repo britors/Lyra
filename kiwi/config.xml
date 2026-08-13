@@ -38,7 +38,8 @@
     <packagemanager>zypper</packagemanager>
     <rpm-excludedocs>true</rpm-excludedocs>
     <rpm-check-signatures>true</rpm-check-signatures>
-    <locale>pt_BR,en_US,es_ES,zh_CN</locale>
+    <!-- The first locale is the live session default; keep en-US first. -->
+    <locale>en_US,pt_BR,es_ES,zh_CN</locale>
     <keytable>us</keytable>
     <timezone>UTC</timezone>
   </preferences>
@@ -410,12 +411,33 @@
     <package name="orca"/>
     <!-- Firefox: default browser. Confirmed as `MozillaFirefox` in the
          real Leap 16.0 OSS repodata (there is no plain "firefox" RPM).
-         The translations subpackage carries the common language packs and
-         is version-locked to MozillaFirefox. Do not force
+         Leap does not publish one Firefox RPM per locale: the version-locked
+         translations-common package provides es_ES, pt_BR and zh_CN (among
+         others), while en_US is built into the main package. That covers all
+         four installer locales; translations-other contains none of them and
+         is deliberately omitted. Do not force
          intl.locale.requested in policies.json: Firefox must follow LANG,
          which the installer writes from the selected system locale. -->
     <package name="MozillaFirefox"/>
     <package name="MozillaFirefox-translations-common"/>
+
+    <!-- LibreOffice: the framework does not require its application modules,
+         and onlyRequired drops recommended locale packs. Keep the desktop
+         modules, GNOME integration and every installer-supported locale
+         explicit so the installed suite follows LANG selected by the user. -->
+    <package name="libreoffice"/>
+    <package name="libreoffice-base"/>
+    <package name="libreoffice-calc"/>
+    <package name="libreoffice-draw"/>
+    <package name="libreoffice-impress"/>
+    <package name="libreoffice-math"/>
+    <package name="libreoffice-writer"/>
+    <package name="libreoffice-gnome"/>
+    <package name="libreoffice-gtk3"/>
+    <package name="libreoffice-l10n-en"/>
+    <package name="libreoffice-l10n-pt_BR"/>
+    <package name="libreoffice-l10n-es"/>
+    <package name="libreoffice-l10n-zh_CN"/>
 
     <!-- VLC is the default general-purpose media player. It comes from the
          official Leap 16 OSS repository; Lyra deliberately does not enable

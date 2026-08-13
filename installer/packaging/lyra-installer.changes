@@ -1,4 +1,12 @@
 -------------------------------------------------------------------
+Thu Aug 13 12:00:00 UTC 2026 - Lyra OS Team
+
+- Localize installation progress messages and keep internal Portuguese
+  operation descriptions out of the en-US interface.
+- Preserve `Defaults targetpw` removal so sudo authenticates with the
+  installed user's password.
+
+-------------------------------------------------------------------
 Tue Aug 12 16:58:00 UTC 2026 - Lyra OS Team
 
 - Identify the installer UI as Lyra OS Odisseia Alpha 4.

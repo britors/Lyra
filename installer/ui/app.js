@@ -432,12 +432,12 @@ function eventParts(event){
 
 function showExecutionEvent(event){
   const [kind,payload]=eventParts(event);
-  let message='O serviço enviou um evento desconhecido';
-  if(kind==='Started') message='Serviço privilegiado iniciado';
-  else if(kind==='Step') message=payload.detail?`${payload.name}: ${payload.detail}`:payload.name;
-  else if(kind==='Warning') message=`Aviso: ${payload.message}`;
-  else if(kind==='Failed') message=`Falha em ${payload.step}: ${payload.message}`;
-  else if(kind==='Completed') message='Instalação e limpeza concluídas';
+  let message=i18n.t('installing');
+  if(kind==='Started') message=i18n.t('installStarted');
+  else if(kind==='Warning') message=i18n.t('installWarning');
+  else if(kind==='Failed') message=i18n.t('installFailed');
+  else if(kind==='Completed') message=i18n.t('installCompleted');
+  if(kind==='Warning'||kind==='Failed') console.error('Installer service event',payload);
   installStatusTitle.textContent=message;
 }
 
@@ -461,7 +461,7 @@ async function executeInstallation(){
   back.hidden=true;
   reboot.hidden=true;
   rebootError.hidden=true;
-  setInstallationStatus('running','Autorizando e iniciando a instalação…');
+  setInstallationStatus('running',i18n.t('installAuthorizing'));
   updateInstallButtonState();
   updateNextButtonState();
 
@@ -486,20 +486,20 @@ async function executeInstallation(){
     const completed=events.map(eventParts).some(([kind])=>kind==='Completed');
     if(failure){
       installationTerminal=true;
-      const [,payload]=failure;
-      setInstallationStatus('failed',`Instalação interrompida em “${payload.step}”`);
-      install.textContent='Instalação interrompida';
+      setInstallationStatus('failed',i18n.t('installFailed'));
+      install.textContent=i18n.t('installFailed');
     }else if(completed){
       installationTerminal=true;
       installStatus.hidden=true;
       reboot.hidden=false;
       await fitWindowToMonitor();
     }else{
-      throw new Error('o serviço não informou se a instalação foi concluída');
+      throw new Error('installer service did not report completion');
     }
   }catch(error){
-    setInstallationStatus('failed',`Não foi possível iniciar a instalação: ${error}`);
-    install.textContent='Tentar instalar novamente';
+    console.error('Could not start installation',error);
+    setInstallationStatus('failed',i18n.t('installFailed'));
+    install.textContent=i18n.t('installRetry');
   }finally{
     if(stopListening) stopListening();
     installing=false;

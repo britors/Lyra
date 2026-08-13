@@ -104,6 +104,16 @@ class InstallerUiTests(unittest.TestCase):
         self.assertIn("function register(locale,catalog)", self.i18n)
         self.assertIn('<script src="i18n.js"></script>', self.html)
 
+    def test_install_progress_does_not_expose_backend_portuguese_descriptions(self) -> None:
+        progress = self.javascript.split("function showExecutionEvent", 1)[1].split(
+            "function setInstallationStatus", 1
+        )[0]
+        self.assertIn("i18n.t('installing')", progress)
+        self.assertNotIn("payload.name", progress)
+        self.assertNotIn("payload.message", progress)
+        for key in ("installAuthorizing", "installStarted", "installing", "installFailed", "installCompleted"):
+            self.assertGreaterEqual(self.i18n.count(f"{key}:"), 4)
+
     def test_language_flag_is_inline_with_language_name(self) -> None:
         self.assertIn(
             '<strong><span class="language-flag" aria-hidden="true">${flag}</span>${name}</strong>',

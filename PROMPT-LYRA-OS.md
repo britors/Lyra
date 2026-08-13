@@ -108,12 +108,11 @@ pacotes meta que mantêm kernel module, userspace e firmware sincronizados.
   **GNOME Console** (`gnome-console`) também pré-instalado como alternativa
 - **Firefox** como navegador padrão
 - **Prosa** e **Calco** disponíveis nos repositórios Lyra, mas excluídos da
-  imagem Beta 2 enquanto passam por estabilização; LibreOffice também não
-  entra na imagem padrão
+  imagem Beta 2 enquanto passam por estabilização; **LibreOffice** entra na
+  imagem padrão com traduções para en-US, pt-BR, es-ES e zh-CN
 - **CUPS** + drivers comuns, pré-instalado e habilitado (impressão/scanner)
-- **GNOME Software** mantido e coexistindo com o Vega — GNOME Software
-  cuida da loja de apps/gerenciamento de pacotes gráfico; o Vega cuida
-  de outras áreas do sistema, **não substitui** o gerenciamento de apps
+- **GNOME Software** removido da imagem padrão; o gerenciamento gráfico de
+  pacotes fica centralizado no Vega
 - Conjunto de apps GNOME padrão: **curadoria aplicada** — remover apps
   redundantes ou pouco usados do conjunto default do GNOME (definir
   lista exata na implementação, mantendo o essencial: Arquivos, Textos,
@@ -227,8 +226,8 @@ antiga vibrante azul-safira→violeta):
 - [ ] Vega (GTK4), Sheliak e Fina pré-instalados e funcionais
 - [ ] Prosa e Calco ausentes da imagem padrão Beta 2
 - [ ] GNOME Terminal, GNOME Console, Firefox e CUPS pré-instalados
-- [ ] LibreOffice ausente da imagem padrão
-- [ ] GNOME Software presente e funcional, coexistindo com o Vega
+- [ ] LibreOffice pré-instalado e acompanhando o idioma selecionado
+- [ ] GNOME Software e seus plugins ausentes da imagem padrão
 - [ ] Curadoria de apps GNOME padrão aplicada (lista final documentada)
 - [ ] Nenhum onboarding/wizard de primeiro boot presente
 - [ ] Branding aplicado via Lyra-Theme: Adwaita + Lyra-Enterprise-Icons

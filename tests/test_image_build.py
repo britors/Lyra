@@ -223,9 +223,14 @@ class ImagePolicyTests(unittest.TestCase):
         }
         self.assertIn("MozillaFirefox", desktop_packages)
         self.assertIn("MozillaFirefox-translations-common", desktop_packages)
+        self.assertNotIn("MozillaFirefox-translations-other", desktop_packages)
+
+        image_config = (ROOT / "kiwi/config.xml").read_text(encoding="utf-8")
+        for locale in ("en_US", "pt_BR", "es_ES", "zh_CN"):
+            self.assertIn(locale, image_config)
 
         locales = root.findtext("preferences/locale")
-        self.assertEqual(locales, "pt_BR,en_US,es_ES,zh_CN")
+        self.assertEqual(locales, "en_US,pt_BR,es_ES,zh_CN")
 
         installer_core = (ROOT / "installer/src/lib.rs").read_text(encoding="utf-8")
         self.assertIn('"es_ES.UTF-8" | "zh_CN.UTF-8"', installer_core)
@@ -243,12 +248,27 @@ class ImagePolicyTests(unittest.TestCase):
         preferences = policies["policies"].get("Preferences", {})
         self.assertNotIn("intl.locale.requested", preferences)
 
-    def test_unstable_office_apps_are_excluded_from_beta2(self) -> None:
+    def test_office_apps_and_locales_match_image_policy(self) -> None:
         root = ET.parse(ROOT / "kiwi/config.xml").getroot()
         packages = {node.attrib["name"] for node in root.findall("packages/package")}
         self.assertNotIn("prosa", packages)
         self.assertNotIn("calco", packages)
-        self.assertFalse(any(name.startswith("libreoffice") for name in packages))
+        libreoffice = {
+            "libreoffice",
+            "libreoffice-base",
+            "libreoffice-calc",
+            "libreoffice-draw",
+            "libreoffice-impress",
+            "libreoffice-math",
+            "libreoffice-writer",
+            "libreoffice-gnome",
+            "libreoffice-gtk3",
+            "libreoffice-l10n-en",
+            "libreoffice-l10n-pt_BR",
+            "libreoffice-l10n-es",
+            "libreoffice-l10n-zh_CN",
+        }
+        self.assertTrue(libreoffice.issubset(packages))
 
         defaults = (
             ROOT
@@ -256,7 +276,6 @@ class ImagePolicyTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
         self.assertNotIn("br.com.rodrigobrito.Prosa.Native.desktop", defaults)
         self.assertNotIn("br.com.w3ti.Calco.desktop", defaults)
-        self.assertNotIn("libreoffice", defaults.lower())
 
     def test_desktop_app_curation_uses_vlc_without_gnome_software_or_monitor(self) -> None:
         root = ET.parse(ROOT / "kiwi/config.xml").getroot()
@@ -276,6 +295,11 @@ class ImagePolicyTests(unittest.TestCase):
             "gnome-system-monitor-lang",
         ):
             self.assertNotIn(name, desktop_packages, name)
+
+        language_remediation = (
+            ROOT / "scripts/fix-gnome-lang-packages.sh"
+        ).read_text(encoding="utf-8")
+        self.assertNotIn("gnome-software", language_remediation)
 
     def test_installed_grub_theme_contract_is_validated_by_build_and_installer(self) -> None:
         deploy = (ROOT / "installer/src/service/operations/deploy.rs").read_text(

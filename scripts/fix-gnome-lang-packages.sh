@@ -15,7 +15,7 @@ readonly PACKAGES=(
     glib-networking-lang gnome-calculator-lang gnome-characters-lang
     gnome-console-lang gnome-control-center-lang gnome-disk-utility-lang
     gnome-keyring-lang gnome-logs-lang gnome-session-lang
-    gnome-settings-daemon-lang gnome-shell-lang gnome-software-lang
+    gnome-settings-daemon-lang gnome-shell-lang
     gnome-system-monitor-lang gnome-terminal-lang gnome-text-editor-lang
     gnome-tweaks-lang gnome-user-share-lang gsettings-desktop-schemas-lang
     gvfs-lang loupe-lang malcontent-lang mutter-lang nautilus-lang
