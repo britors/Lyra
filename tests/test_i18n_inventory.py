@@ -26,7 +26,7 @@ class I18nInventoryTests(unittest.TestCase):
             set(alpha4),
             {"lyra-installer", "lyra-theme", "vega-gtk", "fina", "sheliak"},
         )
-        self.assertEqual(alpha4["fina"]["status"], "scheduled")
+        self.assertEqual(alpha4["fina"]["status"], "complete")
 
     def test_noto_fonts_remain_image_policy(self) -> None:
         image = (ROOT / "kiwi/config.xml").read_text(encoding="utf-8")
