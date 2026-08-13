@@ -11,6 +11,8 @@ window.LyraI18n=(()=>{
       waitingInput:'Waiting for input',waitingSelection:'Waiting for selection',unknownTransport:'Unknown transport',
       installAuthorizing:'Authorizing and starting the installation…',installStarted:'Preparing the installation…',installing:'Installing Lyra OS…',
       installWarning:'The installer reported a warning',installFailed:'The installation was interrupted',installCompleted:'Installation and cleanup completed',installRetry:'Try installing again',
+      rebootLabel:'Restart system <span aria-hidden="true">↻</span>',rebooting:'Restarting…',rebootFailed:'Could not restart the system',
+      validation:{fullNameRequired:'Full name is required',invalidUsername:'Invalid username',invalidHostname:'Invalid device name',passwordTooShort:'The password must contain at least 8 characters',passwordMismatch:'The passwords do not match',unsupportedLocale:'Unsupported language',unsupportedTimezone:'Unsupported time zone',unsupportedKeyboard:'Unsupported keyboard layout'},
       static:{
         '.rail-footer':'<span class="status-dot"></span> Secure live session',
         '.step[data-step="0"]':'<span>01</span> Welcome','.step[data-step="1"]':'<span>02</span> Language','.step[data-step="2"]':'<span>03</span> Region','.step[data-step="3"]':'<span>04</span> Keyboard','.step[data-step="4"]':'<span>05</span> Your account','.step[data-step="5"]':'<span>06</span> Storage','.step[data-step="6"]':'<span>07</span> Summary',
@@ -41,6 +43,8 @@ window.LyraI18n=(()=>{
       waitingInput:'Aguardando preenchimento',waitingSelection:'Aguardando seleção',unknownTransport:'Transporte desconhecido',
       installAuthorizing:'Autorizando e iniciando a instalação…',installStarted:'Preparando a instalação…',installing:'Instalando o Lyra OS…',
       installWarning:'O instalador emitiu um aviso',installFailed:'A instalação foi interrompida',installCompleted:'Instalação e limpeza concluídas',installRetry:'Tentar instalar novamente',
+      rebootLabel:'Reiniciar o sistema <span aria-hidden="true">↻</span>',rebooting:'Reiniciando…',rebootFailed:'Não foi possível reiniciar o sistema',
+      validation:{fullNameRequired:'Nome completo obrigatório',invalidUsername:'Nome de usuário inválido',invalidHostname:'Nome do dispositivo inválido',passwordTooShort:'A senha deve ter ao menos 8 caracteres',passwordMismatch:'As senhas não coincidem',unsupportedLocale:'Idioma não suportado',unsupportedTimezone:'Fuso horário não suportado',unsupportedKeyboard:'Layout de teclado não suportado'},
       static:{
         '.rail-footer':'<span class="status-dot"></span> Sessão live segura',
         '.step[data-step="0"]':'<span>01</span> Boas-vindas','.step[data-step="1"]':'<span>02</span> Idioma','.step[data-step="2"]':'<span>03</span> Região','.step[data-step="3"]':'<span>04</span> Teclado','.step[data-step="4"]':'<span>05</span> Sua conta','.step[data-step="5"]':'<span>06</span> Armazenamento','.step[data-step="6"]':'<span>07</span> Resumo',
@@ -71,6 +75,8 @@ window.LyraI18n=(()=>{
       waitingInput:'Pendiente de completar',waitingSelection:'Pendiente de selección',unknownTransport:'Transporte desconocido',
       installAuthorizing:'Autorizando e iniciando la instalación…',installStarted:'Preparando la instalación…',installing:'Instalando Lyra OS…',
       installWarning:'El instalador emitió una advertencia',installFailed:'La instalación fue interrumpida',installCompleted:'Instalación y limpieza completadas',installRetry:'Intentar instalar de nuevo',
+      rebootLabel:'Reiniciar el sistema <span aria-hidden="true">↻</span>',rebooting:'Reiniciando…',rebootFailed:'No se pudo reiniciar el sistema',
+      validation:{fullNameRequired:'El nombre completo es obligatorio',invalidUsername:'Nombre de usuario no válido',invalidHostname:'Nombre del dispositivo no válido',passwordTooShort:'La contraseña debe tener al menos 8 caracteres',passwordMismatch:'Las contraseñas no coinciden',unsupportedLocale:'Idioma no compatible',unsupportedTimezone:'Zona horaria no compatible',unsupportedKeyboard:'Distribución de teclado no compatible'},
       static:{
         '.rail-footer':'<span class="status-dot"></span> Sesión live segura',
         '.step[data-step="0"]':'<span>01</span> Bienvenida','.step[data-step="1"]':'<span>02</span> Idioma','.step[data-step="2"]':'<span>03</span> Región','.step[data-step="3"]':'<span>04</span> Teclado','.step[data-step="4"]':'<span>05</span> Tu cuenta','.step[data-step="5"]':'<span>06</span> Almacenamiento','.step[data-step="6"]':'<span>07</span> Resumen',
@@ -99,6 +105,8 @@ window.LyraI18n=(()=>{
       waitingInput:'等待填写',waitingSelection:'等待选择',unknownTransport:'未知传输类型',
       installAuthorizing:'正在授权并开始安装…',installStarted:'正在准备安装…',installing:'正在安装 Lyra OS…',
       installWarning:'安装程序报告了警告',installFailed:'安装已中断',installCompleted:'安装和清理已完成',installRetry:'重试安装',
+      rebootLabel:'重新启动系统 <span aria-hidden="true">↻</span>',rebooting:'正在重新启动…',rebootFailed:'无法重新启动系统',
+      validation:{fullNameRequired:'请输入姓名',invalidUsername:'用户名无效',invalidHostname:'设备名称无效',passwordTooShort:'密码必须至少包含 8 个字符',passwordMismatch:'两次输入的密码不一致',unsupportedLocale:'不支持的语言',unsupportedTimezone:'不支持的时区',unsupportedKeyboard:'不支持的键盘布局'},
       static:{
         '.rail-footer':'<span class="status-dot"></span> 安全的 Live 会话',
         '.step[data-step="0"]':'<span>01</span> 欢迎','.step[data-step="1"]':'<span>02</span> 语言','.step[data-step="2"]':'<span>03</span> 地区','.step[data-step="3"]':'<span>04</span> 键盘','.step[data-step="4"]':'<span>05</span> 账户','.step[data-step="5"]':'<span>06</span> 存储','.step[data-step="6"]':'<span>07</span> 摘要',
@@ -122,7 +130,8 @@ window.LyraI18n=(()=>{
   };
   let current='en-US';
   const interpolate=(value,vars={})=>String(value).replace(/\{(\w+)\}/g,(_,key)=>vars[key]??`{${key}}`);
-  function t(key,vars={}){return interpolate(catalogs[current]?.[key]??catalogs['en-US'][key]??key,vars)}
+  function lookup(catalog,key){return key.split('.').reduce((value,part)=>value?.[part],catalog)}
+  function t(key,vars={}){return interpolate(lookup(catalogs[current],key)??lookup(catalogs['en-US'],key)??key,vars)}
   function apply(locale){
     current=catalogs[locale]?locale:'en-US';
     document.documentElement.lang=current;

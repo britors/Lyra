@@ -273,12 +273,12 @@ function validate(){
   const fullName=document.querySelector('#full-name').value.trim();
   const password=document.querySelector('#password').value;
   const confirm=document.querySelector('#password-confirm').value;
-  if(!fullName) errors.push('nome completo obrigatório');
-  if(!/^[a-z][a-z0-9_-]{0,31}$/.test(username)||username==='root') errors.push('nome de usuário inválido');
-  if(!/^[A-Za-z0-9][A-Za-z0-9-]{0,61}[A-Za-z0-9]$/.test(hostname)) errors.push('nome do dispositivo inválido');
-  if(password.length<8) errors.push('a senha deve ter ao menos 8 caracteres');
-  if(password!==confirm) errors.push('as senhas não coincidem');
-  document.querySelector('#validation').textContent=errors.join(' · ');
+  if(!fullName) errors.push('validation.fullNameRequired');
+  if(!/^[a-z][a-z0-9_-]{0,31}$/.test(username)||username==='root') errors.push('validation.invalidUsername');
+  if(!/^[A-Za-z0-9][A-Za-z0-9-]{0,61}[A-Za-z0-9]$/.test(hostname)) errors.push('validation.invalidHostname');
+  if(password.length<8) errors.push('validation.passwordTooShort');
+  if(password!==confirm) errors.push('validation.passwordMismatch');
+  document.querySelector('#validation').textContent=errors.map(key=>i18n.t(key)).join(' · ');
   return errors.length===0;
 }
 
@@ -330,7 +330,8 @@ async function updateSummary(){
     validationBox.textContent='';
     summaryConfigValid=true;
   }catch(error){
-    validationBox.textContent=error;
+    const codes=Array.isArray(error)?error:[String(error)];
+    validationBox.textContent=codes.map(code=>i18n.t(code)).join(' · ');
   }
   updateInstallButtonState();
 }
@@ -512,14 +513,14 @@ async function executeInstallation(){
 
 async function restartSystem(){
   reboot.disabled=true;
-  reboot.textContent='Reiniciando…';
+  reboot.textContent=i18n.t('rebooting');
   rebootError.hidden=true;
   try{
     await invoke('restart_system');
   }catch(error){
     reboot.disabled=false;
-    reboot.innerHTML='Reiniciar o sistema <span aria-hidden="true">↻</span>';
-    rebootError.textContent=`Não foi possível reiniciar o sistema: ${error}`;
+    reboot.innerHTML=i18n.t('rebootLabel');
+    rebootError.textContent=i18n.t('rebootFailed');
     rebootError.hidden=false;
   }
 }

@@ -114,8 +114,11 @@ impl InstallConfig {
     pub fn validate(&self) -> Result<(), Vec<&'static str>> {
         let mut errors = Vec::new();
 
-        if !matches!(self.locale.as_str(), "pt_BR.UTF-8" | "en_US.UTF-8" | "es_ES.UTF-8" | "zh_CN.UTF-8") {
-            errors.push("idioma não suportado");
+        if !matches!(
+            self.locale.as_str(),
+            "pt_BR.UTF-8" | "en_US.UTF-8" | "es_ES.UTF-8" | "zh_CN.UTF-8"
+        ) {
+            errors.push("validation.unsupportedLocale");
         }
         let timezone_path = std::path::Path::new("/usr/share/zoneinfo").join(&self.timezone);
         let valid_timezone_name = self.timezone == "UTC"
@@ -124,30 +127,30 @@ impl InstallConfig {
                     !part.is_empty()
                         && part != "."
                         && part != ".."
-                        && part
-                            .bytes()
-                            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-' | b'+'))
+                        && part.bytes().all(|byte| {
+                            byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-' | b'+')
+                        })
                 }));
         if !valid_timezone_name || !timezone_path.is_file() {
-            errors.push("fuso horário não suportado");
+            errors.push("validation.unsupportedTimezone");
         }
         if !KEYBOARD_LAYOUTS
             .iter()
             .any(|(id, ..)| *id == self.keyboard_layout)
         {
-            errors.push("layout de teclado não suportado");
+            errors.push("validation.unsupportedKeyboard");
         }
         if !valid_hostname(&self.hostname) {
-            errors.push("nome do dispositivo inválido");
+            errors.push("validation.invalidHostname");
         }
         if self.full_name.trim().is_empty() {
-            errors.push("nome completo obrigatório");
+            errors.push("validation.fullNameRequired");
         }
         if !valid_username(&self.username) {
-            errors.push("nome de usuário inválido");
+            errors.push("validation.invalidUsername");
         }
         if self.password.chars().count() < 8 {
-            errors.push("a senha deve ter ao menos 8 caracteres");
+            errors.push("validation.passwordTooShort");
         }
 
         if errors.is_empty() {
@@ -216,7 +219,7 @@ mod tests {
         let mut config = valid_config();
         config.timezone = "America/../../etc/passwd".into();
         let errors = config.validate().unwrap_err();
-        assert!(errors.contains(&"fuso horário não suportado"));
+        assert!(errors.contains(&"validation.unsupportedTimezone"));
     }
 
     #[test]
@@ -224,7 +227,7 @@ mod tests {
         let mut config = valid_config();
         config.keyboard_layout = "dvorak-de-nonexistent".into();
         let errors = config.validate().unwrap_err();
-        assert!(errors.contains(&"layout de teclado não suportado"));
+        assert!(errors.contains(&"validation.unsupportedKeyboard"));
     }
 
     #[test]
@@ -248,15 +251,15 @@ mod tests {
         config.hostname = "lyra; reboot".into();
 
         let errors = config.validate().unwrap_err();
-        assert!(errors.contains(&"nome de usuário inválido"));
-        assert!(errors.contains(&"nome do dispositivo inválido"));
+        assert!(errors.contains(&"validation.invalidUsername"));
+        assert!(errors.contains(&"validation.invalidHostname"));
     }
 
     #[test]
     fn rejects_incomplete_identity() {
         let errors = InstallConfig::default().validate().unwrap_err();
-        assert!(errors.contains(&"nome completo obrigatório"));
-        assert!(errors.contains(&"nome de usuário inválido"));
-        assert!(errors.contains(&"a senha deve ter ao menos 8 caracteres"));
+        assert!(errors.contains(&"validation.fullNameRequired"));
+        assert!(errors.contains(&"validation.invalidUsername"));
+        assert!(errors.contains(&"validation.passwordTooShort"));
     }
 }

@@ -94,8 +94,8 @@ fn plan_install(snapshot: StorageSnapshot, choice: GuidedChoice) -> Result<Insta
 /// after this validation succeeds and the user accepts the destructive
 /// confirmation on the summary screen.
 #[tauri::command]
-fn validate_install_config(config: InstallConfig) -> Result<(), String> {
-    config.validate().map_err(|errors| errors.join(" · "))
+fn validate_install_config(config: InstallConfig) -> Result<(), Vec<&'static str>> {
+    config.validate()
 }
 
 /// Path the polkit action (`io.lyra.Installer.execute-plan`) is scoped to —

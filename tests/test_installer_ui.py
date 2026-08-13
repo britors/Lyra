@@ -100,7 +100,7 @@ class InstallerUiTests(unittest.TestCase):
         self.assertIn("'pt-BR':{", self.i18n)
         self.assertIn("'es-ES':{", self.i18n)
         self.assertIn("'zh-CN':{", self.i18n)
-        self.assertIn("catalogs['en-US'][key]", self.i18n)
+        self.assertIn("lookup(catalogs['en-US'],key)", self.i18n)
         self.assertIn("function register(locale,catalog)", self.i18n)
         self.assertIn('<script src="i18n.js"></script>', self.html)
 
@@ -113,6 +113,35 @@ class InstallerUiTests(unittest.TestCase):
         self.assertNotIn("payload.message", progress)
         for key in ("installAuthorizing", "installStarted", "installing", "installFailed", "installCompleted"):
             self.assertGreaterEqual(self.i18n.count(f"{key}:"), 4)
+
+    def test_validation_and_reboot_messages_follow_selected_locale(self) -> None:
+        validation = self.javascript.split("function validate()", 1)[1].split(
+            "function suggestedUsername", 1
+        )[0]
+        self.assertNotIn("obrigatório", validation)
+        self.assertNotIn("inválido", validation)
+        self.assertIn("errors.map(key=>i18n.t(key))", validation)
+        for key in (
+            "fullNameRequired",
+            "invalidUsername",
+            "invalidHostname",
+            "passwordTooShort",
+            "passwordMismatch",
+            "unsupportedLocale",
+            "unsupportedTimezone",
+            "unsupportedKeyboard",
+            "rebooting",
+            "rebootFailed",
+        ):
+            self.assertGreaterEqual(self.i18n.count(f"{key}:"), 4)
+
+        restart = self.javascript.split("async function restartSystem()", 1)[1].split(
+            "next.addEventListener", 1
+        )[0]
+        self.assertIn("i18n.t('rebooting')", restart)
+        self.assertIn("i18n.t('rebootLabel')", restart)
+        self.assertIn("i18n.t('rebootFailed')", restart)
+        self.assertNotIn("Não foi possível", restart)
 
     def test_language_flag_is_inline_with_language_name(self) -> None:
         self.assertIn(
