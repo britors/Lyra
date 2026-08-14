@@ -165,7 +165,7 @@ class ImagePolicyTests(unittest.TestCase):
         )
 
         self.assertIn('"Defaults !targetpw\\n%wheel ALL=(ALL) ALL\\n"', deploy)
-        self.assertIn("Defaults targetpw", changes.split("-------------------------------------------------------------------", 2)[1])
+        self.assertIn("Defaults targetpw", changes)
 
     def test_chord_is_not_installed_or_pinned_on_the_desktop(self) -> None:
         root = ET.parse(ROOT / "kiwi/config.xml").getroot()

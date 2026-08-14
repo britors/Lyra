@@ -45,7 +45,7 @@
   </preferences>
 
   <preferences profiles="desktop">
-    <!-- Generated from release.toml; user-facing strings say "Alpha 3". -->
+    <!-- Generated from release.toml; user-facing strings say "Alpha 4". -->
     <version>2026.08-alpha4</version>
     <!--
       Selects lyra-os-theme's "Lyra-OS" assets. The

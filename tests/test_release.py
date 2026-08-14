@@ -35,12 +35,12 @@ def sample_release(**overrides: object) -> Release:
 
 class ReleaseConventionTests(unittest.TestCase):
     def test_alpha_identifiers(self) -> None:
-        release = sample_release(stage="alpha", iteration=3)
-        self.assertEqual(release.version_id, "2026.08-alpha3")
-        self.assertEqual(release.tag, "v2026.08-alpha3")
-        self.assertEqual(release.iso_filename, "lyra-os.x86_64-2026.08-alpha3.iso")
-        self.assertEqual(release.volume_id, "LYRA_OS_2026_08_ALPHA3")
-        self.assertEqual(release.pretty_name, "Lyra OS Alpha 3 (Odisseia)")
+        release = sample_release(stage="alpha", iteration=4)
+        self.assertEqual(release.version_id, "2026.08-alpha4")
+        self.assertEqual(release.tag, "v2026.08-alpha4")
+        self.assertEqual(release.iso_filename, "lyra-os.x86_64-2026.08-alpha4.iso")
+        self.assertEqual(release.volume_id, "LYRA_OS_2026_08_ALPHA4")
+        self.assertEqual(release.pretty_name, "Lyra OS Alpha 4 (Odisseia)")
 
     def test_beta_identifiers(self) -> None:
         release = sample_release()
@@ -149,16 +149,24 @@ class RepositoryMetadataTests(unittest.TestCase):
         adr = (ROOT / "docs/adr/0005-release-signing-starts-at-beta1.md").read_text(
             encoding="utf-8"
         )
-        alpha3 = (
-            ROOT / "docs/releases/lyra-os-desktop-2026.08-alpha3.md"
+        alpha4 = (
+            ROOT / "docs/releases/lyra-os-desktop-2026.08-alpha4.md"
         ).read_text(encoding="utf-8")
         uploader = (
-            ROOT / "scripts/upload-desktop-alpha3-sourceforge.sh"
+            ROOT / "scripts/upload-desktop-alpha4-sourceforge.sh"
         ).read_text(encoding="utf-8")
 
         self.assertIn("sem `*.iso.sha256.asc`", adr)
-        self.assertIn("começam na Beta 1", alpha3)
+        self.assertIn("começa na Beta 1", alpha4)
         self.assertNotIn('"$PREFIX.iso.sha256.asc"', uploader)
+
+    def test_alpha4_build_prepares_the_complete_upload_bundle(self) -> None:
+        builder = (ROOT / "scripts/build-desktop-alpha4.sh").read_text(encoding="utf-8")
+        self.assertIn("--artifacts-only", builder)
+        self.assertIn("release-artifacts.py generate", builder)
+        self.assertIn("docs/releases/lyra-os-desktop-$EXPECTED_VERSION.md", builder)
+        for suffix in (".iso.sha256", ".cdx.json", ".spdx.json", ".report"):
+            self.assertIn(suffix, builder)
 
     def test_build_manifest_is_traceable(self) -> None:
         release = Release.from_file()

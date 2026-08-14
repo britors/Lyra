@@ -121,7 +121,7 @@ an OBS image flavor and cannot block the standard ISO.
 
 Keep the ISO together with its package inventory, verification report, KIWI
 report, checksum and both SBOM formats. A detached checksum signature becomes
-mandatory starting with Beta 1 (ADR 0005); Alpha 3 is the explicit unsigned
+mandatory starting with Beta 1 (ADR 0005); Alpha 4 is an unsigned pre-Beta
 exception:
 
 - `*.iso`
@@ -138,7 +138,7 @@ Before the KIWI build, create the signed public-repository health report:
 
 ```sh
 ./scripts/obs-release.py health \
-  --output /path/to/obs-health-2026.08-alpha3.json
+  --output /path/to/obs-health-2026.08-alpha4.json
 ```
 
 When installation finishes successfully, the frontend writes
@@ -152,7 +152,7 @@ smoke-test results:
 ```sh
 ./scripts/image-build.py artifact-manifest /path/to/kiwi/results \
   --output /path/to/lyra-os.evidence.json \
-  --test-result obs-repositories=/path/to/obs-health-2026.08-alpha3.json \
+  --test-result obs-repositories=/path/to/obs-health-2026.08-alpha4.json \
   --test-result live-session=/path/to/live-session-result.json \
   --test-result installer=/path/to/lyra-installer-result.json \
   --test-result first-boot=/path/to/first-boot-result.json \

@@ -127,10 +127,10 @@ O usuário de publicação é `rodrigobritosoa`. O script fixa o host e o destin
 e o SSH solicita diretamente a senha ou passphrase quando necessário:
 
 ```bash
-./scripts/upload-desktop-alpha3-sourceforge.sh --check-only
+./scripts/upload-desktop-alpha4-sourceforge.sh --check-only
 ```
 
-Não republique a Alpha 3 apenas para testar credenciais. Para um lançamento
+Não republique a Alpha 4 apenas para testar credenciais. Para um lançamento
 novo, use o script correspondente à versão e confirme o diretório remoto antes
 do envio.
 
