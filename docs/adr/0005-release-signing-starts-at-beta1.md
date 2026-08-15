@@ -44,3 +44,20 @@ da ISO e continuam obrigatórias. Esta decisão não reduz `repository_gpgcheck`
   chaves, além do congelamento funcional já previsto.
 - A política pode ser endurecida antes da Beta 1, mas não relaxada depois dela
   sem uma nova ADR e decisão formal de segurança.
+
+## Cerimônia da chave da Beta 1
+
+Em 15/08/2026, antes da primeira publicação assinada, confirmou-se que a chave
+privada da identidade preliminar `E765 8249 6F86 597D A854 7BA4 FE28 7BB5
+4891 BA80` não era recuperável. Como nenhuma Alpha foi assinada por ela, a
+identidade preliminar foi retirada antes de estabelecer uma cadeia pública de
+confiança.
+
+A identidade canônica passou a ser a chave RSA 4096 com fingerprint `01B6
+3EED BE6B 0791 26A0 116E FA73 53A1 31EC EFEB`, UID `Lyra OS Release
+<rodrigo@w3ti.com.br>` e expiração em 14/08/2031. A chave privada e o
+certificado de revogação foram reunidos em um backup criptografado com senha
+independente; a restauração do contêiner foi testada antes da remoção das
+cópias temporárias. A ausência atual de uma segunda cópia offline permanece
+como risco operacional e deve ser corrigida quando uma mídia externa estiver
+disponível.

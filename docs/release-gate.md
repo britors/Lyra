@@ -60,15 +60,16 @@ this temporary artifact-signing exception.
 From Beta 1 onward, the ISO checksum is signed with the release coordinator's
 own GPG key, not a key this repository generates or holds. The key fingerprint
 and public key must be added here before the first Beta 1 candidate; no
-placeholder or disposable Alpha key is trusted.
+placeholder or disposable Alpha key is trusted. The canonical identity selected
+before the first signed Beta 1 candidate is:
 
-<!-- Historical draft identity retained until Beta 1 key ceremony decides
-whether it is still usable; it does not authorize Alpha 3 signatures.
-
-- **Fingerprint:** `E765 8249 6F86 597D A854  7BA4 FE28 7BB5 4891 BA80`
-- **UID:** `Lyra OS Release <britors@live.com>`
+- **Fingerprint:** `01B6 3EED BE6B 0791 26A0  116E FA73 53A1 31EC EFEB`
+- **UID:** `Lyra OS Release <rodrigo@w3ti.com.br>`
 - **Public key:** [`docs/release-signing-key.asc`](release-signing-key.asc)
--->
+
+The unused draft identity `E765 8249 6F86 597D A854 7BA4 FE28 7BB5 4891
+BA80` was replaced before any Beta artifact was signed because its private key
+could not be recovered. It never authorized an official release signature.
 
 Starting with Beta 1, verification instructions must name the canonical
 fingerprint and public-key file. Any later rotation replaces both in the same
