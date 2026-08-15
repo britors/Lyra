@@ -86,15 +86,11 @@ const languages=[
   ['en_US.UTF-8','English (United States)','🇺🇸','en_US'],
   ['pt_BR.UTF-8','Português (Brasil)','🇧🇷','pt_BR'],
   ['es_ES.UTF-8','Español (España)','🇪🇸','es_ES'],
-  // Temporarily hidden from the installer; keep the entry for a future cycle.
-  // ['zh_CN.UTF-8','Chinese (Mandarin) / 简体中文','🇨🇳','zh_CN'],
 ];
 
 function uiLocale(locale){return {
   'pt_BR.UTF-8':'pt-BR',
   'es_ES.UTF-8':'es-ES',
-  // Temporarily disabled together with the language picker entry above.
-  // 'zh_CN.UTF-8':'zh-CN',
 }[locale]||'en-US'}
 
 async function loadInstallerLogo(){

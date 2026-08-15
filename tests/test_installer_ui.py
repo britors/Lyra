@@ -91,11 +91,8 @@ class InstallerUiTests(unittest.TestCase):
             r"^\s{2}\['([a-z]{2}_[A-Z]{2}\.UTF-8)'", language_block, re.MULTILINE
         )
         self.assertEqual(locales, ["en_US.UTF-8", "pt_BR.UTF-8", "es_ES.UTF-8"])
-        self.assertIn("// ['zh_CN.UTF-8'", language_block)
 
         core = (ROOT / "installer/src/lib.rs").read_text(encoding="utf-8")
-        self.assertNotIn('| "zh_CN.UTF-8"', core.replace('// | "zh_CN.UTF-8"', ''))
-        self.assertIn('// | "zh_CN.UTF-8"', core)
 
     def test_installer_language_has_english_default_and_catalog_fallback(self) -> None:
         self.assertIn("const DEFAULT_LOCALE='en_US.UTF-8'", self.javascript)
@@ -103,7 +100,6 @@ class InstallerUiTests(unittest.TestCase):
         self.assertIn("'en-US':{", self.i18n)
         self.assertIn("'pt-BR':{", self.i18n)
         self.assertIn("'es-ES':{", self.i18n)
-        self.assertIn("/* 'zh-CN':{", self.i18n)
         self.assertIn("lookup(catalogs['en-US'],key)", self.i18n)
         self.assertIn("function register(locale,catalog)", self.i18n)
         self.assertIn('<script src="i18n.js"></script>', self.html)
@@ -116,7 +112,7 @@ class InstallerUiTests(unittest.TestCase):
         self.assertNotIn("payload.name", progress)
         self.assertNotIn("payload.message", progress)
         for key in ("installAuthorizing", "installStarted", "installing", "installFailed", "installCompleted"):
-            self.assertGreaterEqual(self.i18n.count(f"{key}:"), 4)
+            self.assertGreaterEqual(self.i18n.count(f"{key}:"), 3)
 
     def test_validation_and_reboot_messages_follow_selected_locale(self) -> None:
         validation = self.javascript.split("function validate()", 1)[1].split(
@@ -137,7 +133,7 @@ class InstallerUiTests(unittest.TestCase):
             "rebooting",
             "rebootFailed",
         ):
-            self.assertGreaterEqual(self.i18n.count(f"{key}:"), 4)
+            self.assertGreaterEqual(self.i18n.count(f"{key}:"), 3)
 
         restart = self.javascript.split("async function restartSystem()", 1)[1].split(
             "next.addEventListener", 1
@@ -165,7 +161,7 @@ class InstallerUiTests(unittest.TestCase):
             "storageDiscoveryFailed",
             "planFailed",
         ):
-            self.assertGreaterEqual(self.i18n.count(f"{key}:"), 4)
+            self.assertGreaterEqual(self.i18n.count(f"{key}:"), 3)
             self.assertIn(f"i18n.t('{key}'", self.javascript)
 
         self.assertNotIn('class="disk-plan-error">${error}', self.javascript)
@@ -181,13 +177,13 @@ class InstallerUiTests(unittest.TestCase):
         self.assertIn("i18n.t(`keyboardGroup.", renderer)
         self.assertNotIn("<small>${variant}", renderer)
         for key in ("language", "europe", "latinAmerica", "nordic", "cyrillic", "middleEast", "asia"):
-            self.assertGreaterEqual(self.i18n.count(f"{key}:'"), 4)
+            self.assertGreaterEqual(self.i18n.count(f"{key}:'"), 3)
 
     def test_accessible_names_follow_the_selected_locale(self) -> None:
         self.assertIn("catalogs[current].attributes", self.i18n)
         self.assertIn("element.setAttribute(name,value)", self.i18n)
         for selector in (".rail|aria-label", ".brand-logo|alt", ".timezone-map|aria-label", ".final-art img|alt"):
-            self.assertEqual(self.i18n.count(f"'{selector}'"), 4)
+            self.assertEqual(self.i18n.count(f"'{selector}'"), 3)
 
     def test_language_flag_is_inline_with_language_name(self) -> None:
         self.assertIn(

@@ -3,7 +3,7 @@
 A meta ideal do gate é a instalação da mesma ISO candidata em pelo menos um
 desktop e dois notebooks distintos, cobrindo CPUs e gráficos Intel e AMD.
 NVIDIA com a pilha aberta deve ser registrada quando disponível, mas não
-substitui a cobertura Intel/AMD nem depende da ISO NVIDIA proprietária
+substitui a cobertura Intel/AMD nem depende do fluxo proprietário opcional do Vega
 planejada para outro ciclo.
 
 **Situação real:** o projeto tem hoje um único mantenedor e uma única

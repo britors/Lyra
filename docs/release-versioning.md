@@ -80,11 +80,11 @@ um estágio fechar mais cedo, a promoção acontece mais cedo.
 | Estágio | Cadência | Datas | Política |
 |---|---|---|---|
 | alpha3 | concluída | 11/ago/2026 | Fechar o instalador suportado e sua publicação. |
-| alpha4 | snapshot antecipado | 14/ago/2026 | Publicar i18n base, instalador em quatro idiomas e primeira onda de pacotes. |
-| alpha5 | 2 semanas | 14/ago/2026 → 28/ago/2026 | Fechar i18n restante, NVIDIA e contratos do Lyra Upgrade. |
-| alpha6 | 2 semanas | 28/ago/2026 → 11/set/2026 | Integrar RPMs e implementar core e serviço de update. |
+| alpha4 | snapshot antecipado | 14/ago/2026 | Publicar i18n base, instalador em três idiomas e primeira onda de pacotes. |
+| alpha5 | 2 semanas | 14/ago/2026 → 28/ago/2026 | Corrigir bloqueadores herdados; fechar i18n, NVIDIA pelo Vega e contratos do Lyra Upgrade. |
+| alpha6 | 2 semanas | 28/ago/2026 → 11/set/2026 | Qualificar i18n/NVIDIA e implementar core, preflight, estado e serviço de update. |
 | alpha7 | 2 semanas | 11/set/2026 → 25/set/2026 | Entregar interface, pós-boot, recuperação e rollback. |
-| alpha8 | 2 semanas e 4 dias | 25/set/2026 → 13/out/2026 | Fechar upgrade entre releases, gate automatizado e estabilização. |
+| alpha8 | 2 semanas e 4 dias | 25/set/2026 → 13/out/2026 | Fechar upgrade e gate até 06/out; estabilizar exclusivamente de 06–13/out. |
 | beta1 | 4 semanas | 13/out/2026 → 10/nov/2026 | **Feature freeze:** somente bugs, regressões, segurança, desempenho e correções de traduções existentes. |
 | beta2 | 4 semanas | 10/nov/2026 → 08/dez/2026 | Estabilidade e atualização; nenhuma feature nova. |
 | beta3 | 4 semanas | 08/dez/2026 → 05/jan/2027 | QA linguístico e correções finais; nenhuma infraestrutura ou novo componente traduzido. |
@@ -94,38 +94,34 @@ um estágio fechar mais cedo, a promoção acontece mais cedo.
 
 ### Desktop Alpha 4 — publicação em 14/08
 
-O Lyra Installer da 1.0 oferece **inglês dos Estados Unidos (`en-US`)**,
-**português do Brasil (`pt-BR`)**, **espanhol da Espanha (`es-ES`)** e
-**chinês simplificado (`zh-CN`)**, com `en-US` como padrão e fallback. O gate
-integral dos demais pacotes próprios permanece em `en-US`/`pt-BR`; idiomas
-adicionais ficam para a versão 1.1.
+O Lyra Installer da 1.0 oferece somente **inglês dos Estados Unidos
+(`en-US`)**, **português do Brasil (`pt-BR`)** e **espanhol da Espanha
+(`es-ES`)**, com `en-US` como padrão e fallback. O gate integral mínimo dos
+demais pacotes próprios permanece em `en-US`/`pt-BR`; outros idiomas ficam
+para um ciclo futuro.
 
-A Alpha 4 registra o ponto alcançado com a infraestrutura de catálogos, o
-Lyra Installer em quatro idiomas e a primeira onda instalada por padrão
-(`Vega`, `Fina` e `Sheliak`). Por ser um snapshot Alpha antecipado, sua
-publicação não declara concluído o gate funcional originalmente proposto: o
-fluxo NVIDIA ainda aberto é transferido explicitamente para a Alpha 5.
+A Alpha 4 registra o ponto alcançado com a infraestrutura de catálogos e o
+Lyra Installer em três idiomas. Depois de sua publicação, todos os projetos e
+RPMs foram concluídos e testados em `en-US`, `pt-BR` e `es-ES`; o fluxo NVIDIA
+também foi concluído e validado antecipadamente na Alpha 5.
 
-O driver não entra no Lyra Installer nem na ISO padrão. O fluxo do Vega exige
+O driver não entra no Lyra Installer nem na ISO padrão. O fluxo validado do Vega exige
 detecção conservadora, confirmação explícita, Secure Boot verificado, snapshot
 Snapper, pacotes meta em lockstep, `dracut`, reinício e rollback. O fluxo só
-pode ser declarado suportado depois de validado no hardware G06 disponível.
+foi declarado suportado depois da validação no hardware G06 disponível.
 
 ### Desktop Alpha 5 — 14/08 a 28/08
 
-- internacionalizar `Beam`, `Sulafat`, `Aladfar`, `postgres-draco`,
-  `vega-cli`, `vega-web` e `vegad`; cada
-  pacote sem texto voltado ao usuário deve registrar N/A em vez de desaparecer
-  do inventário.
-- concluir e validar o fluxo NVIDIA G06 no Vega, incluindo Secure Boot,
-  lockstep dos pacotes, snapshot, reinício e rollback (#77).
+- corrigir os bloqueadores herdados do instalador e do pipeline de release
+  antes de ampliar o escopo (#90, #91 e #92).
 - aprovar arquitetura, modelo de ameaças, protocolos e máquina de estados do
   Lyra Upgrade (#81), pois esse contrato bloqueia as demais implementações.
+- concluído antecipadamente: todos os projetos e RPMs nos três idiomas (#78),
+  NVIDIA pelo Vega e remoção da ISO dedicada (#77) e qualificação na imagem
+  (#79).
 
 ### Desktop Alpha 6 — 28/08 a 11/09
 
-- promover RPMs traduzidos via staging OBS, integrar catálogos e NVIDIA na
-  imagem, validar locale/fallback e eliminar strings literais (#79).
 - implementar o core não privilegiado, preflight, plano reproduzível e estado
   durável do Lyra Upgrade (#86).
 - implementar o serviço privilegiado e a atualização segura dentro da mesma
@@ -133,15 +129,15 @@ pode ser declarado suportado depois de validado no hardware G06 disponível.
 
 ### Desktop Alpha 7 — 11/09 a 25/09
 
-- criar a interface acessível e os quatro catálogos do Lyra Upgrade,
+- criar a interface acessível e os três catálogos do Lyra Upgrade,
   incluindo retomada da UI e apresentação de falhas (#88).
-- implementar verificação pós-boot, recuperação e rollback determinístico
-  pelo snapshot registrado na operação (#85).
+- implementar o upgrade entre releases com manifesto assinado, simulação
+  reproduzível e aplicação offline (#82).
+- concluído antecipadamente: verificação pós-boot, recuperação e rollback
+  determinístico pelo snapshot registrado na operação (#85).
 
 ### Desktop Alpha 8 — 25/09 a 13/10
 
-- **25/set–06/out:** implementar o upgrade entre releases com manifesto
-  assinado, simulação reproduzível e aplicação offline (#82).
 - **25/set–06/out:** automatizar update, upgrade, reboot, Secure Boot e rollback
   no release gate, usando RPMs reais do candidato (#87).
 - **06–13/out:** nenhuma feature nova. Corrigir defeitos, repetir o gate
@@ -155,8 +151,9 @@ desempenho ou tradução já existente. Novo componente, novo fluxo, novo idioma
 ou nova infraestrutura de i18n volta para o próximo ciclo, salvo P0/P1 com
 decisão formal registrada.
 
-Alpha 5, Alpha 6, Alpha 7 e Alpha 8 são obrigatórias. A semana final da Alpha 8
-é reservada exclusivamente para estabilização; o novo fracionamento não
+Alpha 5, Alpha 6, Alpha 7 e Alpha 8 são obrigatórias. Toda funcionalidade deve
+estar encerrada até 25/09; a semana final da Alpha 8 é reservada exclusivamente
+para estabilização. O novo fracionamento não
 autoriza reduzir os gates para cumprir a data. Fevereiro continua sendo a
 folga máxima do cronograma, não motivo para promover uma Beta incompleta.
 A final deste ciclo é publicada como **Lyra OS 1.0**.
@@ -174,19 +171,22 @@ P0/P1 aberto.
 | Estágio | Cadência | Datas | Objetivo de saída |
 |---|---|---|---|
 | alpha1 | 3 semanas | 11/ago/2026 → 01/set/2026 | Reconfirmar instalação completa após os últimos ajustes da TUI e produzir o primeiro candidato rastreável. |
-| alpha2 | 3 semanas | 01/set/2026 → 22/set/2026 | Fechar boot UEFI/Secure Boot, primeiro boot, DHCP, SSH, firewall, `vegad` e `vega-web` com evidência automatizada. |
-| alpha3, se necessária | 3 semanas | 22/set/2026 → 13/out/2026 | Resolver P1 remanescente e ampliar a matriz de hardware; não adicionar novo escopo funcional. |
-| beta1 | 4 semanas | 13/out/2026 → 10/nov/2026 | Congelamento funcional e validação do fluxo suportado em disco inteiro/ext4. |
+| alpha2 | 3 semanas | 01/set/2026 → 22/set/2026 | Consolidar a integração do fluxo Server e preparar as correções e evidências do gate seguinte. |
+| alpha3 | cancelada | — | Etapa absorvida pela Beta 1 por decisão do mantenedor em 15/08/2026. |
+| beta1 | em andamento | desde 15/ago/2026 | Congelamento funcional, correção dos bloqueadores e validação do fluxo suportado em disco inteiro/ext4. |
 | beta2 | 4 semanas | 10/nov/2026 → 08/dez/2026 | Estabilidade, atualização dos pacotes, rede e administração remota em execuções repetidas. |
 | beta3 | 4 semanas | 08/dez/2026 → 05/jan/2027 | Internacionalização dos componentes próprios aplicáveis ao Server e fechamento da documentação operacional. |
 | rc1 | 2 semanas | 05/jan/2027 → 19/jan/2027 | Candidato completo, assinado e exercitado em VM e hardware físico, sem P0/P1. |
 | rc2 | 2 semanas | 19/jan/2027 → 02/fev/2027 | Somente correções bloqueantes e repetição integral do gate. |
 | final (buffer) | 2 semanas | 02/fev/2027 → **~16/fev/2027** | Publicação da Lyra OS Server 1.0 “Delos” e verificação dos artefatos baixados. |
 
-Se o Server fechar a fase Alpha na `alpha2`, sem P0/P1 e com todas as
-evidências obrigatórias, as etapas seguintes podem ser antecipadas e a final
-fica em torno de **~26/jan/2027**. O Server não precisa esperar o Desktop nem
-ser publicado no mesmo dia; cada edição só avança com o próprio gate verde.
+O mantenedor encerrou o desenvolvimento funcional e iniciou a Beta 1 em
+15/08/2026. O conteúdo antes atribuído à Alpha 3 ficou restrito a correções
+bloqueantes, estabilização e evidências dentro da Beta 1. O Server
+não precisa esperar o Desktop nem ser publicado no mesmo dia; cada edição só
+avança com o próprio gate verde. Mantida essa antecipação nas etapas seguintes,
+o alvo antecipado da final permanece em **~26/jan/2027**; o buffer integral
+continua até aproximadamente 16/02/2027.
 
 ### Estado na entrada da Alpha 1
 

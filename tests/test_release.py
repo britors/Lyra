@@ -107,7 +107,7 @@ class RepositoryMetadataTests(unittest.TestCase):
         self.assertIn("~26/jan/2027", server)
         self.assertIn("~16/fev/2027", server)
 
-    def test_nvidia_post_install_is_alpha5_but_nvidia_iso_remains_post_release(self) -> None:
+    def test_nvidia_post_install_replaces_the_dedicated_iso(self) -> None:
         prompt = (ROOT / "PROMPT-LYRA-OS.md").read_text(encoding="utf-8")
         roadmap = (ROOT / "docs/roadmap.md").read_text(encoding="utf-8")
         versioning = (ROOT / "docs/release-versioning.md").read_text(encoding="utf-8")
@@ -117,7 +117,8 @@ class RepositoryMetadataTests(unittest.TestCase):
             self.assertIn("Alpha 5", text)
         self.assertIn("pós-instalação", prompt)
         self.assertIn("sem driver proprietário embutido na ISO padrão", prompt)
-        self.assertIn("depois da publicação da Lyra OS 1.0", nvidia_iso)
+        self.assertIn("uma única ISO Desktop", nvidia_iso)
+        self.assertIn("proposta cancelada", nvidia_iso)
 
     def test_desktop_features_and_i18n_freeze_before_beta1(self) -> None:
         versioning = (ROOT / "docs/release-versioning.md").read_text(encoding="utf-8")
@@ -137,10 +138,11 @@ class RepositoryMetadataTests(unittest.TestCase):
         prompt = (ROOT / "PROMPT-LYRA-OS.md").read_text(encoding="utf-8")
 
         for text in (versioning, roadmap, prompt):
-            for locale in ("en-US", "pt-BR", "es-ES", "zh-CN"):
+            for locale in ("en-US", "pt-BR", "es-ES"):
                 self.assertIn(locale, text)
-            self.assertIn("versão 1.1", text)
-        self.assertIn("en-US` como padrão", roadmap)
+            self.assertIn("ciclo futuro", text)
+        self.assertIn("`en-US`", roadmap)
+        self.assertIn("como padrão e fallback", roadmap)
         self.assertIn("Alpha 6", roadmap)
         self.assertNotIn("A meta principal da Beta 3", roadmap)
         self.assertIn("não recebem novas features", prompt)

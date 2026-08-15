@@ -50,7 +50,7 @@ decisões de implementação, limitações e verificações já realizadas.
 
 ## Próximos ciclos
 
-A versão 1.0 terá o Lyra Installer em `en-US`, `pt-BR`, `es-ES` e `zh-CN`,
+A versão 1.0 terá o Lyra Installer em `en-US`, `pt-BR` e `es-ES`,
 com inglês como padrão e fallback. Os demais pacotes próprios continuam com
 o gate integral em `en-US`/`pt-BR`; sua ampliação fica para a versão 1.1. O cronograma e os
 gates estão registrados no [roadmap do projeto](docs/roadmap.md).

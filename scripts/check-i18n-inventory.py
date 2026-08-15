@@ -11,7 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 INVENTORY = ROOT / "i18n/inventory.json"
 OBS = ROOT / "obs/projects.toml"
-LOCALES = ["en-US", "pt-BR", "es-ES", "zh-CN"]
+LOCALES = ["en-US", "pt-BR", "es-ES"]
 STATUSES = {"complete", "scheduled", "not-applicable"}
 
 
@@ -35,7 +35,7 @@ def validate() -> list[str]:
             f"extra={sorted(actual-expected)}"
         )
     if document.get("locales") != LOCALES:
-        errors.append("locale scope must be exactly en-US, pt-BR, es-ES and zh-CN")
+        errors.append("locale scope must be exactly en-US, pt-BR and es-ES")
     if document.get("default_locale") != "en-US" or document.get("fallback_locale") != "en-US":
         errors.append("en-US must be both default and fallback")
     seen: set[tuple[object, object]] = set()

@@ -58,9 +58,10 @@ explicitamente em vez de assumir.
   polkit. Não executar toda a interface como root
 - Não usar instaladores de terceiros. A Beta 2 contém exclusivamente o Lyra
   Installer e só pode ser publicada depois da validação do candidato final
-- Idioma/região: **en-US pré-selecionado**, com `pt-BR`, `es-ES` e `zh-CN`
-  no Lyra Installer; os demais pacotes próprios têm gate integral em
-  `en-US`/`pt-BR`, e novos idiomas além desses quatro entram na versão 1.1
+- Idioma/região: **en-US pré-selecionado**, com `pt-BR` e `es-ES` no Lyra
+  Installer. Esses são os três únicos idiomas do Lyra OS 1.0; outros idiomas
+  entram somente em um ciclo futuro com gate próprio. Os
+  demais pacotes próprios têm gate integral mínimo em `en-US`/`pt-BR`
 - Hostname padrão sugerido: `lyra-os`
 - Conta de usuário: **root desabilitado**; usuário criado durante a
   instalação recebe privilégios administrativos via sudo (padrão
@@ -107,8 +108,7 @@ pacotes meta que mantêm kernel module, userspace e firmware sincronizados.
 - **GNOME Terminal** (`gnome-terminal`) como terminal padrão, com o
   **GNOME Console** (`gnome-console`) também pré-instalado como alternativa
 - **Firefox** como navegador padrão
-- **LibreOffice** na imagem padrão com traduções para en-US, pt-BR, es-ES e
-  zh-CN
+- **LibreOffice** na imagem padrão com traduções para en-US, pt-BR e es-ES
 - **CUPS** + drivers comuns, pré-instalado e habilitado (impressão/scanner)
 - **GNOME Software** removido da imagem padrão; o gerenciamento gráfico de
   pacotes fica centralizado no Vega
@@ -178,16 +178,14 @@ antiga vibrante azul-safira→violeta):
 
 - Pipeline de CI para refresh mensal da ISO
 - GRUB panic button (reversão via boot menu, ver Snapshots acima)
-- Alpha 4 é publicada em 14 de agosto de 2026; Alpha 5 (14–28/08), Alpha 6
-  (28/08–11/09), Alpha 7 (11–25/09) e Alpha 8 (25/09–13/10) são obrigatórias.
-  Toda feature da 1.0 e a
-  internacionalização `pt-BR`/`en-US` dos pacotes próprios e os quatro
-  catálogos (`en-US`, `pt-BR`, `es-ES`, `zh-CN`) do instalador
-  usam 13 de outubro de 2026 como meta, nunca como autorização para promover
-  uma imagem com P0/P1 ou trabalho obrigatório pendente.
-- O instalador da versão 1.0 oferece `en-US`, `pt-BR`, `es-ES` e `zh-CN`;
-  os demais pacotes próprios permanecem em `en-US`/`pt-BR`. Novos idiomas
-  além desses quatro são escopo da versão 1.1, com fallback `en-US`.
+- Alpha 5 (14–28/08), Alpha 6 (28/08–11/09), Alpha 7 (11–25/09) e Alpha 8
+  (25/09–13/10) são obrigatórias. Toda implementação funcional fecha até
+  25/09; a Alpha 8 automatiza o gate e a semana de 06–13/10 é exclusiva para
+  estabilização. P0/P1 interrompe
+  a ampliação de escopo da Alpha corrente e nunca é transferido por calendário.
+- A versão 1.0 oferece somente `en-US`, `pt-BR` e `es-ES`; todos os projetos e
+  RPMs foram traduzidos e testados nos três idiomas. Outros idiomas são escopo
+  de um ciclo futuro, com fallback `en-US`.
 - Beta 1 inicia o congelamento funcional somente após a última Alpha fechar
   todos os gates; 13/10/2026 é a meta atual. Betas e RCs
   recebem somente correções de bugs, regressões, segurança, desempenho e
@@ -196,9 +194,9 @@ antiga vibrante azul-safira→violeta):
 - O cronograma canônico e os critérios de promoção ficam em
   `docs/release-versioning.md`; o buffer final vai até aproximadamente 16 de
   fevereiro de 2027, sempre priorizando qualidade sobre prazo.
-- O instalador opcional pós-instalação de driver NVIDIA via Vega deve fechar
-  na Desktop Alpha 5; a variante de ISO NVIDIA pré-configurada continua começando
-  somente depois da publicação da Lyra OS 1.0.
+- O instalador opcional pós-instalação de driver NVIDIA via Vega foi concluído
+  e validado na Desktop Alpha 5. A variante de ISO NVIDIA foi cancelada: o
+  produto mantém uma única ISO Desktop.
 
 ## Fora de escopo nesta fase (não implementar)
 
@@ -216,7 +214,7 @@ antiga vibrante azul-safira→violeta):
 
 - [ ] ISO builda via KIWI, base Leap 16, kernel-default, Btrfs+Snapper, zram
 - [ ] Lyra Installer em Rust/Tauri instala com en-US pré-selecionado, oferece
-      en-US/pt-BR/es-ES/zh-CN na 1.0 e sugere o hostname `lyra-os`
+      en-US/pt-BR/es-ES na 1.0 e sugere o hostname `lyra-os`
 - [ ] Root desabilitado; usuário criado tem sudo
 - [ ] Repos habilitados por padrão: OSS/Non-OSS/Updates e Packman Essentials
 - [ ] Repos OBS do Lyra (lyra/vega/fina) configurados e

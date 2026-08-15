@@ -114,8 +114,9 @@ from `config.sh`. The build helper passes the reviewed
 option before package preload; a missing key or fingerprint drift fails the
 local image policy gate instead of disabling signature verification.
 
-The NVIDIA ISO remains a separate optional deliverable. It does not introduce
-an OBS image flavor and cannot block the standard ISO.
+The dedicated NVIDIA ISO was canceled. Lyra ships one Desktop ISO; the
+optional proprietary driver flow runs post-install through Vega with hardware
+detection, confirmation, a Snapper snapshot, validation and rollback.
 
 ## Release evidence
 

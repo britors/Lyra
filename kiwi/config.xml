@@ -39,7 +39,7 @@
     <rpm-excludedocs>true</rpm-excludedocs>
     <rpm-check-signatures>true</rpm-check-signatures>
     <!-- The first locale is the live session default; keep en-US first. -->
-    <locale>en_US,pt_BR,es_ES,zh_CN</locale>
+    <locale>en_US,pt_BR,es_ES</locale>
     <keytable>us</keytable>
     <timezone>UTC</timezone>
   </preferences>
@@ -76,7 +76,7 @@
     <!-- Generated from release-server.toml by scripts/server-release.py;
          own alpha/beta/rc/final cycle, does not share release.toml's
          calendar_version with the desktop profile. -->
-    <version>2026.08-alpha2</version>
+    <version>2026.08-beta1</version>
     <type
       image="iso"
       primary="true"
@@ -84,7 +84,7 @@
       filesystem="squashfs"
       firmware="uefi"
       editbootconfig="edit_boot_config.sh"
-      volid="LYRA_OS_SERVER_2026_08_ALPHA2"
+      volid="LYRA_OS_SERVER_2026_08_BETA1"
       application_id="LyraOSServer"
       publisher="Lyra OS Project">
       <bootloader name="grub2" timeout="10"/>
@@ -432,9 +432,9 @@
     <!-- Firefox: default browser. Confirmed as `MozillaFirefox` in the
          real Leap 16.0 OSS repodata (there is no plain "firefox" RPM).
          Leap does not publish one Firefox RPM per locale: the version-locked
-         translations-common package provides es_ES, pt_BR and zh_CN (among
-         others), while en_US is built into the main package. That covers all
-         four installer locales; translations-other contains none of them and
+         translations-common package provides es_ES and pt_BR (among others),
+         while en_US is built into the main package. That covers all three
+         installer locales; translations-other contains none of them and
          is deliberately omitted. Do not force
          intl.locale.requested in policies.json: Firefox must follow LANG,
          which the installer writes from the selected system locale. -->
@@ -457,7 +457,6 @@
     <package name="libreoffice-l10n-en"/>
     <package name="libreoffice-l10n-pt_BR"/>
     <package name="libreoffice-l10n-es"/>
-    <package name="libreoffice-l10n-zh_CN"/>
 
     <!-- VLC and the complete FFmpeg/GStreamer codec stack. The codec packages
          come from the desktop-only Packman Essentials repository above. -->

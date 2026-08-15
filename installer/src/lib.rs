@@ -117,8 +117,6 @@ impl InstallConfig {
         if !matches!(
             self.locale.as_str(),
             "pt_BR.UTF-8" | "en_US.UTF-8" | "es_ES.UTF-8"
-            // Chinese remains disabled while it is not offered by the UI.
-            // | "zh_CN.UTF-8"
         ) {
             errors.push("validation.unsupportedLocale");
         }
@@ -217,9 +215,9 @@ mod tests {
     }
 
     #[test]
-    fn rejects_the_disabled_chinese_locale() {
+    fn rejects_an_unsupported_locale() {
         let mut config = valid_config();
-        config.locale = "zh_CN.UTF-8".into();
+        config.locale = "de_DE.UTF-8".into();
         let errors = config.validate().unwrap_err();
         assert!(errors.contains(&"validation.unsupportedLocale"));
     }

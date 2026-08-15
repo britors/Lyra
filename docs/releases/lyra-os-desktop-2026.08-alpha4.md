@@ -52,8 +52,7 @@ removidas. Não há retomada automática depois da primeira operação destrutiv
   release;
 - Beam, Sulafat, Aladfar e os componentes restantes entram na segunda onda de
   internacionalização planejada para a Alpha 5;
-- o catálogo `zh-CN` está preservado na fonte, mas a opção permanece
-  desativada nesta imagem até que o fluxo completo seja validado;
+- outros idiomas ficam fora do escopo da versão 1.0;
 - o fluxo NVIDIA G06 ainda não é suportado e permanece fora da ISO padrão;
 - a matriz inicial de hardware físico é limitada e algumas combinações de GPU,
   Wi-Fi, armazenamento ou firmware podem apresentar problemas;

@@ -115,44 +115,6 @@ window.LyraI18n=(()=>{
       placeholders:{'#language-search':'Buscar idiomas…','#keyboard-search':'Buscar idioma, país o variante…','#full-name':'¿Cómo debemos llamarte?','#username':'Sugerido a partir del nombre completo','#password':'Mínimo 8 caracteres','#password-confirm':'Repite la contraseña'},
       attributes:{'.rail|aria-label':'Progreso de la instalación','.brand-logo|alt':'Logotipo de Lyra Installer','.steps|aria-label':'Pasos','.feature-strip|aria-label':'Tecnologías de Lyra OS','.welcome-art img|alt':'Logotipo de Lyra OS y el lema Armonía. Rendimiento. Libertad.','.timezone-map|aria-label':'Selecciona una zona horaria en el mapa','.map-zoom|aria-label':'Controles de zoom','#map-zoom-out|aria-label':'Reducir mapa','#map-zoom-in|aria-label':'Ampliar mapa','#map-zoom-reset|aria-label':'Restablecer zoom','.final-art img|alt':'Paisaje nocturno con la constelación de Lyra y la marca Lyra OS.'},
     },
-    /* Chinese catalog retained for a future release; it is intentionally not
-       registered while the locale is absent from the installer. */
-    /* 'zh-CN':{
-      title:'安装 Lyra OS',back:'← 返回',next:'继续 <span>→</span>',step:'第 {current} 步 / 共 07 步',
-      languageCount:'共有 {count} 种语言',noLanguages:'未找到语言，请尝试其他关键词。',
-      keyboardCount:'共有 {count} 种键盘布局',noKeyboards:'未找到键盘布局，请尝试其他关键词。',
-      keyboardGroup:{language:'语言',europe:'欧洲',latinAmerica:'拉丁美洲',nordic:'北欧',cyrillic:'西里尔字母',middleEast:'中东',asia:'亚洲',special:'特殊',alternative:'替代布局'},
-      diskCount:'检测到 {count} 个磁盘',noDisks:'此会话中未找到磁盘。',detectingDisks:'正在检测磁盘…',
-      waitingInput:'等待填写',waitingSelection:'等待选择',unknownTransport:'未知传输类型',
-      diskNamed:'{transport} 磁盘',diskGeneric:'磁盘 {name}',diskLiveMedia:'这是 Live 安装介质，不能选作目标',diskRaidMember:'已属于 RAID 阵列',diskLvmMember:'已属于活动的 LVM 卷组',diskWillErase:'现有分区和数据将被清除',diskAvailable:'可用于安装',
-      espReuse:'复用 {path} 上的现有 ESP',espCreate:'创建新的 {size} ESP',swapNone:'不使用交换空间或 ZRAM',swapZram:'ZRAM（压缩内存）',swapDisk:'磁盘交换空间 · {size}',planEfi:'EFI 分区',planFilesystem:'文件系统',planMemory:'虚拟内存',planBtrfs:'Btrfs · {count} 个子卷',planErased:'安装过程中将清除的数据：',calculatingPlan:'正在计算安装方案…',summarySwapDisk:'磁盘交换空间（8 GiB）',confirmErase:'我了解 {target} 上的数据将被永久清除。',
-      erasedPartition:'{path}：{filesystem}{mount}（{size}）',unknownFilesystem:'未知文件系统',mountedAt:'，挂载于 {path}',
-      installAuthorizing:'正在授权并开始安装…',installStarted:'正在准备安装…',installing:'正在安装 Lyra OS…',
-      installWarning:'安装程序报告了警告',installFailed:'安装已中断',installCompleted:'安装和清理已完成',installRetry:'重试安装',
-      storageDiscoveryFailed:'无法检查可用磁盘。',planFailed:'无法计算安全的安装方案。',
-      rebootLabel:'重新启动系统 <span aria-hidden="true">↻</span>',rebooting:'正在重新启动…',rebootFailed:'无法重新启动系统',
-      validation:{fullNameRequired:'请输入姓名',invalidUsername:'用户名无效',invalidHostname:'设备名称无效',passwordTooShort:'密码必须至少包含 8 个字符',passwordMismatch:'两次输入的密码不一致',unsupportedLocale:'不支持的语言',unsupportedTimezone:'不支持的时区',unsupportedKeyboard:'不支持的键盘布局'},
-      static:{
-        '.rail-footer':'<span class="status-dot"></span> 安全的 Live 会话',
-        '.step[data-step="0"]':'<span>01</span> 欢迎','.step[data-step="1"]':'<span>02</span> 语言','.step[data-step="2"]':'<span>03</span> 地区','.step[data-step="3"]':'<span>04</span> 键盘','.step[data-step="4"]':'<span>05</span> 账户','.step[data-step="5"]':'<span>06</span> 存储','.step[data-step="6"]':'<span>07</span> 摘要',
-        '[data-page="0"] .kicker':'全新的开始','[data-page="0"] h1':'安装<br><em>Lyra OS。</em>','[data-page="0"] .lead':'和谐、安全且贴合您节奏的桌面体验。',
-        '[data-page="1"] .kicker':'个性化','[data-page="1"] h1':'选择您的<br><em>语言。</em>','[data-page="1"] .lead':'选择系统的初始语言，之后仍可更改。',
-        '[data-page="2"] .kicker':'位置','[data-page="2"] h1':'您在世界上的<br><em>位置。</em>','[data-page="2"] .lead':'地区决定日期、货币、数字格式和建议的时区。',
-        '[data-page="3"] .kicker':'输入','[data-page="3"] h1':'让每个按键<br><em>各就各位。</em>','[data-page="3"] .lead':'选择实体键盘布局，之后可在设置中添加其他布局。',
-        '[data-page="4"] .kicker':'身份','[data-page="4"] h1':'您的空间，<br><em>您的名字。</em>','[data-page="4"] .lead':'创建 Lyra OS 主账户。该账户拥有 sudo 权限，root 保持锁定。',
-        '[data-page="5"] .kicker':'目标位置','[data-page="5"] h1':'Lyra 将安装在<br><em>哪里？</em>','[data-page="5"] .lead':'选择完整磁盘以及虚拟内存的使用方式。',
-        '[data-page="6"] .kicker':'即将完成','[data-page="6"] h1':'准备好<br><em>开始。</em>','[data-page="6"] .lead':'请检查您的选择。开始后，所选目标中的数据将被清除。',
-        '.map-hint':'从列表中选择时区','.timezone-selection span':'已选时区','.region-preview span':'地区预览','.keyboard-note':'<span>⌨</span> 请选择与实体键盘对应的布局。','.storage-option-label':'虚拟内存',
-        '.swap-card:nth-child(1) strong':'不使用交换空间','.swap-card:nth-child(1) small':'不创建交换分区，也不启用 ZRAM','.swap-card:nth-child(2) strong':'磁盘交换空间','.swap-card:nth-child(2) small':'专用 8 GiB 分区','.swap-card:nth-child(3) small':'不占用磁盘空间的压缩内存',
-        '.safe-note':'<span>✓</span> 此步骤仅读取磁盘状态并计算方案，不会执行破坏性操作。',
-        '.summary-list div:nth-child(1) span':'语言','.summary-list div:nth-child(2) span':'设备','.summary-list div:nth-child(3) span':'账户','.summary-list div:nth-child(4) span':'目标位置','.summary-list div:nth-child(5) span':'虚拟内存',
-        '#back':'← 返回','#next':'继续 <span>→</span>','#install':'安装 Lyra OS','#reboot':'重新启动系统 <span aria-hidden="true">↻</span>','#install-confirm-text':'我了解目标位置中的数据将被永久清除。',
-        '#install-status-title':'正在准备安装…',
-      },
-      labels:{'.timezone-picker':'时区','.account-field:nth-child(1)':'姓名','.account-field:nth-child(2)':'用户名','.account-field:nth-child(3)':'设备名称','.account-field:nth-child(4)':'密码','.account-field:nth-child(5)':'确认密码'},
-      placeholders:{'#language-search':'搜索语言…','#keyboard-search':'搜索语言、国家或变体…','#full-name':'我们该如何称呼您？','#username':'根据姓名建议','#password':'至少 8 个字符','#password-confirm':'再次输入密码'},
-      attributes:{'.rail|aria-label':'安装进度','.brand-logo|alt':'Lyra Installer 标志','.steps|aria-label':'安装步骤','.feature-strip|aria-label':'Lyra OS 技术','.welcome-art img|alt':'Lyra OS 标志与口号：和谐、性能、自由。','.timezone-map|aria-label':'在地图上选择时区','.map-zoom|aria-label':'缩放控件','#map-zoom-out|aria-label':'缩小地图','#map-zoom-in|aria-label':'放大地图','#map-zoom-reset|aria-label':'重置缩放','.final-art img|alt':'带有天琴座和 Lyra OS 品牌的夜景。'},
-    }, */
   };
   let current='en-US';
   const interpolate=(value,vars={})=>String(value).replace(/\{(\w+)\}/g,(_,key)=>vars[key]??`{${key}}`);

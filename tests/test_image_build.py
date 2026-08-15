@@ -243,15 +243,14 @@ class ImagePolicyTests(unittest.TestCase):
         self.assertNotIn("MozillaFirefox-translations-other", desktop_packages)
 
         image_config = (ROOT / "kiwi/config.xml").read_text(encoding="utf-8")
-        for locale in ("en_US", "pt_BR", "es_ES", "zh_CN"):
+        for locale in ("en_US", "pt_BR", "es_ES"):
             self.assertIn(locale, image_config)
 
         locales = root.findtext("preferences/locale")
-        self.assertEqual(locales, "en_US,pt_BR,es_ES,zh_CN")
+        self.assertEqual(locales, "en_US,pt_BR,es_ES")
 
         installer_core = (ROOT / "installer/src/lib.rs").read_text(encoding="utf-8")
         self.assertIn('"pt_BR.UTF-8" | "en_US.UTF-8" | "es_ES.UTF-8"', installer_core)
-        self.assertIn('// | "zh_CN.UTF-8"', installer_core)
         deploy = (
             ROOT / "installer/src/service/operations/deploy.rs"
         ).read_text(encoding="utf-8")
@@ -282,7 +281,6 @@ class ImagePolicyTests(unittest.TestCase):
             "libreoffice-l10n-en",
             "libreoffice-l10n-pt_BR",
             "libreoffice-l10n-es",
-            "libreoffice-l10n-zh_CN",
         }
         self.assertTrue(libreoffice.issubset(packages))
 
@@ -512,7 +510,7 @@ class ServerImagePolicyTests(unittest.TestCase):
         self.assertNotIn("home:rodrigosbrito:fina", projects)
         self.assertNotIn("Virtualization:Appliances:Builder", projects)
         self.assertNotIn("rollback", self.manifest.required_test_results)
-        self.assertNotIn("checksum_signature", self.manifest.required_artifacts)
+        self.assertIn("checksum_signature", self.manifest.required_artifacts)
 
     def test_desktop_manifest_still_defaults_to_the_desktop_profile(self) -> None:
         desktop_manifest = image_build.Manifest.load()
