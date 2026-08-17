@@ -34,6 +34,12 @@ class ImagePolicyTests(unittest.TestCase):
         }
         self.assertTrue({"vim", "nano"}.issubset(shared_image_packages))
 
+    def test_zypper_autorefresh_is_throttled_without_disabling_explicit_refresh(self) -> None:
+        config = (
+            ROOT / "kiwi/root/etc/zypp/zypp.conf.d/90-lyra-refresh.conf"
+        ).read_text(encoding="utf-8")
+        self.assertIn("repo.refresh.delay = 60", config)
+
     def test_canonical_sources_pass_repository_and_signature_policy(self) -> None:
         image_build.validate_sources(self.manifest)
 
