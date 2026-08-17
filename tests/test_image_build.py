@@ -495,6 +495,8 @@ class ImagePolicyTests(unittest.TestCase):
         self.assertIn("/proc/cpuinfo", banner)
         self.assertIn("free ", banner)
         self.assertIn("df -h /", banner)
+        self.assertIn("uname -n", banner)
+        self.assertNotIn("$(hostname)", banner)
 
     def test_root_archive_is_deterministic(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
