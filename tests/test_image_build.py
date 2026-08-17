@@ -142,7 +142,7 @@ class ImagePolicyTests(unittest.TestCase):
         assert desktop is not None
         assert server is not None
 
-        for package in ("fish", "nvm-fish"):
+        for package in ("fish", "nvm-fish", "git", "linuxtoys", "lyra-welcome"):
             self.assertIsNotNone(desktop.find(f"package[@name='{package}']"))
             self.assertIsNone(shared.find(f"package[@name='{package}']"))
             self.assertIsNone(server.find(f"package[@name='{package}']"))
@@ -155,6 +155,16 @@ class ImagePolicyTests(unittest.TestCase):
         defaults = ROOT / "kiwi/root/usr/share/fish/vendor_conf.d/lyra-defaults.fish"
         self.assertTrue(prompt.is_file())
         self.assertTrue(defaults.is_file())
+
+        spec = (ROOT / "packaging/linuxtoys/linuxtoys.spec").read_text(
+            encoding="utf-8"
+        )
+        patch = (
+            ROOT / "packaging/linuxtoys/linuxtoys-disable-self-update.patch"
+        ).read_text(encoding="utf-8")
+        self.assertIn("Requires:       git", spec)
+        self.assertIn("upstream self-update bypasses RPM ownership", spec)
+        self.assertIn("LinuxToys is managed by Lyra OS", patch)
 
     def test_beta_two_uses_only_the_rust_installer(self) -> None:
         root = ET.parse(ROOT / "kiwi/config.xml").getroot()
@@ -704,13 +714,55 @@ class ArtifactTests(unittest.TestCase):
             ):
                 image_build.artifact_manifest(manifest, directory, output, tests)
             document = json.loads(output.read_text(encoding="utf-8"))
-            self.assertEqual(set(document["artifacts"]), set(manifest.required_artifacts))
+            self.assertEqual(
+                set(document["artifacts"]),
+                set(image_build.required_artifact_roles(manifest, image_build.RELEASE)),
+            )
+            self.assertNotIn("checksum_signature", document["artifacts"])
             self.assertEqual(document["packages"][0]["license"], "MIT")
             self.assertIn("revision-fina", document["packages"][0]["source"])
             self.assertEqual(
                 set(document["test_results"]), set(manifest.required_test_results)
             )
             self.assertFalse(document["source"]["dirty"])
+
+    def test_alpha_manifest_accepts_checksum_without_detached_signature(self) -> None:
+        manifest = image_build.Manifest.load()
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            self.create_artifacts(directory)
+            (directory / "lyra.iso.sha256.asc").unlink()
+            output = directory / "manifest.json"
+            tests = self.create_test_results(manifest, directory)
+            real_git = image_build.git
+            with mock.patch.object(
+                image_build,
+                "git",
+                side_effect=lambda *args: "" if args[0] == "status" else real_git(*args),
+            ):
+                image_build.artifact_manifest(manifest, directory, output, tests)
+            document = json.loads(output.read_text(encoding="utf-8"))
+            self.assertNotIn("checksum_signature", document["artifacts"])
+
+    def test_beta_manifest_rejects_missing_detached_signature(self) -> None:
+        manifest = image_build.Manifest.load()
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            self.create_artifacts(directory)
+            (directory / "lyra.iso.sha256.asc").unlink()
+            output = directory / "manifest.json"
+            tests = self.create_test_results(manifest, directory)
+            real_release_values = image_build.release_values
+
+            def beta_release(path: Path = image_build.RELEASE) -> dict[str, object]:
+                values = real_release_values(path)
+                return {**values, "stage": "beta", "iteration": 1}
+
+            with mock.patch.object(image_build, "release_values", side_effect=beta_release):
+                with self.assertRaisesRegex(
+                    image_build.PolicyError, "checksum signature.*found 0"
+                ):
+                    image_build.artifact_manifest(manifest, directory, output, tests)
 
     def test_manifest_rejects_missing_or_failed_release_evidence(self) -> None:
         manifest = image_build.Manifest.load()

@@ -4,7 +4,7 @@
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use crate::storage::{INSTALL_PLAN_SCHEMA_VERSION, PlanBuilder, StorageSnapshot};
+use crate::storage::{PlanBuilder, StorageSnapshot, INSTALL_PLAN_SCHEMA_VERSION};
 
 use super::executor::Executor;
 use super::operation::PrivilegedOperation;
@@ -103,9 +103,15 @@ pub fn execute<'a>(
     // the matching `umount`, so this is also what leaves the target cleanly
     // unmounted after a *successful* run, satisfying #40's "sincronizar e
     // desmontar em sucesso ou falha".
-    unwind(&completed, executor, &mut on_event);
+    let cleanup_errors = unwind(&completed, executor, &mut on_event);
 
     if failed {
+        ExecutionOutcome::Failed
+    } else if !cleanup_errors.is_empty() {
+        on_event(ExecutionEvent::Failed {
+            step: "desmontagem e limpeza".to_string(),
+            message: cleanup_errors.join("; "),
+        });
         ExecutionOutcome::Failed
     } else if cancelled {
         ExecutionOutcome::Cancelled
@@ -115,21 +121,25 @@ pub fn execute<'a>(
     }
 }
 
-/// Best-effort: undo failures are surfaced as warnings, not escalated —
-/// there is no further fallback if reversing an already-applied step fails,
-/// and refusing to attempt the rest would leave more behind, not less.
+/// Attempt every undo and return all failures.  The caller escalates cleanup
+/// failure after a successful/cancelled execution, but preserves the original
+/// failure as primary when an operation had already failed.
 fn unwind(
     completed: &[&dyn PrivilegedOperation],
     executor: &dyn Executor,
     on_event: &mut impl FnMut(ExecutionEvent),
-) {
+) -> Vec<String> {
+    let mut errors = Vec::new();
     for operation in completed.iter().rev() {
         if let Err(error) = operation.undo(executor) {
+            let message = format!("falha ao desfazer {}: {error}", operation.describe());
             on_event(ExecutionEvent::Warning {
-                message: format!("falha ao desfazer {}: {error}", operation.describe()),
+                message: message.clone(),
             });
+            errors.push(message);
         }
     }
+    errors
 }
 
 #[cfg(test)]
@@ -138,10 +148,10 @@ mod tests {
     use std::sync::Mutex;
 
     use super::*;
-    use crate::InstallConfig;
     use crate::service::executor::ExecutorError;
     use crate::service::operation::{ArgvCommand, OperationError};
     use crate::storage::{DeviceRole, Disk, GuidedChoice, RawTarget, Transport, VolumeLayer};
+    use crate::InstallConfig;
 
     struct FakeOperation {
         name: &'static str,
@@ -182,19 +192,26 @@ mod tests {
     /// Fails on the Nth call (0-indexed); records every command it was
     /// asked to run, in order, so call/unwind order can be asserted.
     struct FakeExecutor {
-        fail_at: Option<usize>,
+        fail_at: Vec<usize>,
         calls: Mutex<Vec<String>>,
     }
 
     impl FakeExecutor {
         fn new(fail_at: Option<usize>) -> Self {
             Self {
-                fail_at,
+                fail_at: fail_at.into_iter().collect(),
                 calls: Mutex::new(Vec::new()),
             }
         }
         fn calls(&self) -> Vec<String> {
             self.calls.lock().unwrap().clone()
+        }
+
+        fn new_many(fail_at: &[usize]) -> Self {
+            Self {
+                fail_at: fail_at.to_vec(),
+                calls: Mutex::new(Vec::new()),
+            }
         }
     }
 
@@ -203,7 +220,7 @@ mod tests {
             let mut calls = self.calls.lock().unwrap();
             let index = calls.len();
             calls.push(command.args.join(","));
-            if self.fail_at == Some(index) {
+            if self.fail_at.contains(&index) {
                 Err(ExecutorError::NonZeroExit {
                     binary: command.binary.clone(),
                     code: Some(1),
@@ -397,6 +414,93 @@ mod tests {
                 "undo-mount-root"
             ]
         );
+    }
+
+    #[test]
+    fn cleanup_failure_after_success_prevents_completed_and_attempts_every_undo() {
+        let (snapshot, request) = valid_request();
+        let executor = FakeExecutor::new(Some(2)); // first undo fails
+        let cancel = AtomicBool::new(false);
+        let mut events = Vec::new();
+        let ops = fake_ops(&[("mount-root", true), ("mount-home", true)]);
+
+        let outcome = execute(&request, &snapshot, &ops, &executor, &cancel, |event| {
+            events.push(event)
+        });
+
+        assert_eq!(outcome, ExecutionOutcome::Failed);
+        assert_eq!(
+            executor.calls(),
+            vec![
+                "mount-root",
+                "mount-home",
+                "undo-mount-home",
+                "undo-mount-root"
+            ]
+        );
+        assert!(!events.contains(&ExecutionEvent::Completed));
+        assert!(matches!(
+            events.last(),
+            Some(ExecutionEvent::Failed { step, .. }) if step == "desmontagem e limpeza"
+        ));
+    }
+
+    #[test]
+    fn operation_failure_remains_primary_when_cleanup_also_fails() {
+        let (snapshot, request) = valid_request();
+        // c fails, undo-b fails, and undo-a must still be attempted.
+        let executor = FakeExecutor::new_many(&[2, 3]);
+        let cancel = AtomicBool::new(false);
+        let mut events = Vec::new();
+        let ops = fake_ops(&[("a", true), ("b", true), ("c", true)]);
+
+        let outcome = execute(&request, &snapshot, &ops, &executor, &cancel, |event| {
+            events.push(event)
+        });
+
+        assert_eq!(outcome, ExecutionOutcome::Failed);
+        assert_eq!(executor.calls(), vec!["a", "b", "c", "undo-b", "undo-a"]);
+        let failures: Vec<_> = events
+            .iter()
+            .filter_map(|event| match event {
+                ExecutionEvent::Failed { step, message } => Some((step, message)),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            failures.len(),
+            1,
+            "cleanup must not replace the primary failure"
+        );
+        assert_eq!(failures[0].0, "c");
+        assert!(events.iter().any(
+            |event| matches!(event, ExecutionEvent::Warning { message } if message.contains("falha ao desfazer b"))
+        ));
+    }
+
+    #[test]
+    fn cleanup_failure_after_cancellation_is_a_failed_outcome() {
+        let (snapshot, request) = valid_request();
+        let executor = FakeExecutor::new(Some(1)); // undo of the completed operation fails
+        let cancel = AtomicBool::new(false);
+        let mut events = Vec::new();
+        let ops = fake_ops(&[("mount-root", true), ("never-runs", true)]);
+
+        // Request cancellation while the first operation is running. It is
+        // observed at the next checkpoint, after that operation completed.
+        let outcome = execute(&request, &snapshot, &ops, &executor, &cancel, |event| {
+            if matches!(event, ExecutionEvent::Step { .. }) {
+                cancel.store(true, Ordering::SeqCst);
+            }
+            events.push(event)
+        });
+
+        assert_eq!(outcome, ExecutionOutcome::Failed);
+        assert_eq!(executor.calls(), vec!["mount-root", "undo-mount-root"]);
+        assert!(matches!(
+            events.last(),
+            Some(ExecutionEvent::Failed { step, .. }) if step == "desmontagem e limpeza"
+        ));
     }
 
     #[test]

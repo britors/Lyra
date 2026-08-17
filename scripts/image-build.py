@@ -199,6 +199,22 @@ def version_id(release_file: Path = RELEASE) -> str:
     return f'{release["calendar_version"]}-{release["stage"]}{release["iteration"]}'
 
 
+def required_artifact_roles(manifest: Manifest, release_file: Path) -> tuple[str, ...]:
+    """Return the artifact policy that applies to the release stage.
+
+    The profile manifest is shared by every stage.  Alpha releases deliberately
+    publish a checksum without a detached release signature (ADR 0005), while
+    Beta, RC and final candidates must carry one.  Keep the stage decision here
+    so source validation and final evidence cannot disagree about the bundle.
+    """
+    roles = tuple(
+        role for role in manifest.required_artifacts if role != "checksum_signature"
+    )
+    if release_values(release_file)["stage"] != "alpha":
+        return (*roles, "checksum_signature")
+    return roles
+
+
 def canonical_xml() -> ET.ElementTree:
     parser = ET.XMLParser(target=ET.TreeBuilder(insert_comments=True))
     return ET.parse(KIWI / "config.xml", parser=parser)
@@ -659,9 +675,10 @@ def artifact_manifest(
         "cyclonedx_sbom": ("*.cdx.json", "CycloneDX SBOM"),
         "spdx_sbom": ("*.spdx.json", "SPDX SBOM"),
     }
+    required_roles = required_artifact_roles(manifest, release_file)
     roles = {
         role: one(directory, *artifact_patterns[role])
-        for role in manifest.required_artifacts
+        for role in required_roles
     }
     package_rows = [line.split("|") for line in roles["packages"].read_text(encoding="utf-8").splitlines() if line]
     if any(len(row) != 7 for row in package_rows):

@@ -432,6 +432,15 @@
          the native, versioned nvm.fish integration in repo-lyra so Node
          versions remain per-user without a first-login plugin download. -->
     <package name="nvm-fish"/>
+    <!-- Required by nvm-fish and LinuxToys. Keep it explicit so a minimal
+         solver result cannot leave the default shell integration broken. -->
+    <package name="git"/>
+    <!-- Packaged by Lyra from a fixed upstream release. Its curl-pipe-shell
+         self-updater is disabled downstream; RPM/Zypper owns updates. -->
+    <package name="linuxtoys"/>
+    <!-- Shown once per installed user through its guarded XDG autostart.
+         The launcher explicitly skips the liveuser installation session. -->
+    <package name="lyra-welcome"/>
     <package name="gnome-calculator"/>
     <package name="gnome-characters"/>
     <package name="gnome-disk-utility"/>

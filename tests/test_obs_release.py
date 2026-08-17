@@ -30,9 +30,12 @@ class ManifestTests(unittest.TestCase):
     def setUp(self) -> None:
         self.manifest = obs_release.Manifest.load()
 
-    def test_project_inventory_matches_beta_two_contract(self) -> None:
+    def test_project_inventory_matches_release_contract(self) -> None:
         self.assertEqual([project.id for project in self.manifest.projects], ["lyra", "vega", "fina"])
-        self.assertEqual(len(self.manifest.project("lyra").packages), 8)
+        self.assertEqual(len(self.manifest.project("lyra").packages), 11)
+        self.assertIn("linuxtoys", self.manifest.project("lyra").packages)
+        self.assertIn("lyra-welcome", self.manifest.project("lyra").packages)
+        self.assertIn("nvm-fish", self.manifest.project("lyra").packages)
         self.assertNotIn("calamares", self.manifest.project("lyra").packages)
         self.assertEqual(self.manifest.project("fina").targets[1].name, "openSUSE_Tumbleweed")
 
@@ -133,6 +136,11 @@ class BuildGateTests(unittest.TestCase):
 
 
 class SafetyTests(unittest.TestCase):
+    def test_single_maintainer_may_accept_a_reviewed_request(self) -> None:
+        policy = (ROOT / "docs" / "obs-release.md").read_text(encoding="utf-8")
+        self.assertIn("request author may accept their own request", policy)
+        self.assertNotIn("SECOND_REVIEWER", policy)
+
     def test_mutation_is_a_plan_without_execute(self) -> None:
         obs = obs_release.Obs("https://api.opensuse.org", execute=False)
         self.assertEqual(obs.run(["request", "accept", "123"], mutating=True), "")

@@ -33,16 +33,27 @@ fi
 
 IMAGE="$(mktemp /tmp/lyra-installer-test-XXXXXX.img)"
 LOOP_DEV=""
+AUDIT_MOUNT="$(mktemp -d /tmp/lyra-installer-audit-XXXXXX)"
+AUDIT_MOUNTED=0
 
 cleanup() {
     set +e
+    if [ "$AUDIT_MOUNTED" -eq 1 ]; then
+        umount "$AUDIT_MOUNT" 2>/dev/null
+    fi
     if [ -n "$LOOP_DEV" ]; then
         umount -R /run/lyra-installer/target 2>/dev/null
         losetup -d "$LOOP_DEV" 2>/dev/null
     fi
     rm -f "$IMAGE"
+    rmdir "$AUDIT_MOUNT" 2>/dev/null
 }
 trap cleanup EXIT
+
+audit_fail() {
+    echo "FALHA NA AUDITORIA: $*" >&2
+    exit 1
+}
 
 echo "==> criando imagem descartável de 21G (sparse) em $IMAGE"
 truncate -s 21G "$IMAGE"
@@ -57,13 +68,19 @@ cargo build --example sample_request
 
 echo "==> gerando e executando a requisição contra $LOOP_DEV"
 REQUEST="$(./target/debug/examples/sample_request "$LOOP_DEV")"
+set +e
 echo "$REQUEST" | ./target/debug/lyra-installer-service
-STATUS=$?
-echo "==> saída do serviço: $STATUS"
+SERVICE_STATUS="${PIPESTATUS[1]}"
+set -e
+echo "==> saída do serviço: $SERVICE_STATUS"
+if [ "$SERVICE_STATUS" -ne 0 ]; then
+    echo "FALHA DO SERVIÇO: lyra-installer-service terminou com status $SERVICE_STATUS" >&2
+    exit "$SERVICE_STATUS"
+fi
 
 echo "==> conferindo que nada ficou montado"
 if findmnt --output TARGET --noheadings | grep -q '^/run/lyra-installer'; then
-    echo "FALHA: /run/lyra-installer ainda tem algo montado"
+    echo "FALHA NA AUDITORIA: /run/lyra-installer ainda tem algo montado" >&2
     findmnt --output TARGET,SOURCE | grep '/run/lyra-installer'
     exit 1
 fi
@@ -72,12 +89,16 @@ echo "==> tabela de partições resultante"
 sgdisk -p "$LOOP_DEV"
 
 echo "==> remontando brevemente para conferir fstab, usuário e initramfs"
-mount -o subvol=/@ "${LOOP_DEV}p2" /mnt
-cat /mnt/etc/fstab
-grep '^lyra:' /mnt/etc/passwd || echo "FALHA: usuário lyra não encontrado"
-grep '^%wheel' /mnt/etc/sudoers.d/10-installer || echo "FALHA: sudoers não escrito"
-ls /mnt/boot/initramfs-*.img 2>/dev/null || echo "FALHA: initramfs não encontrado com nome correto"
-umount /mnt
+mount -o subvol=/@ "${LOOP_DEV}p2" "$AUDIT_MOUNT"
+AUDIT_MOUNTED=1
+cat "$AUDIT_MOUNT/etc/fstab"
+grep -q '^lyra:' "$AUDIT_MOUNT/etc/passwd" \
+    || audit_fail "usuário lyra não encontrado"
+grep -q '^%wheel' "$AUDIT_MOUNT/etc/sudoers.d/10-installer" \
+    || audit_fail "sudoers não escrito"
+compgen -G "$AUDIT_MOUNT/boot/initramfs-*.img" >/dev/null \
+    || audit_fail "initramfs não encontrado com nome correto"
+umount "$AUDIT_MOUNT"
+AUDIT_MOUNTED=0
 
-echo "==> ok: status=$STATUS"
-exit "$STATUS"
+echo "==> ok: serviço e auditoria concluídos"

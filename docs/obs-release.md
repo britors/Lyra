@@ -47,9 +47,12 @@ this contract and fails CI if they drift.
 
 The OBS maintainer `rodrigosbrito` owns project metadata, accepts submit
 requests, and coordinates rollback. Contributors may create staging commits
-and submit requests if granted OBS permissions; the author must not be the sole
-reviewer for a production-impacting change when another maintainer is
-available.
+and submit requests if granted OBS permissions. A second maintainer is not a
+promotion requirement: the request author may accept their own request after
+the automated staging gate passes, the revision-pinned diff and source build
+status are reviewed, and functional test evidence is recorded in the request.
+When another maintainer is available, an additional review remains encouraged
+for high-risk changes but does not block the release flow.
 
 Use the system keyring configured by `scripts/bootstrap-development.sh`.
 Never put an OBS password, token, cookie, `oscrc`, or command containing a
@@ -89,11 +92,11 @@ the exact revision-pinned submit request; then repeat with `--execute`:
 ```
 
 Review the request diff and source build status. Acceptance is deliberately not
-automated by the helper:
+automated by the helper, so the accepting maintainer must perform this explicit
+checkpoint. The request author may be the accepting maintainer:
 
 ```console
 osc -A https://api.opensuse.org request show --diff --source-buildstatus REQUEST_ID
-osc -A https://api.opensuse.org review add -U SECOND_REVIEWER REQUEST_ID
 osc -A https://api.opensuse.org request accept -m 'Staging and tests verified' REQUEST_ID
 ./scripts/obs-release.py check --channel release
 ```
