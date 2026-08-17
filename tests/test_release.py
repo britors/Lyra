@@ -35,12 +35,12 @@ def sample_release(**overrides: object) -> Release:
 
 class ReleaseConventionTests(unittest.TestCase):
     def test_alpha_identifiers(self) -> None:
-        release = sample_release(stage="alpha", iteration=4)
-        self.assertEqual(release.version_id, "2026.08-alpha4")
-        self.assertEqual(release.tag, "v2026.08-alpha4")
-        self.assertEqual(release.iso_filename, "lyra-os.x86_64-2026.08-alpha4.iso")
-        self.assertEqual(release.volume_id, "LYRA_OS_2026_08_ALPHA4")
-        self.assertEqual(release.pretty_name, "Lyra OS Alpha 4 (Odisseia)")
+        release = sample_release(stage="alpha", iteration=5)
+        self.assertEqual(release.version_id, "2026.08-alpha5")
+        self.assertEqual(release.tag, "v2026.08-alpha5")
+        self.assertEqual(release.iso_filename, "lyra-os.x86_64-2026.08-alpha5.iso")
+        self.assertEqual(release.volume_id, "LYRA_OS_2026_08_ALPHA5")
+        self.assertEqual(release.pretty_name, "Lyra OS Alpha 5 (Odisseia)")
 
     def test_beta_identifiers(self) -> None:
         release = sample_release()
@@ -172,6 +172,17 @@ class RepositoryMetadataTests(unittest.TestCase):
         self.assertIn("docs/releases/lyra-os-desktop-$EXPECTED_VERSION.md", builder)
         for suffix in (".iso.sha256", ".cdx.json", ".spdx.json", ".report"):
             self.assertIn(suffix, builder)
+
+    def test_alpha5_build_prepares_the_complete_upload_bundle(self) -> None:
+        builder = (ROOT / "scripts/build-desktop-alpha5.sh").read_text(encoding="utf-8")
+        uploader = (
+            ROOT / "scripts/upload-desktop-alpha5-sourceforge.sh"
+        ).read_text(encoding="utf-8")
+        self.assertIn('EXPECTED_VERSION="2026.08-alpha5"', builder)
+        self.assertIn("--artifacts-only", builder)
+        self.assertIn("release-artifacts.py generate", builder)
+        self.assertIn("desktop/alpha5/", uploader)
+        self.assertNotIn('"$PREFIX.iso.sha256.asc"', uploader)
 
     def test_build_manifest_is_traceable(self) -> None:
         release = Release.from_file()
