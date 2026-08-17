@@ -119,6 +119,32 @@ class ImagePolicyTests(unittest.TestCase):
         self.assertIn("google-carlito-fonts", packages)
         self.assertIn("google-noto-sans-cjk-fonts", packages)
 
+    def test_fish_and_nvm_are_available_only_in_the_desktop_profile(self) -> None:
+        root = ET.parse(ROOT / "kiwi/config.xml").getroot()
+        shared = next(
+            packages
+            for packages in root.findall("packages")
+            if packages.attrib.get("type") == "image" and "profiles" not in packages.attrib
+        )
+        desktop = root.find("packages[@type='image'][@profiles='desktop']")
+        server = root.find("packages[@type='image'][@profiles='server']")
+        assert desktop is not None
+        assert server is not None
+
+        for package in ("fish", "nvm-fish"):
+            self.assertIsNotNone(desktop.find(f"package[@name='{package}']"))
+            self.assertIsNone(shared.find(f"package[@name='{package}']"))
+            self.assertIsNone(server.find(f"package[@name='{package}']"))
+
+        live_user = root.find("users[@profiles='desktop']/user[@name='liveuser']")
+        assert live_user is not None
+        self.assertEqual(live_user.attrib["shell"], "/usr/bin/fish")
+
+        prompt = ROOT / "kiwi/root/usr/share/fish/vendor_functions.d/fish_prompt.fish"
+        defaults = ROOT / "kiwi/root/usr/share/fish/vendor_conf.d/lyra-defaults.fish"
+        self.assertTrue(prompt.is_file())
+        self.assertTrue(defaults.is_file())
+
     def test_beta_two_uses_only_the_rust_installer(self) -> None:
         root = ET.parse(ROOT / "kiwi/config.xml").getroot()
         packages = {node.attrib["name"] for node in root.findall("packages/package")}

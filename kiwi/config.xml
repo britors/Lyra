@@ -112,7 +112,7 @@
       system's user model. The server profile has no graphical session
       and autologs directly into root on the console instead (see above).
     -->
-    <user name="liveuser" password="!" pwdformat="encrypted" home="/home/liveuser" shell="/bin/bash" groups="wheel,video,audio"/>
+    <user name="liveuser" password="!" pwdformat="encrypted" home="/home/liveuser" shell="/usr/bin/fish" groups="wheel,video,audio"/>
   </users>
 
   <!--
@@ -421,6 +421,14 @@
          terminal gsettings schema already names gnome-terminal by default. -->
     <package name="gnome-terminal"/>
     <package name="gnome-console"/>
+    <!-- Fish will be the interactive shell in the next Lyra OS Desktop
+         release. Keep it desktop-only; changing the user account's default
+         shell is handled separately by the installer. -->
+    <package name="fish"/>
+    <!-- The POSIX nvm.sh implementation does not support Fish. Lyra packages
+         the native, versioned nvm.fish integration in repo-lyra so Node
+         versions remain per-user without a first-login plugin download. -->
+    <package name="nvm-fish"/>
     <package name="gnome-calculator"/>
     <package name="gnome-characters"/>
     <package name="gnome-disk-utility"/>

@@ -90,10 +90,6 @@ pub fn deployment_operations(
             username: config.username.clone(),
             password: config.password.clone(),
         }),
-        Box::new(ConfigureUserBashrc {
-            target_root: target_root.clone(),
-            username: config.username.clone(),
-        }),
         Box::new(WriteSudoers {
             target_root: target_root.clone(),
         }),
@@ -510,7 +506,7 @@ impl PrivilegedOperation for WriteHostname {
 
 /// `-R`/`-c`/`-G`/`-s` mirror `users.conf`'s real `defaultGroups` list —
 /// `users`, `lp`, `video`, `network`, `storage`, `wheel`, `audio` — and
-/// `/bin/bash` shell. `users` and `wheel` carry `must_exist` in that config;
+/// `/usr/bin/fish` shell. `users` and `wheel` carry `must_exist` in that config;
 /// the other groups are optional and must be filtered against the extracted
 /// target's `/etc/group`. Leap 16 no longer creates `network` or `storage`,
 /// and passing either blindly to one `useradd -G` makes the entire account
@@ -560,40 +556,6 @@ struct CreateUser {
     password: String,
 }
 
-/// Show the system summary whenever the installed user opens an interactive
-/// Bash session.  `fastfetch` is provided by the Lyra image and this is kept
-/// as a file operation so the installer never needs to invoke a shell in the
-/// target root.
-struct ConfigureUserBashrc {
-    target_root: PathBuf,
-    username: String,
-}
-
-impl PrivilegedOperation for ConfigureUserBashrc {
-    fn describe(&self) -> String {
-        format!("configurar .bashrc de {}", self.username)
-    }
-
-    fn perform(&self, _executor: &dyn Executor) -> Result<(), OperationError> {
-        let path = self
-            .target_root
-            .join("home")
-            .join(&self.username)
-            .join(".bashrc");
-        let current = fs::read_to_string(&path).map_err(io_error)?;
-        if current.lines().any(|line| line.trim() == "fastfetch") {
-            return Ok(());
-        }
-
-        let mut updated = current;
-        if !updated.is_empty() && !updated.ends_with('\n') {
-            updated.push('\n');
-        }
-        updated.push_str("fastfetch\n");
-        fs::write(&path, updated).map_err(io_error)
-    }
-}
-
 impl PrivilegedOperation for CreateUser {
     fn describe(&self) -> String {
         format!("criar usuário {}", self.username)
@@ -612,7 +574,7 @@ impl PrivilegedOperation for CreateUser {
                 "-G".to_string(),
                 supplementary_groups,
                 "-s".to_string(),
-                "/bin/bash".to_string(),
+                "/usr/bin/fish".to_string(),
                 self.username.clone(),
             ],
         })?;
@@ -1729,6 +1691,7 @@ mod tests {
 
         let calls = executor.calls();
         assert!(calls[0].starts_with("useradd -R"));
+        assert!(calls[0].contains("-s /usr/bin/fish lyra"));
         assert!(
             !calls[0].contains("harmonia-2026"),
             "password must never appear in argv"
@@ -1744,26 +1707,6 @@ mod tests {
                 "chpasswd -R {} <stdin: lyra:harmonia-2026\n>",
                 temp.0.display()
             )
-        );
-    }
-
-    #[test]
-    fn configure_user_bashrc_appends_fastfetch_once() {
-        let temp = TempRoot::new("user-bashrc");
-        let home = temp.0.join("home/lyra");
-        fs::create_dir_all(&home).unwrap();
-        fs::write(home.join(".bashrc"), "# Lyra defaults\n").unwrap();
-
-        let op = ConfigureUserBashrc {
-            target_root: temp.0.clone(),
-            username: "lyra".to_string(),
-        };
-        op.perform(&FakeExecutor::new()).unwrap();
-        op.perform(&FakeExecutor::new()).unwrap();
-
-        assert_eq!(
-            fs::read_to_string(home.join(".bashrc")).unwrap(),
-            "# Lyra defaults\nfastfetch\n"
         );
     }
 
