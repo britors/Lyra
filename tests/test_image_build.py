@@ -23,6 +23,17 @@ class ImagePolicyTests(unittest.TestCase):
     def setUp(self) -> None:
         self.manifest = image_build.Manifest.load()
 
+    def test_recovery_editors_are_available_in_every_profile(self) -> None:
+        root = ET.parse(ROOT / "kiwi/config.xml").getroot()
+        shared_image_packages = {
+            package.attrib["name"]
+            for packages in root.findall("packages")
+            if packages.attrib.get("type") == "image"
+            and "profiles" not in packages.attrib
+            for package in packages.findall("package")
+        }
+        self.assertTrue({"vim", "nano"}.issubset(shared_image_packages))
+
     def test_canonical_sources_pass_repository_and_signature_policy(self) -> None:
         image_build.validate_sources(self.manifest)
 
