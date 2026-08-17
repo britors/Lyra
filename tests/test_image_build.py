@@ -34,6 +34,17 @@ class ImagePolicyTests(unittest.TestCase):
         }
         self.assertTrue({"vim", "neovim", "nano"}.issubset(shared_image_packages))
 
+    def test_man_is_available_in_every_profile(self) -> None:
+        root = ET.parse(ROOT / "kiwi/config.xml").getroot()
+        shared_image_packages = {
+            package.attrib["name"]
+            for packages in root.findall("packages")
+            if packages.attrib.get("type") == "image"
+            and "profiles" not in packages.attrib
+            for package in packages.findall("package")
+        }
+        self.assertIn("man", shared_image_packages)
+
     def test_zypper_autorefresh_is_throttled_without_disabling_explicit_refresh(self) -> None:
         config = (
             ROOT / "kiwi/root/etc/zypp/zypp.conf.d/90-lyra-refresh.conf"

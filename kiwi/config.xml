@@ -239,6 +239,9 @@
     <package name="pciutils"/>
     <package name="usbutils"/>
     <package name="less"/>
+    <!-- Command-line documentation is a baseline administration facility on
+         both Desktop and Server; onlyRequired does not guarantee it. -->
+    <package name="man"/>
     <!-- Keep familiar modal and approachable terminal editors in both
          Desktop and Server for recovery and offline administration. -->
     <package name="vim"/>
