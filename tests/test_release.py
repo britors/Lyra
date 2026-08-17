@@ -119,6 +119,9 @@ class RepositoryMetadataTests(unittest.TestCase):
         self.assertIn("sem driver proprietário embutido na ISO padrão", prompt)
         self.assertIn("uma única ISO Desktop", nvidia_iso)
         self.assertIn("proposta cancelada", nvidia_iso)
+        self.assertIn("RPMs G06 efetivos", nvidia_iso)
+        self.assertIn("90-lyra-nvidia-quarantine.conf", nvidia_iso)
+        self.assertIn("suspensão e retomada controladas", nvidia_iso)
 
     def test_desktop_features_and_i18n_freeze_before_beta1(self) -> None:
         versioning = (ROOT / "docs/release-versioning.md").read_text(encoding="utf-8")

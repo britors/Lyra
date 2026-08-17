@@ -18,10 +18,15 @@ artefato, repositório de imagem ou gate de release separado.
 - usar exclusivamente pacotes RPM do repositório oficial NVIDIA para Leap;
 - instalar `nvidia-open-driver-G06-signed-kmp-meta` e
   `nvidia-userspace-meta-G06` em conjunto;
-- rejeitar instalação parcial ou versões desalinhadas;
+- rejeitar instalação parcial ou versões desalinhadas, auditando todos os
+  RPMs G06 efetivos e não apenas os metapacotes;
 - executar `dracut --force`, orientar o reinício e preservar rollback;
 - após o reboot, verificar módulo ativo, `nvidia-smi`, Wayland e conectores
-  DRM antes de declarar sucesso.
+  DRM antes de declarar sucesso;
+- qualificar suspensão por versão e topologia gráfica, bloqueando-a de forma
+  reversível quando houver regressão conhecida;
+- reconciliar a política no início do `vegad`, inclusive após atualizações que
+  não tenham sido iniciadas pela tela NVIDIA.
 
 ## Descobertas preservadas
 
@@ -35,11 +40,26 @@ Logo, atualizar apenas o KMP não é suportado. Kernel, módulo, userspace e
 firmware precisam permanecer compatíveis; uma atualização de kernel sem KMP
 publicado deve ser bloqueada antes da transação.
 
+Em 16/08/2026, o notebook híbrido Acer Nitro AN515-57 reproduziu uma segunda
+classe de falha com a pilha `580.159.03`: durante a suspensão, o módulo NVIDIA
+falhou em `mmuWalkUnmap`/`gpuSanityCheckRegisterAccess`, manteve o GNOME Shell
+preso no kernel e provocou soft lockups. SMART, log NVMe, contadores Btrfs e um
+scrub completo não encontraram erro de armazenamento. Essa combinação fica em
+quarentena de suspensão e hibernação até uma versão posterior passar pelo gate.
+
+A quarentena usa exclusivamente o drop-in gerenciado
+`/etc/systemd/sleep.conf.d/90-lyra-nvidia-quarantine.conf`. O Vega só remove o
+arquivo se o marcador de propriedade estiver presente, e o remove
+automaticamente quando uma versão qualificada substitui a versão afetada.
+
 ## Gate mínimo
 
 - GPU NVIDIA real, incluindo o notebook híbrido disponível;
 - Secure Boot ligado e desligado;
 - instalação, reboot, `nvidia-smi`, Wayland e monitor externo;
+- suspensão e retomada controladas, sem soft lockup, erro NVRM, falha de freeze
+  ou incremento inesperado de desligamentos inseguros;
+- aplicação e remoção automática da quarentena em versões bloqueada/aprovada;
 - atualização conjunta de kernel/driver;
 - falha parcial injetada e rollback para uma baseline inicializável;
 - evidência revisável sem credenciais.
