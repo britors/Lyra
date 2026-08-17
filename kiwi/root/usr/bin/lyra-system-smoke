@@ -45,9 +45,9 @@ SERVER_LIVE_ONLY_PATHS = (
 # scope without an entry criterion for a v2).
 EXPECTED_ROOT_FSTYPE = {"desktop": "btrfs", "server": "ext4"}
 
-# Desktop-only units (gdm, cups) vs the services the server's console
-# installer enables (scripts/server-install.sh): sshd and the two Vega
-# daemons. NetworkManager/firewalld are common to both profiles.
+# Desktop-only units (gdm, cups) vs the persistent services the server's
+# console installer enables. vegad is deliberately absent: it is a static
+# D-Bus-activated unit which exits after its idle timeout.
 EXPECTED_ACTIVE_UNITS = {
     "desktop": (
         "graphical.target",
@@ -60,7 +60,6 @@ EXPECTED_ACTIVE_UNITS = {
         "NetworkManager.service",
         "firewalld.service",
         "sshd.service",
-        "vegad.service",
         "vega-web.service",
     ),
 }
@@ -280,6 +279,41 @@ def validate_first_boot(
             f"unit-{unit}",
             code == 0 and output == "active",
             f"state: {output or 'unknown'}",
+        )
+
+    if profile == "server":
+        code, output = runner(["systemctl", "is-enabled", "vegad.service"])
+        check(
+            "unit-vegad.service",
+            code == 0 and output == "static",
+            f"enablement: {output or 'unknown'} (expected static)",
+        )
+        activation_file = rooted(
+            root, "/usr/share/dbus-1/system-services/org.lyraos.Vega1.service"
+        )
+        check(
+            "vegad-dbus-service-file",
+            activation_file.is_file(),
+            str(activation_file),
+        )
+        code, output = runner(
+            [
+                "busctl",
+                "--system",
+                "call",
+                "org.freedesktop.DBus",
+                "/org/freedesktop/DBus",
+                "org.freedesktop.DBus",
+                "StartServiceByName",
+                "su",
+                "org.lyraos.Vega1",
+                "0",
+            ]
+        )
+        check(
+            "vegad-dbus-activation",
+            code == 0,
+            output or "org.lyraos.Vega1 activation returned no detail",
         )
 
     if profile == "desktop":

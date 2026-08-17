@@ -24,6 +24,7 @@ class SystemSmokeTests(unittest.TestCase):
             "etc/machine-id": "0123456789abcdef0123456789abcdef\n",
             "boot/grub2/grub.cfg": "menuentry 'Lyra OS' {}\n",
             "boot/efi/EFI/BOOT/BOOTX64.EFI": "fixture\n",
+            "usr/share/dbus-1/system-services/org.lyraos.Vega1.service": "[D-BUS Service]\n",
         }
         for relative, content in files.items():
             path = root / relative
@@ -49,6 +50,8 @@ class SystemSmokeTests(unittest.TestCase):
             return 0, " # | Type   | Description\n0 | single | current"
         if arguments[:2] == ["systemctl", "is-active"]:
             return 0, "active"
+        if arguments[:2] == ["systemctl", "is-enabled"]:
+            return 0, "static"
         if arguments[:2] == ["systemctl", "--failed"]:
             return 0, ""
         if arguments[0] == "pgrep":
@@ -57,6 +60,8 @@ class SystemSmokeTests(unittest.TestCase):
             return 0, ""
         if arguments[0] == "mokutil":
             return 0, "SecureBoot enabled"
+        if arguments[0] == "busctl":
+            return 0, "u 1"
         return 1, "unavailable in fixture"
 
     def test_clean_installed_system_produces_first_boot_evidence(self) -> None:
@@ -154,6 +159,7 @@ class SystemSmokeTests(unittest.TestCase):
             self.assertEqual(report["mode"], "first-boot")
             checked_ids = {item["id"] for item in report["checks"]}
             self.assertIn("unit-vegad.service", checked_ids)
+            self.assertIn("vegad-dbus-activation", checked_ids)
             self.assertIn("unit-sshd.service", checked_ids)
             self.assertNotIn("snapper-root", checked_ids)
             self.assertNotIn("gnome-shell", checked_ids)
