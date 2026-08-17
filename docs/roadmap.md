@@ -1,5 +1,12 @@
 # Roadmap do Lyra OS
 
+## Lyra Enterprise Linux
+
+Fica registrada a decisão de criar futuramente o **Lyra Enterprise Linux**
+nas edições **Desktop** e **Server**, ambas baseadas no **SUSE Linux
+Enterprise**. Esta decisão não altera o escopo nem a base dos ciclos atuais do
+Lyra OS; planejamento, versões e cronograma serão definidos separadamente.
+
 ## Lyra OS Desktop Alpha 4 a Alpha 8
 
 A Alpha 4 foi publicada em 14/08/2026 como snapshot antecipado da
