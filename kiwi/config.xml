@@ -466,6 +466,15 @@
     <package name="MozillaFirefox"/>
     <package name="MozillaFirefox-translations-common"/>
 
+    <!-- Thunderbird ESR from the official Leap 16 Backports repository.
+         Like Firefox, its en_US strings are built into the main package;
+         translations-common contains both es_ES and pt_BR. Thunderbird then
+         follows the LANG written by the installer, so no application-specific
+         locale preference is forced. translations-other is unnecessary for
+         the three locales supported by this release. -->
+    <package name="MozillaThunderbird"/>
+    <package name="MozillaThunderbird-translations-common"/>
+
     <!-- LibreOffice: the framework does not require its application modules,
          and onlyRequired drops recommended locale packs. Keep the desktop
          modules, GNOME integration and every installer-supported locale

@@ -295,7 +295,7 @@ class ImagePolicyTests(unittest.TestCase):
         self.assertIn("upower", desktop_packages)
         self.assertNotIn("upower", server_packages)
 
-    def test_firefox_translations_follow_installed_system_locale(self) -> None:
+    def test_mozilla_apps_follow_installed_system_locale(self) -> None:
         root = ET.parse(ROOT / "kiwi/config.xml").getroot()
         desktop_packages = {
             node.attrib["name"]
@@ -305,6 +305,9 @@ class ImagePolicyTests(unittest.TestCase):
         self.assertIn("MozillaFirefox", desktop_packages)
         self.assertIn("MozillaFirefox-translations-common", desktop_packages)
         self.assertNotIn("MozillaFirefox-translations-other", desktop_packages)
+        self.assertIn("MozillaThunderbird", desktop_packages)
+        self.assertIn("MozillaThunderbird-translations-common", desktop_packages)
+        self.assertNotIn("MozillaThunderbird-translations-other", desktop_packages)
 
         image_config = (ROOT / "kiwi/config.xml").read_text(encoding="utf-8")
         for locale in ("en_US", "pt_BR", "es_ES"):
