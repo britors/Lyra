@@ -14,6 +14,25 @@ manutenção. Evite trocar tecnologias ou ampliar funcionalidades apenas por
 novidade quando isso aumentar a superfície de falhas, a carga operacional ou
 o risco de regressão sem um benefício claro para o usuário.
 
+## Lapidação sobre o openSUSE
+
+O openSUSE é a fundação técnica do Lyra, não um detalhe a ser ocultado ou
+substituído. Reaproveite seus componentes, empacotamento, mecanismos de
+segurança, atualização e recuperação sempre que forem adequados. Evite criar
+alternativas exclusivas do Lyra para problemas que a base já resolve bem.
+
+O diferencial do Lyra é lapidar essa base como um produto coerente: integrar
+hardware, drivers, energia, aplicativos, atualizações e rollback; identificar
+combinações problemáticas; transformar incidentes reais em políticas e testes;
+e remover a necessidade de intervenção técnica recorrente. A experiência de
+uso confiável de distribuições como o TUXEDO OS é uma referência de qualidade
+de integração, sem implicar copiar sua arquitetura ou ampliar o escopo do Lyra.
+
+Ao avaliar uma mudança, prefira primeiro corrigir a integração, a configuração,
+o empacotamento ou a qualificação da base existente. Introduza tecnologia nova
+somente quando houver uma lacuna demonstrável e benefício suficiente para
+compensar o custo de manutenção e o risco de regressão.
+
 ## Limite de escopo do ciclo de release
 
 Ideias, mudanças de produto e novas funcionalidades podem ser propostas e
