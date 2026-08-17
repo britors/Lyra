@@ -32,7 +32,7 @@ class ImagePolicyTests(unittest.TestCase):
             and "profiles" not in packages.attrib
             for package in packages.findall("package")
         }
-        self.assertTrue({"vim", "nano"}.issubset(shared_image_packages))
+        self.assertTrue({"vim", "neovim", "nano"}.issubset(shared_image_packages))
 
     def test_zypper_autorefresh_is_throttled_without_disabling_explicit_refresh(self) -> None:
         config = (

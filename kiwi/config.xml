@@ -239,9 +239,10 @@
     <package name="pciutils"/>
     <package name="usbutils"/>
     <package name="less"/>
-    <!-- Keep one familiar modal editor and one approachable terminal editor
-         in both Desktop and Server for recovery and offline administration. -->
+    <!-- Keep familiar modal and approachable terminal editors in both
+         Desktop and Server for recovery and offline administration. -->
     <package name="vim"/>
+    <package name="neovim"/>
     <package name="nano"/>
 
     <!-- Opt-in local performance capture and aggregation (issue #49). -->
