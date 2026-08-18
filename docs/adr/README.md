@@ -1,6 +1,6 @@
-# Registros de decisão do Lyra Installer
+# Registros de decisão do Lyra OS
 
-Os ADRs deste diretório registram decisões aceitas do instalador. Uma decisão
+Os ADRs deste diretório registram decisões aceitas dos componentes do Lyra. Uma decisão
 nova não apaga a anterior: cria outro ADR que a substitui e aponta para ela.
 
 | ADR | Decisão | Estado |
@@ -11,6 +11,8 @@ nova não apaga a anterior: cria outro ADR que a substitui e aponta para ela.
 | [0004](0004-rust-installer-only-in-beta-2.md) | Instalador Rust como único caminho da Beta 2 | Aceita |
 | [0005](0005-guided-swap-policy-and-plan-v2.md) | Política guiada de swap e plano versão 2 | Aceita |
 | [0006](0006-btrfs-mount-policy-and-plan-v3.md) | Política Btrfs global e NOCOW granular, plano versão 3 | Aceita |
+| [0007](0007-lyra-upgrade-trust-boundaries.md) | Fronteiras, protocolo e persistência do Lyra Upgrade | Aceita |
+| [0008](0008-private-age-signal-and-parental-supervision.md) | Sinal etário privado e supervisão parental | Proposta — bloqueada pela #106 |
 
 Mudanças incompatíveis no formato do plano precisam incrementar
 `INSTALL_PLAN_SCHEMA_VERSION`, atualizar o ADR 0002 por meio de um novo ADR e
