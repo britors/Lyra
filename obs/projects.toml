@@ -56,6 +56,9 @@ packages = [
   "sheliak",
   "sulafat",
 ]
+# Pacotes legados presentes no projeto, mas fora da imagem e do contrato de
+# promoção da Alpha 6. A remoção exige uma limpeza separada e explícita.
+legacy_packages = ["calco", "prosa"]
 
 [[projects.targets]]
 name = "openSUSE_Leap_16.0"

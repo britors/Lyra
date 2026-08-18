@@ -1,7 +1,7 @@
-# Desktop Alpha 3 release gate
+# Desktop Alpha 6 release gate
 
 This checklist is the versioned go/no-go contract for the standard Lyra OS
-Desktop Alpha 3 ISO. A release coordinator may declare **GO** only when every blocking
+Desktop Alpha 6 ISO. A release coordinator may declare **GO** only when every blocking
 item below has passed and its evidence is included in the final image evidence
 manifest. Missing evidence is a failure, not an implicit exception.
 
@@ -51,7 +51,7 @@ content and hardware coverage; a bare green status is rejected:
 
 ## Release signing key
 
-Per [ADR 0005](adr/0005-release-signing-starts-at-beta1.md), Desktop Alpha 3
+Per [ADR 0005](adr/0005-release-signing-starts-at-beta1.md), Desktop Alpha 6
 is published with SHA-256 but without a detached GPG signature. The release
 key is created and made mandatory starting with Beta 1. RPM repository and
 package signatures remain mandatory in every stage and are not affected by
@@ -107,16 +107,15 @@ Accepted P2/P3 issues and workarounds:
 Residual risks:
 ```
 
-## Current Desktop Alpha 3 state
+## Current Desktop Alpha 6 state
 
-**NO-GO pending the clean publication candidate and its signed artifacts.**
-Repeated installation with the installer RPM published by OBS passed, including
-first boot, login, user-password `sudo`, network/update, reboot, GRUB and
-Snapper. The installer package build and all OBS release projects are published.
-The remaining release work is to build the clean candidate from the recorded
-commit, generate and sign its artifacts, publish them, and verify the downloaded
-copy. Structured runtime evidence remains part of the formal gate when the
-project performs a fully evidenced release decision.
+**NO-GO enquanto a candidata limpa e as evidências da Alpha 6 não passarem.**
+As validações anteriores do instalador, primeiro boot, rede, GRUB e Snapper
+continuam úteis, mas não substituem a repetição com os RPMs promovidos desta
+versão. O gate atual inclui explicitamente Welcome, áudio e Lyra Upgrade. A
+Alpha 6 permanece sem assinatura GPG destacada da ISO conforme a ADR 0005;
+checksum, assinaturas de RPM/repositório e evidências estruturadas continuam
+obrigatórios.
 
 If a defect is found after publication, hide or remove the affected files on
 SourceForge, record their checksums as withdrawn, stage and review the fix, and

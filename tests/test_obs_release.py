@@ -37,6 +37,9 @@ class ManifestTests(unittest.TestCase):
         self.assertIn("lyra-welcome", self.manifest.project("lyra").packages)
         self.assertIn("nvm-fish", self.manifest.project("lyra").packages)
         self.assertNotIn("calamares", self.manifest.project("lyra").packages)
+        self.assertEqual(
+            self.manifest.project("lyra").legacy_packages, ("calco", "prosa")
+        )
         self.assertEqual(self.manifest.project("fina").targets[1].name, "openSUSE_Tumbleweed")
 
     def test_staging_is_never_an_iso_consumer(self) -> None:
@@ -44,6 +47,15 @@ class ManifestTests(unittest.TestCase):
             metadata = obs_release.render_project_meta(self.manifest, project)
             self.assertIn("Not consumed by Lyra ISO", metadata)
             self.assertNotIn(project.release + "</", metadata)
+
+    def test_legacy_packages_are_expected_only_in_release(self) -> None:
+        project = self.manifest.project("lyra")
+        self.assertIn(
+            "calco", obs_release.expected_source_packages(project, project.release)
+        )
+        self.assertNotIn(
+            "calco", obs_release.expected_source_packages(project, project.staging)
+        )
 
     def test_local_priority_contract_is_current(self) -> None:
         obs_release.check_local_priorities(self.manifest)

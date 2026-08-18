@@ -19,16 +19,17 @@ primeira onda de pacotes em `pt-BR`/`en-US`.
   referência BigLinux, qualificação upstream, UX no Vega, ADR e baseline de
   governança LTS. Os três idiomas e o fluxo NVIDIA pelo Vega já estão
   concluídos e validados.
-- **Alpha 6 (28/08–11/09) — atualização completa e backend:** entrega core,
-  preflight, estado durável, serviço privilegiado, update dentro da release,
-  upgrade controlado entre releases e interface nos três idiomas. Também
-  entrega o serviço autenticado e persistente de políticas parentais. A
-  recuperação pós-boot e o rollback já foram validados antecipadamente. Toda
-  implementação funcional do Lyra Upgrade encerra nesta etapa.
-- **Alpha 7 (11–25/09) — integração parental e compatibilidade:** integra no
-  Vega a configuração parental e a autorização de aplicativos e permanece
-  reservada à trilha de compatibilidade Android e Windows. Não recebe
-  implementação funcional remanescente do Lyra Upgrade.
+- **Alpha 6 (28/08–11/09) — atualização e integração:** entrega o core,
+  preflight, estado durável e serviço privilegiado do Lyra Upgrade para
+  atualizações dentro da mesma release, com interface nos três idiomas,
+  console sanitizado, recuperação e rollback. Integra também as novas telas do
+  Welcome e a pilha ALSA explícita da imagem. O upgrade entre releases segue
+  para a Alpha 7; o serviço parental permanece no marco 1.0, condicionado à
+  revisão jurídica e à qualificação técnica.
+- **Alpha 7 (11–25/09) — upgrade entre releases e compatibilidade:** conclui o
+  fluxo controlado entre releases do Lyra Upgrade e permanece reservada à
+  trilha de compatibilidade Android e Windows. A integração parental só avança
+  quando os gates jurídico e técnico do marco 1.0 estiverem satisfeitos.
 - **Alpha 8 (25/09–13/10) — gate e estabilização:** automatiza update, upgrade,
   reboot, rollback e a matriz do ECA Digital; não recebe feature nova e depois
   corrige somente defeitos até a decisão da Beta 1.

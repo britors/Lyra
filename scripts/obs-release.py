@@ -50,6 +50,7 @@ class Project:
     staging: str
     iso_consumer: bool
     packages: tuple[str, ...]
+    legacy_packages: tuple[str, ...]
     targets: tuple[Target, ...]
 
 
@@ -77,6 +78,7 @@ class Manifest:
                 staging=item["staging"],
                 iso_consumer=item["iso_consumer"],
                 packages=tuple(item["packages"]),
+                legacy_packages=tuple(item.get("legacy_packages", [])),
                 targets=tuple(
                     Target(
                         name=target["name"],
@@ -133,6 +135,13 @@ class Manifest:
                     raise PolicyError(f"project outside the approved OBS namespace: {name}")
             if not project.packages or len(set(project.packages)) != len(project.packages):
                 raise PolicyError(f"{project.id}: package list is empty or duplicated")
+            if len(set(project.legacy_packages)) != len(project.legacy_packages):
+                raise PolicyError(f"{project.id}: legacy package list is duplicated")
+            overlap = set(project.packages) & set(project.legacy_packages)
+            if overlap:
+                raise PolicyError(
+                    f"{project.id}: active and legacy package lists overlap: {sorted(overlap)}"
+                )
             if not project.targets:
                 raise PolicyError(f"{project.id}: at least one target is required")
             if project.iso_consumer and not any(target.iso_consumer for target in project.targets):
@@ -198,6 +207,13 @@ class Obs:
             return ET.fromstring(self.run(["api", path]))
         except ET.ParseError as error:
             raise PolicyError(f"OBS returned invalid XML for {path}: {error}") from error
+
+
+def expected_source_packages(project: Project, remote: str) -> set[str]:
+    expected = set(project.packages)
+    if remote == project.release:
+        expected.update(project.legacy_packages)
+    return expected
 
 
 class HttpDownloader:
@@ -632,8 +648,9 @@ def health_report(
         meta = obs.api_xml(f"/source/{project.release}/_meta")
         check_project_meta(project, project.release, meta)
         source_info = source_information(obs, project.release)
-        missing = sorted(set(project.packages) - set(source_info))
-        extra = sorted(set(source_info) - set(project.packages))
+        expected_sources = expected_source_packages(project, project.release)
+        missing = sorted(expected_sources - set(source_info))
+        extra = sorted(set(source_info) - expected_sources)
         if missing or extra:
             raise PolicyError(
                 f"{project.release}: package inventory mismatch; missing={missing}, extra={extra}"
@@ -721,8 +738,9 @@ def check_remote(obs: Obs, manifest: Manifest, channel: str) -> None:
             meta = obs.api_xml(f"/source/{remote}/_meta")
             check_project_meta(project, remote, meta)
             revisions = source_revisions(obs, remote)
-            missing = sorted(set(project.packages) - set(revisions))
-            extra = sorted(set(revisions) - set(project.packages))
+            expected_sources = expected_source_packages(project, remote)
+            missing = sorted(expected_sources - set(revisions))
+            extra = sorted(set(revisions) - expected_sources)
             if missing or extra:
                 raise PolicyError(f"{remote}: package inventory mismatch; missing={missing}, extra={extra}")
             for target in project.targets:
@@ -799,8 +817,9 @@ def check_remote_project(obs: Obs, project: Project, remote: str) -> None:
     meta = obs.api_xml(f"/source/{remote}/_meta")
     check_project_meta(project, remote, meta)
     revisions = source_revisions(obs, remote)
-    missing = sorted(set(project.packages) - set(revisions))
-    extra = sorted(set(revisions) - set(project.packages))
+    expected_sources = expected_source_packages(project, remote)
+    missing = sorted(expected_sources - set(revisions))
+    extra = sorted(set(revisions) - expected_sources)
     if missing or extra:
         raise PolicyError(f"{remote}: package inventory mismatch; missing={missing}, extra={extra}")
     for target in project.targets:
