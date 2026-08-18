@@ -82,8 +82,8 @@ um estágio fechar mais cedo, a promoção acontece mais cedo.
 | alpha3 | concluída | 11/ago/2026 | Fechar o instalador suportado e sua publicação. |
 | alpha4 | snapshot antecipado | 14/ago/2026 | Publicar i18n base, instalador em três idiomas e primeira onda de pacotes. |
 | alpha5 | 2 semanas | 14/ago/2026 → 28/ago/2026 | Corrigir bloqueadores herdados; fechar i18n, NVIDIA pelo Vega e contratos do Lyra Upgrade. |
-| alpha6 | 2 semanas | 28/ago/2026 → 11/set/2026 | Qualificar i18n/NVIDIA e implementar core, preflight, estado e serviço de update. |
-| alpha7 | 2 semanas | 11/set/2026 → 25/set/2026 | Entregar interface, pós-boot, recuperação e rollback. |
+| alpha6 | 2 semanas | 28/ago/2026 → 11/set/2026 | Concluir core, serviço, interface e fluxos de update/upgrade; entregar backend parental. |
+| alpha7 | 2 semanas | 11/set/2026 → 25/set/2026 | Integrar controles parentais no Vega e executar a trilha de compatibilidade. |
 | alpha8 | 2 semanas e 4 dias | 25/set/2026 → 13/out/2026 | Fechar upgrade e gate até 06/out; estabilizar exclusivamente de 06–13/out. |
 | beta1 | 4 semanas | 13/out/2026 → 10/nov/2026 | **Feature freeze:** somente bugs, regressões, segurança, desempenho e correções de traduções existentes. |
 | beta2 | 4 semanas | 10/nov/2026 → 08/dez/2026 | Estabilidade e atualização; nenhuma feature nova. |
@@ -127,19 +127,20 @@ foi declarado suportado depois da validação no hardware G06 disponível.
 
 ### Desktop Alpha 6 — 28/08 a 11/09
 
+- criar o programa Lyra Upgrade em Rust e estabilizar seu protocolo (#103).
 - implementar o core não privilegiado, preflight, plano reproduzível e estado
   durável do Lyra Upgrade (#86).
 - implementar o serviço privilegiado e a atualização segura dentro da mesma
   release (#83), com testes de falha antes da integração.
+- implementar o upgrade entre releases com manifesto assinado, simulação
+  reproduzível e aplicação offline (#82).
+- criar a interface acessível e os três catálogos do Lyra Upgrade, incluindo
+  retomada da UI e apresentação de falhas (#88).
 - implementar o serviço autenticado, versionado e persistente de políticas de
   controle parental (#114), independente do processo gráfico do Vega.
 
 ### Desktop Alpha 7 — 11/09 a 25/09
 
-- criar a interface acessível e os três catálogos do Lyra Upgrade,
-  incluindo retomada da UI e apresentação de falhas (#88).
-- implementar o upgrade entre releases com manifesto assinado, simulação
-  reproduzível e aplicação offline (#82).
 - integrar no Vega a configuração parental e a autorização de aplicativos
   sobre o backend já qualificado (#109).
 - concluído antecipadamente: verificação pós-boot, recuperação e rollback

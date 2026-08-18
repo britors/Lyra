@@ -47,6 +47,7 @@ packages = [
   "beam",
   "chord",
   "lyra-installer",
+  "lyra-upgrade",
   "linuxtoys",
   "lyra-welcome",
   "lyra-theme",

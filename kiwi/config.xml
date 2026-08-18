@@ -560,6 +560,11 @@
     -->
     <package name="lyra-installer"/>
 
+    <!-- Snapshot, atualização normal e migração offline entre releases.
+         O serviço privilegiado reaproveita zypper, Snapper, dracut e GRUB;
+         a interface nunca recebe privilégios amplos. -->
+    <package name="lyra-upgrade"/>
+
     <!--
       Branding (Lyra-Theme, github.com/britors/Lyra-Theme). Package
       names, dependency, and behavior confirmed against that repo's real
