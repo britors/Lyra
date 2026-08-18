@@ -9,6 +9,8 @@
 #   ./build-and-run-vm.sh                 rebuild, then boot live with a fresh install disk
 #   ./build-and-run-vm.sh --build-only    rebuild and validate the ISO without touching the VM
 #   ./build-and-run-vm.sh --skip-build    boot the existing ISO with a fresh install disk
+#   ./build-and-run-vm.sh --boot-installed
+#                                        boot the installed disk without attaching an ISO
 #   ./build-and-run-vm.sh --fresh-disk    accepted for compatibility; fresh is always enforced
 #   ./build-and-run-vm.sh --published-installer
 #                                        use the installer RPM from OBS instead of local sources
@@ -58,6 +60,7 @@ SMP="${LYRA_VM_CPUS:-4}"
 
 SKIP_BUILD=0
 BUILD_ONLY=0
+BOOT_INSTALLED=0
 SECURE_BOOT=0
 USE_LOCAL_INSTALLER=1
 PROFILE=desktop
@@ -71,6 +74,9 @@ Sem opções, valida e constrói a ISO, cria uma VM descartável nova e a inicia
 Opções:
   --build-only   constrói e valida a ISO sem encerrar ou alterar a VM existente
   --skip-build    reutiliza a ISO já construída
+  --boot-installed
+                  inicia o disco já instalado sem anexar ISO e sem recriar
+                  disco ou estado UEFI
   --fresh-disk    compatibilidade; disco/NVRAM novos são sempre obrigatórios
   --published-installer
                   usa somente o RPM publicado no OBS (obrigatório para release;
@@ -106,6 +112,7 @@ while [ "$#" -gt 0 ]; do
   case "$1" in
     --build-only) BUILD_ONLY=1; shift ;;
     --skip-build) SKIP_BUILD=1; shift ;;
+    --boot-installed) BOOT_INSTALLED=1; shift ;;
     --fresh-disk) shift ;;
     --published-installer) USE_LOCAL_INSTALLER=0; shift ;;
     --secure-boot) SECURE_BOOT=1; shift ;;
@@ -158,6 +165,11 @@ LOG="$WORK_DIR/lyra-os-test.log"
 
 if [ "$BUILD_ONLY" -eq 1 ] && [ "$SKIP_BUILD" -eq 1 ]; then
   echo "--build-only cannot be combined with --skip-build" >&2
+  exit 1
+fi
+if [ "$BOOT_INSTALLED" -eq 1 ] &&
+   { [ "$BUILD_ONLY" -eq 1 ] || [ "$SKIP_BUILD" -eq 1 ]; }; then
+  echo "--boot-installed cannot be combined with --build-only or --skip-build" >&2
   exit 1
 fi
 if [ "$BUILD_ONLY" -eq 1 ] && [ "$SECURE_BOOT" -eq 1 ]; then
@@ -256,8 +268,79 @@ else
   MACHINE="q35,accel=kvm"
 fi
 
+if [ "$BOOT_INSTALLED" -eq 1 ]; then
+  if ! command -v qemu-system-x86_64 >/dev/null 2>&1; then
+    echo "required command not found: qemu-system-x86_64" >&2
+    exit 1
+  fi
+  if [ ! -r "$OVMF_CODE" ]; then
+    echo "OVMF firmware code is missing or unreadable: $OVMF_CODE" >&2
+    exit 1
+  fi
+  if [ ! -f "$DISK_IMG" ] || [ ! -r "$DISK_IMG" ] || [ -L "$DISK_IMG" ]; then
+    echo "installed VM disk is missing, unreadable, or a symbolic link:" >&2
+    echo "  $DISK_IMG" >&2
+    echo "Run a normal installation before using --boot-installed." >&2
+    exit 1
+  fi
+  if [ ! -f "$OVMF_VARS" ] || [ ! -r "$OVMF_VARS" ] || [ -L "$OVMF_VARS" ]; then
+    echo "installed VM UEFI state is missing, unreadable, or a symbolic link:" >&2
+    echo "  $OVMF_VARS" >&2
+    echo "Use the same Secure Boot mode used during installation." >&2
+    exit 1
+  fi
+  if [ ! -r /dev/kvm ] || [ ! -w /dev/kvm ]; then
+    echo "KVM is unavailable to the current user (/dev/kvm is not readable/writable)." >&2
+    exit 1
+  fi
+  if [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ]; then
+    echo "No graphical display found (DISPLAY and WAYLAND_DISPLAY are unset)." >&2
+    exit 1
+  fi
+
+  mkdir -p "$VM_DIR"
+  stop_previous_vm
+  rm -f "$VM_PID_FILE"
+
+  INSTALLED_NETDEV_ARGS="user,id=net0"
+  if [ "$PROFILE" = server ]; then
+    INSTALLED_NETDEV_ARGS="user,id=net0,hostfwd=tcp::2222-:22,hostfwd=tcp::9090-:9090"
+  fi
+  INSTALLED_QEMU_ARGS=(
+    -name lyra-os-test
+    -pidfile "$VM_PID_FILE"
+    -machine "$MACHINE"
+    -cpu host
+    -smp "$SMP"
+    -m "$RAM_MB"
+    -drive if=pflash,format=raw,readonly=on,file="$OVMF_CODE"
+    -drive if=pflash,format=raw,file="$OVMF_VARS"
+    -drive if=virtio,format=qcow2,file="$DISK_IMG"
+    -device virtio-net-pci,netdev=net0
+    -netdev "$INSTALLED_NETDEV_ARGS"
+    -vga virtio
+    -display gtk
+    -boot order=c,menu=on
+  )
+  if [ "$SECURE_BOOT" -eq 1 ]; then
+    INSTALLED_QEMU_ARGS+=(-global driver=cfi.pflash01,property=secure,value=on)
+  fi
+
+  echo "--- booting installed disk without attaching an ISO ---"
+  echo "--- preserving VM disk and UEFI state ---"
+  echo "--- launching: qemu-system-x86_64 ${INSTALLED_QEMU_ARGS[*]} ---"
+  if qemu-system-x86_64 "${INSTALLED_QEMU_ARGS[@]}"; then
+    INSTALLED_QEMU_STATUS=0
+  else
+    INSTALLED_QEMU_STATUS=$?
+  fi
+  rm -f "$VM_PID_FILE"
+  echo "=== qemu exited with status $INSTALLED_QEMU_STATUS ==="
+  exit "$INSTALLED_QEMU_STATUS"
+fi
+
 if [ "$SKIP_BUILD" -eq 0 ]; then
-  for command in kiwi-ng lsinitrd sudo xorriso unsquashfs; do
+  for command in kiwi-ng ldconfig ldd lsinitrd strings sudo xorriso unsquashfs; do
     if ! command -v "$command" >/dev/null 2>&1; then
       echo "required build command not found: $command" >&2
       exit 1
@@ -276,6 +359,71 @@ if [ "$SKIP_BUILD" -eq 0 ]; then
     exit 1
   fi
 fi
+
+# KIWI's package bootstrap runs privileged scriptlets in a chroot.  A real
+# Alpha 6 build temporarily left the host loader cache pointing at the image
+# root: desktop processes then failed to resolve libz.so.1 and localsearch
+# spawned a failing extractor every second until the session became
+# unresponsive.  Keep this guard in the supported helper instead of relying
+# on every caller to remember a post-build ldconfig.
+LOADER_GUARD_PID=""
+LOADER_GUARD_PARENT_PID=""
+LOADER_SENTINEL=/usr/bin/zypper
+
+host_loader_is_healthy() {
+  ldd "$LOADER_SENTINEL" 2>&1 | grep -F 'libz.so.1 =>' >/dev/null &&
+    ! ldd "$LOADER_SENTINEL" 2>&1 | grep -F 'not found' >/dev/null
+}
+
+repair_host_loader_cache() {
+  if host_loader_is_healthy; then
+    return 0
+  fi
+  echo "!!! host loader cache became inconsistent; regenerating it with ldconfig"
+  sudo -n ldconfig
+  if ! host_loader_is_healthy; then
+    echo "!!! host loader cache is still inconsistent after ldconfig" >&2
+    return 1
+  fi
+  echo "--- host loader cache recovered ---"
+}
+
+stop_loader_guard() {
+  if [ -n "$LOADER_GUARD_PID" ]; then
+    kill "$LOADER_GUARD_PID" 2>/dev/null || true
+    wait "$LOADER_GUARD_PID" 2>/dev/null || true
+    LOADER_GUARD_PID=""
+  fi
+  repair_host_loader_cache
+}
+
+start_loader_guard() {
+  # Acquire credentials in the foreground so recovery never blocks on an
+  # invisible password prompt in the background watcher.
+  sudo -v
+  repair_host_loader_cache
+  LOADER_GUARD_PARENT_PID="$BASHPID"
+  (
+    refresh_count=0
+    while sleep 2; do
+      refresh_count=$((refresh_count + 1))
+      if [ "$refresh_count" -ge 30 ]; then
+        if ! sudo -n -v; then
+          echo "!!! loader guard could not renew its sudo credential; aborting build" >&2
+          kill -TERM "$LOADER_GUARD_PARENT_PID"
+          exit 1
+        fi
+        refresh_count=0
+      fi
+      if ! repair_host_loader_cache; then
+        echo "!!! loader guard could not recover the host; aborting build" >&2
+        kill -TERM "$LOADER_GUARD_PARENT_PID"
+        exit 1
+      fi
+    done
+  ) &
+  LOADER_GUARD_PID=$!
+}
 
 ISO_PATH=""
 
@@ -363,6 +511,9 @@ if [ "$SKIP_BUILD" -eq 0 ]; then
   fi
 
   echo "--- building ISO with kiwi-ng (profile=$PROFILE, will prompt for sudo password) ---"
+  start_loader_guard
+  trap 'stop_loader_guard' EXIT
+  trap 'stop_loader_guard; exit 130' INT TERM
   if sudo kiwi-ng \
       --setenv="LYRA_BUILD_SOURCE_COMMIT=$BUILD_SOURCE_COMMIT" \
       --setenv="LYRA_BUILD_SOURCE_DIRTY=$BUILD_SOURCE_DIRTY" \
@@ -376,9 +527,13 @@ if [ "$SKIP_BUILD" -eq 0 ]; then
     BUILD_STATUS=0
   else
     BUILD_STATUS=$?
+    stop_loader_guard
+    trap - EXIT INT TERM
     echo "!!! kiwi-ng build failed with exit code $BUILD_STATUS, see log above"
     exit "$BUILD_STATUS"
   fi
+  stop_loader_guard
+  trap - EXIT INT TERM
 
   IMAGE_MTAB="$BUILD_DIR/build/image-root/etc/mtab"
   if [ ! -L "$IMAGE_MTAB" ] || [ "$(readlink "$IMAGE_MTAB")" != "../proc/self/mounts" ]; then
@@ -458,6 +613,20 @@ if [ "$SKIP_BUILD" -eq 0 ]; then
         exit 1
       fi
     done
+    # Validate the actual packaged service, not merely the local source tree.
+    # Alpha 6 once embedded a green but stale OBS RPM from before the Fish
+    # migration; installations succeeded and silently created Bash users.
+    if ! strings "$IMAGE_INSTALLER_SERVICE" | grep -F '/usr/bin/fish' >/dev/null ||
+       strings "$IMAGE_INSTALLER_SERVICE" | grep -F '.bashrc' >/dev/null; then
+      echo "!!! packaged Lyra Installer does not enforce the desktop Fish policy" >&2
+      echo "!!! refusing an ISO with a stale or incompatible installer RPM" >&2
+      if [ -f "$BUILD_DIR/build/image-root/usr/share/lyra-installer/build-source.txt" ]; then
+        echo "!!! packaged installer source identity:" >&2
+        sed 's/^/  /' \
+          "$BUILD_DIR/build/image-root/usr/share/lyra-installer/build-source.txt" >&2
+      fi
+      exit 1
+    fi
     if [ "$USE_LOCAL_INSTALLER" -eq 1 ]; then
       IMAGE_INSTALLER_GUI_SHA256="$(sha256sum "$IMAGE_INSTALLER_GUI" | awk '{print $1}')"
       IMAGE_INSTALLER_SERVICE_SHA256="$(sha256sum "$IMAGE_INSTALLER_SERVICE" | awk '{print $1}')"

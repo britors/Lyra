@@ -137,7 +137,9 @@ install_system_packages() {
         clang clang-tools gdb lldb valgrind strace ccache
         python3 python3-devel python313-pip python313-virtualenv
         nodejs24 npm24 go
-        rpm-build rpmdevtools rpmlint spec-cleaner osc
+        # `osc build` delegates the local RPM build to /usr/bin/build, which
+        # is provided by the openSUSE `build` package (not by osc itself).
+        build rpm-build rpmdevtools rpmlint spec-cleaner osc
         rust cargo cargo-packaging
         gtk4-devel libadwaita-devel vte-devel
         webkit2gtk4-devel libsoup-devel
@@ -312,7 +314,7 @@ verify_commands() {
 
     local -a required_commands=(
         cc c++ make cmake ninja meson
-        git git-lfs gh osc
+        git git-lfs gh osc build
         rustc cargo go node npm
         rpmbuild rpmlint shellcheck
     )

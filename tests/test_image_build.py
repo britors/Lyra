@@ -156,6 +156,16 @@ class ImagePolicyTests(unittest.TestCase):
         self.assertTrue(prompt.is_file())
         self.assertTrue(defaults.is_file())
 
+        deploy = (
+            ROOT / "installer/src/service/operations/deploy.rs"
+        ).read_text(encoding="utf-8")
+        self.assertIn(
+            'const DEFAULT_DESKTOP_SHELL: &str = "/usr/bin/fish";', deploy
+        )
+        self.assertIn("DEFAULT_DESKTOP_SHELL.to_string()", deploy)
+        self.assertNotIn("ConfigureUserBashrc", deploy)
+        self.assertNotIn('join(".bashrc")', deploy)
+
         spec = (ROOT / "packaging/linuxtoys/linuxtoys.spec").read_text(
             encoding="utf-8"
         )
@@ -459,6 +469,45 @@ class ImagePolicyTests(unittest.TestCase):
         destructive_vm_reset = helper.rindex("\nstop_previous_vm\n")
         self.assertLess(build_only_exit, qemu_requirements)
         self.assertLess(iso_ready, destructive_vm_reset)
+
+    def test_vm_helper_guards_host_loader_cache_during_kiwi_build(self) -> None:
+        helper = (ROOT / "kiwi/test/build-and-run-vm.sh").read_text(encoding="utf-8")
+        self.assertIn("host_loader_is_healthy", helper)
+        self.assertIn("repair_host_loader_cache", helper)
+        self.assertIn("start_loader_guard", helper)
+        self.assertIn("stop_loader_guard", helper)
+        self.assertIn("sudo -n ldconfig", helper)
+        self.assertLess(helper.index("start_loader_guard"), helper.index("sudo kiwi-ng"))
+        self.assertGreater(helper.rindex("stop_loader_guard"), helper.index("sudo kiwi-ng"))
+
+    def test_vm_helper_can_boot_installed_disk_without_iso_or_reset(self) -> None:
+        helper = (ROOT / "kiwi/test/build-and-run-vm.sh").read_text(encoding="utf-8")
+        self.assertIn("--boot-installed", helper)
+        installed_branch = helper.index('if [ "$BOOT_INSTALLED" -eq 1 ]; then')
+        installed_exit = helper.index('exit "$INSTALLED_QEMU_STATUS"')
+        destructive_reset = helper.index('echo "--- deleting previous VM disk')
+        self.assertLess(installed_branch, installed_exit)
+        self.assertLess(installed_exit, destructive_reset)
+        branch = helper[installed_branch:installed_exit]
+        self.assertIn("-boot order=c,menu=on", branch)
+        self.assertNotIn("-cdrom", branch)
+        self.assertNotIn('rm -f "$DISK_IMG"', branch)
+        self.assertIn("preserving VM disk and UEFI state", branch)
+
+    def test_vm_helper_rejects_a_stale_published_installer(self) -> None:
+        helper = (ROOT / "kiwi/test/build-and-run-vm.sh").read_text(encoding="utf-8")
+        self.assertIn('strings "$IMAGE_INSTALLER_SERVICE"', helper)
+        self.assertIn("grep -F '/usr/bin/fish'", helper)
+        self.assertIn("grep -F '.bashrc'", helper)
+        self.assertIn("stale or incompatible installer RPM", helper)
+        self.assertIn("build-source.txt", helper)
+
+    def test_development_bootstrap_installs_obs_local_build_runner(self) -> None:
+        bootstrap = (ROOT / "scripts/bootstrap-development.sh").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("build rpm-build rpmdevtools rpmlint spec-cleaner osc", bootstrap)
+        self.assertIn("git git-lfs gh osc build", bootstrap)
 
     def test_vm_helper_fully_extracts_squashfs_before_promoting_iso(self) -> None:
         helper = (ROOT / "kiwi/test/build-and-run-vm.sh").read_text(encoding="utf-8")

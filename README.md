@@ -128,21 +128,22 @@ discos e logs ficam em `kiwi/.kiwi/test-<uid>/` e não são versionados. Use
 `--help` para consultar os ajustes de disco, memória e CPUs por variável de
 ambiente.
 
-O modo `--build-only` também produz o manifesto rastreável ao lado da ISO e é
-preferível a invocar o KIWI diretamente. Para depuração de baixo nível, o
-comando equivalente sem as validações posteriores é:
-
-```bash
-./scripts/release.py check
-sudo kiwi-ng system build \
-  --signing-key kiwi/keys/obs-package-signing-keyring.asc \
-  --description kiwi \
-  --target-dir /tmp/lyra-os-build
-```
+O modo `--build-only` também produz o manifesto rastreável ao lado da ISO e
+monitora o cache do carregador de bibliotecas do host enquanto o KIWI executa
+scriptlets privilegiados. Não invoque `sudo kiwi-ng system build` diretamente
+na estação de trabalho: isso pula tanto a proteção do host quanto as validações
+posteriores da imagem.
 
 O build precisa de acesso à rede para baixar pacotes e registrar o Flathub na
 imagem. O helper recomendado também gera, ao lado da ISO, um manifesto
 `*.iso.manifest.json` com versão, commit, data, estado da árvore e SHA-256.
+
+Depois de concluir uma instalação, inicie novamente o mesmo disco, sem anexar
+a ISO e sem recriar o disco ou o estado UEFI, com:
+
+```bash
+./kiwi/test/build-and-run-vm.sh --boot-installed
+```
 
 ## Estrutura do repositório
 

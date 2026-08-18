@@ -188,11 +188,12 @@ Build da imagem:
 
 ```bash
 cd ~/Git/Lyra
-./scripts/release.py check
-sudo kiwi-ng system build \
-  --description kiwi \
-  --target-dir kiwi-build
+./kiwi/test/build-and-run-vm.sh --build-only --published-installer
 ```
+
+Use o helper: além das validações da ISO, ele monitora e recupera o cache do
+carregador de bibliotecas do host durante o bootstrap privilegiado do KIWI.
+Não invoque `sudo kiwi-ng system build` diretamente na estação de trabalho.
 
 A versão da imagem é definida somente em `release.toml`. Consulte
 [`docs/release-versioning.md`](docs/release-versioning.md) antes de iniciar

@@ -519,6 +519,7 @@ const USER_SUPPLEMENTARY_GROUPS: &[&str] = &[
     "users", "lp", "video", "network", "storage", "wheel", "audio",
 ];
 const REQUIRED_USER_GROUPS: &[&str] = &["users", "wheel"];
+const DEFAULT_DESKTOP_SHELL: &str = "/usr/bin/fish";
 
 fn available_user_groups(target_root: &Path) -> Result<String, OperationError> {
     let group_path = target_root.join("etc/group");
@@ -574,7 +575,7 @@ impl PrivilegedOperation for CreateUser {
                 "-G".to_string(),
                 supplementary_groups,
                 "-s".to_string(),
-                "/usr/bin/fish".to_string(),
+                DEFAULT_DESKTOP_SHELL.to_string(),
                 self.username.clone(),
             ],
         })?;

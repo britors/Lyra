@@ -1,4 +1,18 @@
 -------------------------------------------------------------------
+Tue Aug 18 17:00:00 UTC 2026 - Lyra OS Team
+
+- Stop modifying a newly created user's .bashrc during installation.
+- Create desktop users with Fish and rely on system-wide vendor defaults.
+- Avoid failing installation when useradd does not populate a Bash skeleton.
+
+-------------------------------------------------------------------
+Thu Aug 13 20:30:00 UTC 2026 - Lyra OS Team
+
+- Temporarily hide zh-CN from the installer language selector and reject
+  crafted requests for the disabled locale while preserving its catalog for
+  a future release cycle.
+
+-------------------------------------------------------------------
 Thu Aug 13 12:00:00 UTC 2026 - Lyra OS Team
 
 - Localize installation progress messages and keep internal Portuguese
@@ -10,7 +24,7 @@ Thu Aug 13 12:00:00 UTC 2026 - Lyra OS Team
 Tue Aug 12 16:58:00 UTC 2026 - Lyra OS Team
 
 - Identify the installer UI as Lyra OS Odisseia Alpha 4.
-- Add en-US, pt-BR and es-ES installer catalogs.
+- Add en-US, pt-BR, es-ES and zh-CN installer catalogs.
 - Add the interactive IANA timezone map and selector.
 - Preserve `Defaults targetpw` removal so sudo authenticates with the
   installed user's password.
