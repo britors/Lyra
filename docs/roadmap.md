@@ -13,16 +13,22 @@ A Alpha 4 foi publicada em 14/08/2026 como snapshot antecipado da
 infraestrutura de i18n, do Lyra Installer em `en-US`/`pt-BR`/`es-ES` e da
 primeira onda de pacotes em `pt-BR`/`en-US`.
 
-- **Alpha 5 (14–28/08) — estabilização e contratos:** corrige os bloqueadores
-  herdados do instalador e do release e especifica o Lyra Upgrade. Os três
-  idiomas e o fluxo NVIDIA pelo Vega já estão concluídos e validados.
+- **Alpha 5 (14–28/08) — estabilização e contratos:** corrige primeiro os
+  bloqueadores herdados do instalador e do release e especifica o Lyra
+  Upgrade. Para o ECA Digital, fecha enquadramento jurídico, auditoria da
+  referência BigLinux, qualificação upstream, UX no Vega, ADR e baseline de
+  governança LTS. Os três idiomas e o fluxo NVIDIA pelo Vega já estão
+  concluídos e validados.
 - **Alpha 6 (28/08–11/09) — backend:** entrega core, preflight, estado durável,
-  serviço privilegiado e atualização segura dentro da mesma release.
+  serviço privilegiado e atualização segura dentro da mesma release, além do
+  serviço autenticado e persistente de políticas parentais.
 - **Alpha 7 (11–25/09) — produto completo:** entrega a interface e o upgrade
-  controlado entre releases. A recuperação pós-boot e o rollback já foram
-  validados antecipadamente.
+  controlado entre releases e integra no Vega a configuração parental e a
+  autorização de aplicativos. A recuperação pós-boot e o rollback já foram
+  validados antecipadamente. Toda implementação funcional encerra nesta etapa.
 - **Alpha 8 (25/09–13/10) — gate e estabilização:** automatiza update, upgrade,
-  reboot e rollback; depois corrige somente defeitos até a decisão da Beta 1.
+  reboot, rollback e a matriz do ECA Digital; não recebe feature nova e depois
+  corrige somente defeitos até a decisão da Beta 1.
 
 A Beta 1 não começa por calendário com P0/P1 ou entrega obrigatória pendente.
 O Lyra OS 1.0 oferece somente inglês dos Estados Unidos (`en-US`), português

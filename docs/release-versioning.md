@@ -116,6 +116,11 @@ foi declarado suportado depois da validação no hardware G06 disponível.
   antes de ampliar o escopo (#90, #91 e #92).
 - aprovar arquitetura, modelo de ameaças, protocolos e máquina de estados do
   Lyra Upgrade (#81), pois esse contrato bloqueia as demais implementações.
+- concluir o enquadramento jurídico do ECA Digital (#106), auditar a referência
+  do BigLinux (#112), qualificar a base upstream (#110), especificar a
+  experiência no Vega (#108) e aprovar a arquitetura e os contratos (#111).
+- estabelecer a baseline e a cadência de acompanhamento regulatório LTS
+  (#113), sem autorizar ampliação silenciosa após o congelamento funcional.
 - concluído antecipadamente: todos os projetos e RPMs nos três idiomas (#78),
   NVIDIA pelo Vega e remoção da ISO dedicada (#77) e qualificação na imagem
   (#79).
@@ -126,6 +131,8 @@ foi declarado suportado depois da validação no hardware G06 disponível.
   durável do Lyra Upgrade (#86).
 - implementar o serviço privilegiado e a atualização segura dentro da mesma
   release (#83), com testes de falha antes da integração.
+- implementar o serviço autenticado, versionado e persistente de políticas de
+  controle parental (#114), independente do processo gráfico do Vega.
 
 ### Desktop Alpha 7 — 11/09 a 25/09
 
@@ -133,6 +140,8 @@ foi declarado suportado depois da validação no hardware G06 disponível.
   incluindo retomada da UI e apresentação de falhas (#88).
 - implementar o upgrade entre releases com manifesto assinado, simulação
   reproduzível e aplicação offline (#82).
+- integrar no Vega a configuração parental e a autorização de aplicativos
+  sobre o backend já qualificado (#109).
 - concluído antecipadamente: verificação pós-boot, recuperação e rollback
   determinístico pelo snapshot registrado na operação (#85).
 
@@ -140,6 +149,8 @@ foi declarado suportado depois da validação no hardware G06 disponível.
 
 - **25/set–06/out:** automatizar update, upgrade, reboot, Secure Boot e rollback
   no release gate, usando RPMs reais do candidato (#87).
+- automatizar o gate de conformidade, privacidade e regressão do ECA Digital,
+  incluindo testes de evasão e evidências ligadas ao release (#107).
 - **06–13/out:** nenhuma feature nova. Corrigir defeitos, repetir o gate
   completo e auditar que toda feature 1.0 foi implementada ou formalmente
   removida do escopo (#80).
