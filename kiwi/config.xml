@@ -324,6 +324,20 @@
     <package name="mdadm"/>
     <package name="lvm2"/>
 
+    <!--
+      ALSA user space and compatibility layer. The Desktop uses PipeWire for
+      session routing, but hardware discovery, mixer/recovery tooling, UCM
+      profiles and applications that still open ALSA/OSS interfaces must not
+      depend on Recommends being pulled by the image builder.
+    -->
+    <package name="alsa"/>
+    <package name="alsa-oss"/>
+    <package name="alsa-plugins"/>
+    <package name="alsa-plugins-speexrate"/>
+    <package name="alsa-plugins-upmix"/>
+    <package name="alsa-ucm-conf"/>
+    <package name="alsa-utils"/>
+    <package name="libatopology2"/>
     <package name="pipewire"/>
     <package name="pipewire-pulseaudio"/>
     <package name="wireplumber"/>

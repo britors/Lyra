@@ -295,6 +295,35 @@ class ImagePolicyTests(unittest.TestCase):
         self.assertIn("upower", desktop_packages)
         self.assertNotIn("upower", server_packages)
 
+    def test_desktop_installs_explicit_alsa_userspace_stack(self) -> None:
+        # PipeWire remains the desktop audio server, while these packages
+        # provide ALSA hardware profiles, diagnostics and compatibility for
+        # applications that do not use PipeWire directly. Keep the set
+        # desktop-only instead of growing the headless Server image.
+        root = ET.parse(ROOT / "kiwi/config.xml").getroot()
+        desktop_packages = {
+            node.attrib["name"]
+            for packages in root.findall('packages[@profiles="desktop"]')
+            for node in packages.findall("package")
+        }
+        server_packages = {
+            node.attrib["name"]
+            for packages in root.findall('packages[@profiles="server"]')
+            for node in packages.findall("package")
+        }
+        alsa_packages = {
+            "alsa",
+            "alsa-oss",
+            "alsa-plugins",
+            "alsa-plugins-speexrate",
+            "alsa-plugins-upmix",
+            "alsa-ucm-conf",
+            "alsa-utils",
+            "libatopology2",
+        }
+        self.assertTrue(alsa_packages.issubset(desktop_packages))
+        self.assertTrue(alsa_packages.isdisjoint(server_packages))
+
     def test_mozilla_apps_follow_installed_system_locale(self) -> None:
         root = ET.parse(ROOT / "kiwi/config.xml").getroot()
         desktop_packages = {
