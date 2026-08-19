@@ -46,6 +46,7 @@ packages = [
   "aladfar",
   "beam",
   "chord",
+  "lyra-fish-productivity",
   "lyra-installer",
   "lyra-upgrade",
   "linuxtoys",

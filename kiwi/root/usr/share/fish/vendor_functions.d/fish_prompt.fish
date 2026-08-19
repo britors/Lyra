@@ -1,5 +1,9 @@
-# Lyra OS prompt. A user-defined ~/.config/fish/functions/fish_prompt.fish
-# takes precedence over this vendor default.
+# Lyra OS fallback prompt. The default prompt of an installed desktop is
+# hydro, which lyra-fish-productivity puts in
+# ~/.config/fish/functions/fish_prompt.fish - and that takes precedence over
+# this file, as does any prompt the user writes there. What is left for this
+# one to serve: root, the server edition, and any account that removed the
+# plugin set. Keep it dependency-free for that reason.
 function fish_prompt
     set --local last_status $status
 

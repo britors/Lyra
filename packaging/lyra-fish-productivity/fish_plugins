@@ -1,0 +1,12 @@
+# Lyra Fish Productivity Pack — canonical plugin set.
+# Installed for the current user by fish_setup_lyra_plugins, which copies the
+# resolved set to ~/.config/fish/fish_plugins (Fisher's own manifest).
+jorgebucaran/fisher
+PatrickF1/fzf.fish
+jethrokuan/z
+jorgebucaran/autopair.fish
+franciscolourenco/done
+jorgebucaran/hydro
+edc/bass
+jhillyerd/plugin-git
+jorgebucaran/nvm.fish

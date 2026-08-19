@@ -438,13 +438,21 @@
          terminal gsettings schema already names gnome-terminal by default. -->
     <package name="gnome-terminal"/>
     <package name="gnome-console"/>
-    <!-- Fish will be the interactive shell in the next Lyra OS Desktop
-         release. Keep it desktop-only; changing the user account's default
-         shell is handled separately by the installer. -->
+    <!-- Fish is the interactive shell of the Lyra OS Desktop: the installer
+         creates the user account with /usr/bin/fish (DEFAULT_DESKTOP_SHELL in
+         installer/src/service/operations/deploy.rs) and liveuser above is
+         declared with it too. Keep it desktop-only - the server profile and
+         root stay on bash. -->
     <package name="fish"/>
+    <!-- Fisher and the curated plugin set that make up the Lyra shell
+         experience. config.sh seeds them into /etc/skel at build time, so a
+         new installation has them on its first terminal with no network. -->
+    <package name="lyra-fish-productivity"/>
     <!-- The POSIX nvm.sh implementation does not support Fish. Lyra packages
-         the native, versioned nvm.fish integration in repo-lyra so Node
-         versions remain per-user without a first-login plugin download. -->
+         the native, versioned nvm.fish integration in repo-lyra. The Fisher
+         copy that lyra-fish-productivity installs under ~/.config/fish takes
+         precedence over this one, which stays as the fallback for accounts
+         that never ran the setup (root, restored homes). -->
     <package name="nvm-fish"/>
     <!-- Required by nvm-fish and LinuxToys. Keep it explicit so a minimal
          solver result cannot leave the default shell integration broken. -->

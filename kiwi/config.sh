@@ -141,6 +141,52 @@ if [ "$IS_SERVER" = 0 ]; then
     # allowing each user to disable it normally. Desktop-only: there is no
     # GNOME Shell on the server profile to target.
     glib-compile-schemas /usr/share/glib-2.0/schemas
+
+    # Fish plugin set, resolved once here instead of on every machine's first
+    # terminal. Fisher has no RPM upstream and pulls its plugins from GitHub,
+    # so doing this at first login would mean every new installation hitting
+    # the network - and an installation done offline would simply never get
+    # the plugins. Seeding /etc/skel moves that cost to this build: useradd
+    # -m copies it into every account the installer creates afterwards, and
+    # conf.d/lyra-fish-bootstrap.fish then finds the marker and stays quiet.
+    #
+    # This is the one step in the build that needs the network. Lyra builds
+    # its images locally (image-build.toml pins OBS to "packages-only"), so
+    # that is available here; the failure is fatal on purpose, because an ISO
+    # that silently ships without the plugins is a regression nobody notices
+    # until it is installed.
+    LYRA_FISH_SKEL=/etc/skel
+    if ! HOME="$LYRA_FISH_SKEL" \
+         XDG_CONFIG_HOME="$LYRA_FISH_SKEL/.config" \
+         XDG_STATE_HOME="$LYRA_FISH_SKEL/.local/state" \
+         LYRA_FISH_SEED=1 \
+         fish --command fish_setup_lyra_plugins; then
+        echo "Failed to seed the Lyra fish plugin set into $LYRA_FISH_SKEL" >&2
+        exit 1
+    fi
+
+    # fish_plugins is Fisher's manifest; fish_prompt.fish only exists if hydro
+    # actually activated. Checking both turns a half-finished seed into a
+    # build failure rather than a surprise on the installed system.
+    for lyra_fish_artifact in fish_plugins functions/fish_prompt.fish; do
+        if [ ! -e "$LYRA_FISH_SKEL/.config/fish/$lyra_fish_artifact" ]; then
+            echo "Incomplete fish seed: missing $lyra_fish_artifact" >&2
+            exit 1
+        fi
+    done
+
+    # liveuser's home was created by KIWI from the pre-seed /etc/skel (its
+    # useradd -m runs before this script), so the live session needs an
+    # explicit copy to match what an installed account gets.
+    if [ ! -d /home/liveuser ]; then
+        echo "liveuser home is missing; cannot seed the live session" >&2
+        exit 1
+    fi
+    install -d -m 0755 /home/liveuser/.config /home/liveuser/.local/state
+    cp -a "$LYRA_FISH_SKEL/.config/fish" /home/liveuser/.config/
+    cp -a "$LYRA_FISH_SKEL/.local/state/lyra-fish-productivity" \
+        /home/liveuser/.local/state/
+    chown -R liveuser:"$(id -gn liveuser)" /home/liveuser/.config /home/liveuser/.local
 fi
 
 # Product identity (PROMPT-LYRA-OS.md: "Lyra OS", not "Lyra Linux" or
