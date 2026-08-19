@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Refuse to start LocalSearch when one of its extractor dependencies is broken.
+
+set -euo pipefail
+
+readonly EXTRACTOR=/usr/libexec/localsearch-extractor-3
+
+if [[ ! -x $EXTRACTOR ]]; then
+    logger --tag lyra-localsearch --priority user.err \
+        "indexação desativada: $EXTRACTOR ausente ou não executável"
+    exit 1
+fi
+
+dependencies="$(LC_ALL=C ldd "$EXTRACTOR" 2>&1)" || {
+    logger --tag lyra-localsearch --priority user.err \
+        "indexação desativada: não foi possível validar as bibliotecas do extractor"
+    exit 1
+}
+
+if grep -Fq '=> not found' <<<"$dependencies"; then
+    missing="$(printf '%s\n' "$dependencies" | sed -n 's/^[[:space:]]*\([^[:space:]]*\) => not found$/\1/p' | paste -sd, -)"
+    logger --tag lyra-localsearch --priority user.err \
+        "indexação desativada: bibliotecas ausentes: ${missing:-desconhecidas}"
+    exit 1
+fi

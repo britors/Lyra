@@ -1,4 +1,4 @@
-# Enable Lyra's dock by default for the live session and newly-created users.
+# Enable Lyra's GNOME integration for the live session and newly-created users.
 # This is a default, not a lock: users remain free to disable the extension.
 [org.gnome.shell]
-enabled-extensions=['sheliak@lyraos.org']
+enabled-extensions=['sheliak@lyraos.org', 'updates-indicator@lyraos.org']

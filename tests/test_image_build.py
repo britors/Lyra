@@ -3,6 +3,7 @@ from __future__ import annotations
 import dataclasses
 import importlib.util
 import json
+import stat
 import sys
 import tempfile
 import unittest
@@ -45,11 +46,52 @@ class ImagePolicyTests(unittest.TestCase):
         }
         self.assertIn("man", shared_image_packages)
 
-    def test_zypper_autorefresh_is_throttled_without_disabling_explicit_refresh(self) -> None:
+    def test_zypper_cache_policy_matches_vega_update_flow(self) -> None:
         config = (
             ROOT / "kiwi/root/etc/zypp/zypp.conf.d/90-lyra-refresh.conf"
         ).read_text(encoding="utf-8")
-        self.assertIn("repo.refresh.delay = 60", config)
+        self.assertIn("repo.refresh.delay = 2880", config)
+        self.assertIn("download.max_concurrent_connections = 5", config)
+        self.assertIn("download.use_deltarpm = false", config)
+
+    def test_localsearch_failure_is_contained(self) -> None:
+        preflight = ROOT / "kiwi/root/usr/libexec/lyra-localsearch-preflight"
+        self.assertTrue(preflight.stat().st_mode & stat.S_IXUSR)
+        script = preflight.read_text(encoding="utf-8")
+        self.assertIn("localsearch-extractor-3", script)
+        self.assertIn("=> not found", script)
+
+        drop_in = (
+            ROOT
+            / "kiwi/root/usr/lib/systemd/user/localsearch-3.service.d/90-lyra-stability.conf"
+        ).read_text(encoding="utf-8")
+        for policy in (
+            "ExecStartPre=/usr/libexec/lyra-localsearch-preflight",
+            "StartLimitBurst=3",
+            "CPUWeight=10",
+            "MemoryHigh=512M",
+            "MemoryMax=1G",
+            "TasksMax=64",
+            "LogRateLimitBurst=100",
+        ):
+            self.assertIn(policy, drop_in)
+
+    def test_vega_update_indicator_is_enabled_by_default(self) -> None:
+        override = (
+            ROOT
+            / "kiwi/root/usr/share/glib-2.0/schemas/99-lyra-sheliak.gschema.override"
+        ).read_text(encoding="utf-8")
+        self.assertIn("sheliak@lyraos.org", override)
+        self.assertIn("updates-indicator@lyraos.org", override)
+
+        root = ET.parse(ROOT / "kiwi/config.xml").getroot()
+        desktop_packages = {
+            package.attrib["name"]
+            for packages in root.findall("packages")
+            if packages.attrib.get("profiles") == "desktop"
+            for package in packages.findall("package")
+        }
+        self.assertIn("vega-gtk", desktop_packages)
 
     def test_canonical_sources_pass_repository_and_signature_policy(self) -> None:
         image_build.validate_sources(self.manifest)

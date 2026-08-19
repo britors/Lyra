@@ -126,6 +126,9 @@ pub fn deployment_operations(
         Box::new(LowerLyraRepoPriorities {
             target_root: target_root.clone(),
         }),
+        Box::new(DisableRepositoryPackageRetention {
+            target_root: target_root.clone(),
+        }),
         Box::new(RemoveLiveOnlyArtifacts {
             target_root: target_root.clone(),
         }),
@@ -784,6 +787,47 @@ impl PrivilegedOperation for LowerLyraRepoPriorities {
                 .collect::<Vec<_>>()
                 .join("\n");
             fs::write(&path, rewritten + "\n").map_err(io_error)?;
+        }
+        Ok(())
+    }
+}
+
+struct DisableRepositoryPackageRetention {
+    target_root: PathBuf,
+}
+
+impl PrivilegedOperation for DisableRepositoryPackageRetention {
+    fn describe(&self) -> String {
+        "desativar retenção de pacotes dos repositórios".to_string()
+    }
+
+    fn perform(&self, _executor: &dyn Executor) -> Result<(), OperationError> {
+        let repos_dir = self.target_root.join("etc/zypp/repos.d");
+        if !repos_dir.is_dir() {
+            return Ok(());
+        }
+        for entry in fs::read_dir(repos_dir).map_err(io_error)? {
+            let path = entry.map_err(io_error)?.path();
+            if path.extension().and_then(|extension| extension.to_str()) != Some("repo") {
+                continue;
+            }
+            let content = fs::read_to_string(&path).map_err(io_error)?;
+            let mut found = false;
+            let mut lines = content
+                .lines()
+                .map(|line| {
+                    if line.trim_start().starts_with("keeppackages=") {
+                        found = true;
+                        "keeppackages=0".to_string()
+                    } else {
+                        line.to_string()
+                    }
+                })
+                .collect::<Vec<_>>();
+            if !found {
+                lines.push("keeppackages=0".to_string());
+            }
+            fs::write(path, lines.join("\n") + "\n").map_err(io_error)?;
         }
         Ok(())
     }
@@ -1869,6 +1913,35 @@ mod tests {
                 .unwrap()
                 .contains("priority=20")
         );
+    }
+
+    #[test]
+    fn disables_package_retention_for_every_installed_repository() {
+        let temp = TempRoot::new("repo-package-retention");
+        let repos_dir = temp.0.join("etc/zypp/repos.d");
+        fs::create_dir_all(&repos_dir).unwrap();
+        fs::write(
+            repos_dir.join("repo-oss.repo"),
+            "[repo-oss]\nenabled=1\nautorefresh=1\nkeeppackages=1\n",
+        )
+        .unwrap();
+        fs::write(
+            repos_dir.join("repo-lyra.repo"),
+            "[repo-lyra]\nenabled=1\nautorefresh=1\n",
+        )
+        .unwrap();
+
+        let op = DisableRepositoryPackageRetention {
+            target_root: temp.0.clone(),
+        };
+        op.perform(&FakeExecutor::new()).unwrap();
+
+        for alias in ["repo-oss", "repo-lyra"] {
+            let content = fs::read_to_string(repos_dir.join(format!("{alias}.repo"))).unwrap();
+            assert!(content.contains("autorefresh=1"));
+            assert_eq!(content.matches("keeppackages=0").count(), 1);
+            assert!(!content.contains("keeppackages=1"));
+        }
     }
 
     #[test]
