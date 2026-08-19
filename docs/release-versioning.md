@@ -17,10 +17,32 @@ a imagem ainda é uma pré-release:
 | RC | `stage = "rc"`, `iteration = N` | `2026.08-rcN`, `v2026.08-rcN`, `lyra-os.x86_64-2026.08-rcN.iso` |
 | Final | `stage = "release"`, `iteration = 0` | `2026.08`, `v2026.08`, `lyra-os.x86_64-2026.08.iso` |
 
-O build atual é `alpha4`: ciclo de internacionalização do instalador,
-primeira onda de pacotes próprios e fluxo opcional NVIDIA pelo Vega,
-mantendo a classificação Alpha porque ainda há funcionalidades planejadas
-em implementação, não apenas estabilização. A tag já
+## Contrato de maturidade
+
+As datas do cronograma são limites de planejamento, não autorização para
+promover um produto que ainda não atingiu o estágio seguinte. Se necessário,
+o lançamento atrasa. O objetivo não é alegar perfeição, mas entregar uma
+distribuição previsível e “chata de tão confiável”: ela deve poder ser usada
+diariamente por um período prolongado sem travar, degradar, exigir manutenção
+recorrente ou interromper o trabalho do usuário.
+
+| Estágio | Estado esperado | Mudanças permitidas |
+|---|---|---|
+| Alpha | Produto em construção e qualificação | Funcionalidades planejadas, integração e correções, sempre com estabilidade em primeiro lugar. |
+| Beta | Escopo completo e funcionalmente congelado | Correções de bugs, regressões, segurança, desempenho, acessibilidade e traduções existentes. |
+| RC | Produto já estável; candidato completo sob verificação final | Nenhuma mudança rotineira. Defeito não trivial interrompe a promoção, devolve o produto à estabilização e exige uma nova RC. |
+| Estável | Conteúdo funcional publicado e congelado | Somente correções de segurança. Demais correções e mudanças seguem para o próximo ciclo completo. |
+
+A promoção para RC afirma que os gates de estabilidade já estão verdes; a RC
+não é uma Beta com outro nome. A promoção para estável confirma o mesmo
+conteúdo após a última verificação de imagem, assinatura, instalação,
+atualização, recuperação e uso real. Ausência de P0/P1 é requisito mínimo, não
+evidência suficiente por si só.
+
+O build atual é `alpha6`: ciclo de conclusão do Lyra Upgrade, do fluxo de
+atualizações e do backend de controle parental, mantendo a classificação Alpha
+porque ainda há funcionalidades planejadas em implementação, não apenas
+estabilização. A tag já
 publicada `v2026.08-beta2-stable-20260809` permanece como registro histórico
 e não é reescrita; o próximo ciclo de beta deste produto recomeça em `beta1`.
 

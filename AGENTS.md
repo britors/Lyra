@@ -60,3 +60,27 @@ ou a previsibilidade do sistema:
 
 Não trate toda mudança como perigosa por padrão. O alerta deve ser concreto,
 proporcional ao risco e fundamentado no comportamento técnico esperado.
+
+## Significado dos estágios de release
+
+O Lyra não promove uma versão porque chegou a uma data. O lançamento pode ser
+adiado pelo tempo necessário; qualidade e confiança têm precedência sobre o
+cronograma. Perfeição não é o critério de saída. O produto deve ser previsível
+e “chato de tão confiável”: permitir uso cotidiano prolongado sem travar, sem
+degradar, sem exigir administração recorrente e sem chamar atenção para o
+próprio sistema.
+
+- **Alpha:** desenvolvimento e avaliação das funcionalidades previstas para o
+  ciclo. Mudanças ainda podem ocorrer, desde que justificadas e qualificadas.
+- **Beta:** congelamento funcional. Serve para encontrar e corrigir defeitos,
+  regressões, problemas de desempenho, integração, acessibilidade e tradução
+  do escopo já existente. Não serve para completar silenciosamente produto
+  incompleto com novas funcionalidades.
+- **RC:** o produto já deve satisfazer os critérios de estabilidade. A RC é uma
+  verificação final do candidato completo, dos artefatos e do processo de
+  publicação. Se aparecer um defeito não trivial, interrompa a promoção, volte
+  à estabilização e gere outra RC; não reduza os critérios para preservar uma
+  data.
+- **Estável:** conteúdo funcional congelado. A série publicada recebe somente
+  correções de segurança. Correções funcionais e mudanças de comportamento
+  pertencem ao próximo ciclo e devem percorrer novamente Alpha, Beta e RC.
