@@ -164,6 +164,7 @@ a ISO e sem recriar o disco ou o estado UEFI, com:
 | [`docs/installer-state-machine.md`](docs/installer-state-machine.md) | estados, contratos, cancelamento e recuperação |
 | [`docs/adr/`](docs/adr/) | decisões técnicas aceitas do instalador |
 | [`docs/roadmap.md`](docs/roadmap.md) | metas dos próximos ciclos do Lyra OS |
+| [`docs/evaluation/lyra-os-comparative-assessment.md`](docs/evaluation/lyra-os-comparative-assessment.md) | avaliação comparativa e métrica de evolução do projeto |
 | [`PROMPT-LYRA-OS.md`](PROMPT-LYRA-OS.md) | especificação de produto da primeira versão |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | preparação da estação e fluxo de contribuição |
 
