@@ -218,6 +218,18 @@ class ImagePolicyTests(unittest.TestCase):
         self.assertIn("upstream self-update bypasses RPM ownership", spec)
         self.assertIn("LinuxToys is managed by Lyra OS", patch)
 
+    def test_fish_z_state_is_always_owned_by_the_logged_in_user(self) -> None:
+        early_defaults = (
+            ROOT / "kiwi/root/etc/fish/conf.d/00-lyra-home.fish"
+        ).read_text()
+        image_config = (ROOT / "kiwi/config.sh").read_text()
+
+        self.assertIn('set -gx Z_DATA_DIR "$XDG_DATA_HOME/z"', early_defaults)
+        self.assertIn('set -gx Z_DATA "$Z_DATA_DIR/data"', early_defaults)
+        self.assertNotIn("_ZO_DATA_DIR", early_defaults)
+        self.assertIn("SETUVAR Z_DATA:/root/", image_config)
+        self.assertIn("SETUVAR Z_DATA_DIR:/root/", image_config)
+
     def test_beta_two_uses_only_the_rust_installer(self) -> None:
         root = ET.parse(ROOT / "kiwi/config.xml").getroot()
         packages = {node.attrib["name"] for node in root.findall("packages/package")}

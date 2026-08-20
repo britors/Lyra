@@ -14,6 +14,8 @@
 #   ./build-and-run-vm.sh --fresh-disk    accepted for compatibility; fresh is always enforced
 #   ./build-and-run-vm.sh --published-installer
 #                                        use the installer RPM from OBS instead of local sources
+#   ./build-and-run-vm.sh --published-welcome
+#                                        use the Welcome RPM from OBS instead of local sources
 #   ./build-and-run-vm.sh --secure-boot   use OVMF with Secure Boot and Microsoft keys
 #   ./build-and-run-vm.sh --profile server
 #                                        build the headless server profile instead of desktop
@@ -63,6 +65,7 @@ BUILD_ONLY=0
 BOOT_INSTALLED=0
 SECURE_BOOT=0
 USE_LOCAL_INSTALLER=1
+USE_LOCAL_WELCOME=1
 PROFILE=desktop
 
 usage() {
@@ -81,6 +84,8 @@ Opções:
   --published-installer
                   usa somente o RPM publicado no OBS (obrigatório para release;
                   ignorado com --profile server, que não tem instalador Rust)
+  --published-welcome
+                  usa o RPM publicado do Lyra Welcome em vez do workspace local
   --secure-boot   usa OVMF Secure Boot com chaves Microsoft
   --profile <desktop|server>
                   qual profile do kiwi/config.xml construir (padrão: desktop).
@@ -102,9 +107,9 @@ UEFI somente depois de uma ISO válida estar disponível. Depois da instalação
 reinicie dentro da mesma janela do QEMU para testar o primeiro boot pelo disco
 instalado. --build-only não requer QEMU, KVM, OVMF nem sessão gráfica.
 
-Por padrão, um novo build compila e injeta os binários do instalador deste
-workspace (só --profile desktop). --skip-build apenas reinicia a ISO já
-existente e não recompila.
+Por padrão, um novo build compila e injeta os binários do instalador e do
+Welcome deste workspace (só --profile desktop). --skip-build apenas reinicia
+a ISO já existente e não recompila.
 EOF
 }
 
@@ -115,6 +120,7 @@ while [ "$#" -gt 0 ]; do
     --boot-installed) BOOT_INSTALLED=1; shift ;;
     --fresh-disk) shift ;;
     --published-installer) USE_LOCAL_INSTALLER=0; shift ;;
+    --published-welcome) USE_LOCAL_WELCOME=0; shift ;;
     --secure-boot) SECURE_BOOT=1; shift ;;
     --profile)
       if [ "$#" -lt 2 ]; then
@@ -346,10 +352,11 @@ if [ "$SKIP_BUILD" -eq 0 ]; then
       exit 1
     fi
   done
-  if [ "$USE_LOCAL_INSTALLER" -eq 1 ]; then
+  if [ "$USE_LOCAL_INSTALLER" -eq 1 ] ||
+     { [ "$PROFILE" = desktop ] && [ "$USE_LOCAL_WELCOME" -eq 1 ]; }; then
     for command in cargo install sha256sum; do
       if ! command -v "$command" >/dev/null 2>&1; then
-        echo "required local-installer command not found: $command" >&2
+        echo "required local workspace command not found: $command" >&2
         exit 1
       fi
     done
@@ -505,6 +512,51 @@ if [ "$SKIP_BUILD" -eq 0 ]; then
     echo "--- using published Lyra Installer RPM from OBS ---"
   fi
 
+  if [ "$PROFILE" = desktop ] && [ "$USE_LOCAL_WELCOME" -eq 1 ]; then
+    if [ ! -d "$BUILD_DESCRIPTION_DIR" ]; then
+      rm -rf "$BUILD_DESCRIPTION_DIR"
+      mkdir -p "$BUILD_DESCRIPTION_DIR"
+      cp \
+        "$KIWI_DESC/config.xml" \
+        "$KIWI_DESC/config.sh" \
+        "$KIWI_DESC/edit_boot_config.sh" \
+        "$BUILD_DESCRIPTION_DIR/"
+      cp -a "$KIWI_DESC/root" "$BUILD_DESCRIPTION_DIR/root"
+      cp -a "$KIWI_DESC/keys" "$BUILD_DESCRIPTION_DIR/keys"
+      BUILD_DESCRIPTION="$BUILD_DESCRIPTION_DIR"
+    fi
+    echo "--- compiling current Lyra Welcome workspace ---"
+    cargo build \
+      --manifest-path "$REPO_ROOT/welcome/src-tauri/Cargo.toml" \
+      --release \
+      --locked
+    echo "--- staging local Lyra Welcome binaries and launchers ---"
+    install -Dm0755 \
+      "$REPO_ROOT/welcome/src-tauri/target/release/lyra-welcome" \
+      "$BUILD_DESCRIPTION_DIR/root/usr/bin/lyra-welcome"
+    install -Dm0755 \
+      "$REPO_ROOT/welcome/packaging/lyra-welcome-first-login" \
+      "$BUILD_DESCRIPTION_DIR/root/usr/bin/lyra-welcome-first-login"
+    install -Dm0644 \
+      "$REPO_ROOT/welcome/packaging/org.lyraos.LyraWelcome.desktop" \
+      "$BUILD_DESCRIPTION_DIR/root/usr/share/applications/org.lyraos.LyraWelcome.desktop"
+    install -Dm0644 \
+      "$REPO_ROOT/welcome/packaging/org.lyraos.LyraWelcome-autostart.desktop" \
+      "$BUILD_DESCRIPTION_DIR/root/etc/xdg/autostart/org.lyraos.LyraWelcome.desktop"
+    install -Dm0644 \
+      "$REPO_ROOT/welcome/packaging/org.lyraos.LyraWelcome.svg" \
+      "$BUILD_DESCRIPTION_DIR/root/usr/share/icons/hicolor/scalable/apps/org.lyraos.LyraWelcome.svg"
+    install -d "$BUILD_DESCRIPTION_DIR/root/usr/share/lyra-welcome"
+    {
+      printf 'commit=%s\n' "$BUILD_SOURCE_COMMIT"
+      printf 'dirty=%s\n' "$BUILD_SOURCE_DIRTY"
+      printf 'source=local-worktree\n'
+    } >"$BUILD_DESCRIPTION_DIR/root/usr/share/lyra-welcome/build-source.txt"
+    echo "--- DEVELOPMENT IMAGE: local Welcome override is not releasable ---"
+  elif [ "$PROFILE" = desktop ]; then
+    echo "--- using published Lyra Welcome RPM from OBS ---"
+  fi
+
   KIWI_PROFILE_ARGS=()
   if [ "$PROFILE" = server ]; then
     KIWI_PROFILE_ARGS+=(--profile=server)
@@ -616,8 +668,13 @@ if [ "$SKIP_BUILD" -eq 0 ]; then
     # Validate the actual packaged service, not merely the local source tree.
     # Alpha 6 once embedded a green but stale OBS RPM from before the Fish
     # migration; installations succeeded and silently created Bash users.
-    if ! strings "$IMAGE_INSTALLER_SERVICE" | grep -F '/usr/bin/fish' >/dev/null ||
-       strings "$IMAGE_INSTALLER_SERVICE" | grep -F '.bashrc' >/dev/null; then
+    # Optimized Rust/LLVM builds may split the literal `/usr/bin/fish` into
+    # adjacent ELF string fragments (for example `bin/fish` and `/usr/bin`).
+    # Check the stable suffix in the actual packaged ELF instead of requiring
+    # one contiguous `strings` record, while still rejecting the old Bash
+    # implementation.
+    if ! grep -a -F 'bin/fish' "$IMAGE_INSTALLER_SERVICE" >/dev/null ||
+       grep -a -F '.bashrc' "$IMAGE_INSTALLER_SERVICE" >/dev/null; then
       echo "!!! packaged Lyra Installer does not enforce the desktop Fish policy" >&2
       echo "!!! refusing an ISO with a stale or incompatible installer RPM" >&2
       if [ -f "$BUILD_DIR/build/image-root/usr/share/lyra-installer/build-source.txt" ]; then
@@ -767,7 +824,9 @@ if [ "$SKIP_BUILD" -eq 0 ]; then
   # known test ISO. This intentionally costs time and temporary disk space;
   # an installer image whose rootfs cannot be read end-to-end is unusable.
   echo "--- validating every compressed block in the live SquashFS ---"
-  if ! unsquashfs -no-xattrs -no-exit-code -f \
+  # Validate serially: parallel XZ readers have produced intermittent data
+  # errors on otherwise identical large live images on constrained hosts.
+  if ! unsquashfs -processors 1 -no-xattrs -no-exit-code -f \
       -d "$SQUASHFS_VERIFY_DIR" "$ISO_SQUASHFS" >/dev/null; then
     echo "!!! generated ISO contains an unreadable/corrupt live SquashFS" >&2
     echo "!!! refusing to promote or boot: $BUILT_ISO" >&2
@@ -834,7 +893,7 @@ if [ "$SKIP_BUILD" -eq 1 ]; then
   xorriso -osirrox on -indev "$ISO_PATH" \
     -extract /LiveOS/squashfs.img "$ISO_SQUASHFS" >/dev/null 2>&1
   echo "--- validating every compressed block in the reused live SquashFS ---"
-  if ! unsquashfs -no-xattrs -no-exit-code -f \
+  if ! unsquashfs -processors 1 -no-xattrs -no-exit-code -f \
       -d "$SQUASHFS_VERIFY_DIR" "$ISO_SQUASHFS" >/dev/null; then
     echo "!!! existing ISO contains an unreadable/corrupt live SquashFS" >&2
     echo "!!! refusing to boot with --skip-build: $ISO_PATH" >&2

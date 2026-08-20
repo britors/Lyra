@@ -165,6 +165,18 @@ if [ "$IS_SERVER" = 0 ]; then
         exit 1
     fi
 
+    # Never carry a build-time z/zoxide data path into accounts copied from
+    # /etc/skel. The universal-variable file is loaded before normal Fish
+    # config snippets and can otherwise retain /root from the privileged
+    # image build, causing a permission error on every new terminal.
+    LYRA_FISH_VARIABLES="$LYRA_FISH_SKEL/.config/fish/fish_variables"
+    if [ -f "$LYRA_FISH_VARIABLES" ]; then
+        sed -i \
+            -e '\|SETUVAR Z_DATA:/root/|d' \
+            -e '\|SETUVAR Z_DATA_DIR:/root/|d' \
+            "$LYRA_FISH_VARIABLES"
+    fi
+
     # fish_plugins is Fisher's manifest; fish_prompt.fish only exists if hydro
     # actually activated. Checking both turns a half-finished seed into a
     # build failure rather than a surprise on the installed system.
