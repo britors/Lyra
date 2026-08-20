@@ -39,15 +39,26 @@ Ideias, mudanças de produto e novas funcionalidades podem ser propostas e
 avaliadas durante as versões Alpha, sempre respeitando a prioridade de
 estabilidade. A Beta 1 inicia o congelamento funcional do ciclo.
 
-Da Beta 1 em diante — incluindo todas as Betas, RCs e a versão final — aceite
-somente refinamentos, estabilização e correções de bugs identificados. Não
-introduza funcionalidades novas, mudanças amplas de arquitetura ou expansão
-de escopo nessa fase. Registre propostas desse tipo para o próximo ciclo.
+Da Beta 1 em diante, não introduza novos aplicativos, mudanças amplas de
+arquitetura ou expansão do escopo do produto. Durante as Betas, aceite
+refinamentos, estabilização e correções de bugs identificados. Aplicativos já
+distribuídos também podem receber melhorias upstream quando o mantenedor
+julgar explicitamente que elas fazem sentido para o Lyra e que o benefício é
+compatível com o risco de regressão. Essa exceção não autoriza completar
+silenciosamente partes incompletas do produto nem adicionar novos componentes.
 
-Se uma solicitação feita após o início da Beta 1 contrariar esse congelamento,
-alerte o mantenedor antes de agir. Uma exceção só deve avançar quando for
-necessária para corrigir um problema bloqueante e vier acompanhada de análise
-de risco, testes de regressão e plano de reversão.
+A partir do início da RC1 — incluindo todas as RCs e a versão estável — pacotes
+já distribuídos podem receber correções de bugs e de segurança quando
+necessárias. Não aceite novas funcionalidades, melhorias funcionais nem
+atualizações que ampliem o comportamento ou o escopo; essas mudanças devem
+aguardar o próximo ciclo.
+
+Se uma solicitação feita após o início da Beta 1 contrariar esses limites,
+alerte o mantenedor antes de agir. Fora da melhoria de aplicativo aprovada pelo
+mantenedor durante uma Beta e das correções permitidas em pacotes já
+distribuídos, uma exceção só deve avançar quando for necessária para corrigir
+um problema bloqueante e vier acompanhada de análise de risco, testes de
+regressão e plano de reversão.
 
 Antes de executar uma solicitação que possa reduzir a estabilidade, a
 confiabilidade, a segurança, a compatibilidade, a capacidade de recuperação
@@ -72,15 +83,21 @@ próprio sistema.
 
 - **Alpha:** desenvolvimento e avaliação das funcionalidades previstas para o
   ciclo. Mudanças ainda podem ocorrer, desde que justificadas e qualificadas.
-- **Beta:** congelamento funcional. Serve para encontrar e corrigir defeitos,
-  regressões, problemas de desempenho, integração, acessibilidade e tradução
-  do escopo já existente. Não serve para completar silenciosamente produto
-  incompleto com novas funcionalidades.
+- **Beta:** congelamento funcional do produto. Serve para encontrar e corrigir
+  defeitos, regressões, problemas de desempenho, integração, acessibilidade e
+  tradução do escopo já existente. Aplicativos já distribuídos podem receber
+  melhorias upstream quando o mantenedor as aprovar explicitamente por fazerem
+  sentido para o Lyra. Não serve para completar silenciosamente produto
+  incompleto, adicionar aplicativos ou ampliar a arquitetura.
 - **RC:** o produto já deve satisfazer os critérios de estabilidade. A RC é uma
   verificação final do candidato completo, dos artefatos e do processo de
   publicação. Se aparecer um defeito não trivial, interrompa a promoção, volte
   à estabilização e gere outra RC; não reduza os critérios para preservar uma
-  data.
-- **Estável:** conteúdo funcional congelado. A série publicada recebe somente
-  correções de segurança. Correções funcionais e mudanças de comportamento
-  pertencem ao próximo ciclo e devem percorrer novamente Alpha, Beta e RC.
+  data. A partir da RC1, atualize pacotes já distribuídos somente para corrigir
+  bugs ou problemas de segurança, nunca para adicionar funcionalidades.
+- **Estável:** conteúdo funcional congelado, mas o sistema não é imutável: a
+  série publicada continua mantida e atualizável. Pacotes já distribuídos podem
+  receber correções de bugs e de segurança quando necessárias, mas não novas
+  funcionalidades, melhorias funcionais ou ampliação de comportamento. Essas
+  mudanças pertencem ao próximo ciclo e devem percorrer novamente Alpha, Beta
+  e RC.
