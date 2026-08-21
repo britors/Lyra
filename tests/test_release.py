@@ -184,6 +184,31 @@ class RepositoryMetadataTests(unittest.TestCase):
         self.assertIn("desktop/alpha5/", uploader)
         self.assertNotIn('"$PREFIX.iso.sha256.asc"', uploader)
 
+    def test_alpha6_release_requires_published_components_and_full_evidence(self) -> None:
+        builder = (ROOT / "scripts/build-desktop-alpha6.sh").read_text(encoding="utf-8")
+        uploader = (
+            ROOT / "scripts/upload-desktop-alpha6-sourceforge.sh"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn('EXPECTED_VERSION="2026.08-alpha6"', builder)
+        self.assertIn("--published-installer --published-welcome", builder)
+        self.assertIn("obs-release.py health", builder)
+        self.assertIn("--evidence-dir", builder)
+        for evidence in (
+            "obs-repositories",
+            "live-session",
+            "installer",
+            "first-boot",
+            "uefi-secure-boot",
+            "rollback",
+            "hardware-matrix",
+        ):
+            self.assertIn(evidence, builder)
+            self.assertIn(evidence, uploader)
+        self.assertIn("desktop/alpha6/", uploader)
+        self.assertIn("--decision-file", uploader)
+        self.assertNotIn("iso.sha256.asc", uploader)
+
     def test_build_manifest_is_traceable(self) -> None:
         release = Release.from_file()
         with tempfile.TemporaryDirectory() as directory:

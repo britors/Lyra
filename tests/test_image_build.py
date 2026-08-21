@@ -550,9 +550,9 @@ class ImagePolicyTests(unittest.TestCase):
 
     def test_vm_helper_rejects_a_stale_published_installer(self) -> None:
         helper = (ROOT / "kiwi/test/build-and-run-vm.sh").read_text(encoding="utf-8")
-        self.assertIn('strings "$IMAGE_INSTALLER_SERVICE"', helper)
-        self.assertIn("grep -F '/usr/bin/fish'", helper)
-        self.assertIn("grep -F '.bashrc'", helper)
+        self.assertIn("grep -a -F 'bin/fish' \"$IMAGE_INSTALLER_SERVICE\"", helper)
+        self.assertIn("grep -a -F '.bashrc' \"$IMAGE_INSTALLER_SERVICE\"", helper)
+        self.assertNotIn('strings "$IMAGE_INSTALLER_SERVICE"', helper)
         self.assertIn("stale or incompatible installer RPM", helper)
         self.assertIn("build-source.txt", helper)
 
@@ -567,7 +567,7 @@ class ImagePolicyTests(unittest.TestCase):
         helper = (ROOT / "kiwi/test/build-and-run-vm.sh").read_text(encoding="utf-8")
         extract_image = helper.index('-extract /LiveOS/squashfs.img "$ISO_SQUASHFS"')
         verify_rootfs = helper.index(
-            "unsquashfs -no-xattrs -no-exit-code -f"
+            "unsquashfs -processors 1 -no-xattrs -no-exit-code -f"
         )
         promote_iso = helper.index('echo "--- promoting new ISO')
 

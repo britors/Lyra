@@ -88,12 +88,12 @@ commit that publishes the first candidate signed by the new key.
 - [ ] ISO and evidence are uploaded to SourceForge and downloaded again for
   checksum verification; signature verification is additionally mandatory
   from Beta 1 onward;
-- [ ] #51 records coordinator, decision time, evidence URLs, accepted P2/P3
+- [ ] #117 records coordinator, decision time, evidence URLs, accepted P2/P3
   risks and the exact source commit.
 
 ## Decision record
 
-Record this block in #51 for every candidate:
+Record this block in #117 for every candidate:
 
 ```text
 Decision: GO | NO-GO
