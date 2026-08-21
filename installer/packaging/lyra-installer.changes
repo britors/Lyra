@@ -4,6 +4,16 @@ Fri Aug 21 12:00:00 UTC 2026 - Lyra OS Team
 - Disable repository package retention on the installed system, rewriting
   keeppackages to 0 in every /etc/zypp/repos.d entry so updates stop filling
   the disk with cached RPMs.
+- Attempt every undo when an execution is cancelled or fails, reporting each
+  cleanup failure while keeping the original operation failure as the primary
+  outcome.
+- Drop the Bash-specific user setup left over from before Fish became the
+  desktop shell.
+- Remove the commented-out Chinese catalog and locale entry kept for a future
+  release; the accepted locales stay pt_BR, en_US and es_ES.
+- Fail the loop-device audit script on the first unmet expectation instead of
+  printing it and exiting successfully.
+- Identify the installer UI as Lyra OS Odisseia Alpha 6.
 
 -------------------------------------------------------------------
 Tue Aug 18 17:00:00 UTC 2026 - Lyra OS Team
