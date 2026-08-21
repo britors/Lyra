@@ -1,4 +1,11 @@
 -------------------------------------------------------------------
+Fri Aug 21 12:00:00 UTC 2026 - Lyra OS Team
+
+- Disable repository package retention on the installed system, rewriting
+  keeppackages to 0 in every /etc/zypp/repos.d entry so updates stop filling
+  the disk with cached RPMs.
+
+-------------------------------------------------------------------
 Tue Aug 18 17:00:00 UTC 2026 - Lyra OS Team
 
 - Stop modifying a newly created user's .bashrc during installation.
