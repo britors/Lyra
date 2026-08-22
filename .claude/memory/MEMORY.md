@@ -1,0 +1,2 @@
+- [Rodando os apps Tauri do Lyra](running-lyra-tauri-apps.md) — como abrir welcome/upgrade daqui, e por que screenshot não rola
+- [Avaliação Fedora/COPR](avaliacao-migracao-fedora-copr.md) — teste de 1 semana do dnf que pode mudar a base do Lyra OS
